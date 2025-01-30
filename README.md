@@ -53,7 +53,7 @@ This application implements the following aspects of NIP-101:
 ## How to Use
 
 1.  **Install a Nostr Extension:** You will need a Nostr browser extension such as NOSTR Connect, Alby or nos2x.
-2.  **Clone the Repository** in your web server directory (you need https access to the page for making wss connect possible)
+2.  **Clone the Repository** in your web server directory. You need https access to the page for making wss connect possible (I am using ```ipfs add```)
 3.  **Open `index.html`:** Open the `index.html` file in your web browser .
 4.  **Connect to Nostr:** Click the "Connecter avec Nostr" button.
 5.  **Specify Relay URL (Optional):** If needed, add your relay url, otherwise it will use the relays provided by your Nostr extension.
