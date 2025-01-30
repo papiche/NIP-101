@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Trust UI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Nostr Trust System</h1>
+        <div id="connectionStatus">Non connecté</div>
+        <div id="profileSection" style="display: none;">
+            <div id="profileHeader">
+               <img id="profilePicture" src="" alt="Profile Picture">
+                <h2 id="profileName"></h2>
+            </div>
+           <div id="profileDetails">
+                 <p id="profileAbout"></p>
+            </div>
+            <div id="followedKeysSection" style="display: none;">
+                <h3>Followed Keys</h3>
+                <ul id="followedKeysList"></ul>
+            </div>
+        </div>
+        <div class="relay-config">
+            <label for="relayUrl">Relay URL:</label>
+            <input type="text" id="relayUrl" value="" placeholder="wss://your-relay.com">
+        </div>
+
+        <button id="connectButton">Connecter avec Nostr</button>
+        <div id="feed">
+            <!-- contenu -->
+        </div>
+        <div id="categorySelection">
+            <label for="category">Category:</label>
+            <select id="category">
+                <option value="news">Nouvelles</option>
+                <option value="tech">Technologie</option>
+                <option value="music">Musique</option>
+                <option value="other">Other</option>
+            </select>
+            <input type="text" id="customCategory" placeholder="Enter custom category" style="display: none;">
+        </div>
+
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
