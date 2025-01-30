@@ -27,6 +27,7 @@ This web-based application provides a user interface for interacting with the No
 *   **Refresh Button:** Provides a way to reload all messages.
 *  **Category selector**: Allows users to filter their feed by the most common categories.
 
+
 ## NIP-101 Implementation Details
 
 This application implements the following aspects of NIP-101:
@@ -53,10 +54,6 @@ This application implements the following aspects of NIP-101:
 
 1.  **Install a Nostr Extension:** You will need a Nostr browser extension such as Alby or nos2x.
 2.  **Clone the Repository**
-    ```bash
-    git clone <repository_url>
-    cd <repository_directory>
-    ```
 3.  **Open `index.html`:** Open the `index.html` file in your web browser.
 4.  **Connect to Nostr:** Click the "Connecter avec Nostr" button.
 5.  **Specify Relay URL (Optional):** If needed, add your relay url, otherwise it will use the relays provided by your Nostr extension.
@@ -93,6 +90,8 @@ This application implements the following aspects of NIP-101:
 *   This implementation provides a basic example of NIP-101. The trust calculation algorithm can be improved.
 *   The UI is basic and could be enhanced.
 *   The application currently handles only text notes.
+
+**NB: Some functions are not working perfectly yet.** Please raise an issue or help with code...
 
 ## Contributing
 
