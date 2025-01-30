@@ -52,7 +52,7 @@ This application implements the following aspects of NIP-101:
 
 ## How to Use
 
-1.  **Install a Nostr Extension:** You will need a Nostr browser extension such as Alby or nos2x.
+1.  **Install a Nostr Extension:** You will need a Nostr browser extension such as NOSTR Connect, Alby or nos2x.
 2.  **Clone the Repository**
 3.  **Open `index.html`:** Open the `index.html` file in your web browser.
 4.  **Connect to Nostr:** Click the "Connecter avec Nostr" button.
