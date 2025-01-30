@@ -132,7 +132,7 @@ function bech32Checksum(hrp, base32) {
 
 // --- UI helper functions
 // Function to add new post
-function addPostToFeed(event) {
+function addPostToFeed(event, section) {
     const post = document.createElement('div');
     post.classList.add('post');
     post.setAttribute('data-pubkey', event.pubkey);
@@ -150,7 +150,7 @@ function addPostToFeed(event) {
         }
 
    post.innerHTML = `<div class="post-header"> <span class="post-author"> ${pubkey}</span>  <span class="post-date"> ${formattedDate} </span></div> <p>${event.content}</p>  <div class="post-categories"> ${categoriesText}</div> <div class="trust-buttons"></div> <button class="show-trust-button">Show Ratings</button> <div class="trust-events" style="display: none;"></div>`;
-    feed.appendChild(post);
+    section.appendChild(post);
 
 
     const trustButtonsDiv = post.querySelector('.trust-buttons');
@@ -348,7 +348,6 @@ async function ratePost(postElement, mood) {
     }
 }
 
-
 // Function to connect with Nostr Connect
 connectButton.addEventListener('click', async () => {
     try {
@@ -358,7 +357,8 @@ connectButton.addEventListener('click', async () => {
         if (nostr) {
             userPubKey = await nostr.getPublicKey();
             connectionStatus.textContent = 'Connecté à Nostr';
-             try {
+            // Try to get relays and set the input value
+           try {
                 const relays = await nostr.getRelays();
 
                 if (relays) {
@@ -392,6 +392,7 @@ connectButton.addEventListener('click', async () => {
                 refreshButton.id = 'refreshButton';
                 refreshButton.addEventListener('click', refreshFeed);
                 connectButton.parentNode.insertBefore(refreshButton, connectButton.nextSibling);
+                connectButton.parentNode.insertBefore(fetchLatestButton, refreshButton.nextSibling);
             }
             relay.onopen = async () => {
                 console.log("WebSocket connection opened.");
@@ -410,13 +411,13 @@ connectButton.addEventListener('click', async () => {
                 console.log("WebSocket connection closed.");
                  if (refreshButton && refreshButton.parentNode){
                      refreshButton.parentNode.removeChild(refreshButton);
-                      refreshButton = null
-                 }
+                     fetchLatestButton.parentNode.removeChild(fetchLatestButton)
+                     refreshButton = null
+                }
             };
             relay.onerror = (error) => {
                 console.error("WebSocket error:", error);
             };
-
         } else {
             alert('Extension Nostr Connect non trouvée. Veuillez l\'installer.');
         }
@@ -437,8 +438,7 @@ async function fetchUserProfile() {
         console.log("REQ profile sent:", JSON.stringify(["REQ", profileReqId, filter]));
 
         relay.onmessage = (event) => {
-             const data = JSON.parse(event.data);
-
+            const data = JSON.parse(event.data);
             if (data[0] === "EVENT") {
                 const event = data[2];
                 try {
@@ -458,7 +458,6 @@ async function fetchUserProfile() {
                     console.error("Error parsing user profile:", error);
                     reject(error)
                 }
-
             } else if (data[0] === "EOSE") {
                 console.log('EOSE received for profile');
                 resolve();
@@ -531,9 +530,15 @@ function fetchEvents() {
         const data = JSON.parse(event.data);
         if (data[0] === "EVENT") {
             const eventData = data[2];
-              if (eventData.pubkey !== userPubKey) {  // filter out posts by current user
-                 addPostToFeed(eventData);
-              }
+             let section ;
+            if (eventData.pubkey === userPubKey) {
+               section =  document.getElementById('my-posts') || createFeedSection('My Posts')
+             } else if (follows.has(eventData.pubkey)) {
+                 section = document.getElementById('friends-posts') || createFeedSection("Friends' Posts")
+            } else {
+                section = document.getElementById('other-posts') || createFeedSection("Other Posts");
+            }
+             addPostToFeed(eventData, section);
            lastEventTime = eventData.created_at;
         }
         if (data[0] === 'EOSE') {
@@ -543,6 +548,17 @@ function fetchEvents() {
         }
     };
 };
+
+
+function createFeedSection(title) {
+    const section = document.createElement('div');
+    section.id = title.toLowerCase().replace(" ", "-")
+    const header = document.createElement('h2');
+    header.textContent = title;
+    section.appendChild(header);
+    feed.appendChild(section);
+    return section;
+}
 
 // Function to fetch and display trust events
 async function fetchAndDisplayTrustEvents(postElement, eventId) {
@@ -718,13 +734,32 @@ function handleScroll() {
 
 // Function to refresh the feed
 async function refreshFeed() {
+    try {
+        const relays = await nostr.getRelays();
+        if (relays) {
+            cachedRelays = Array.from(Object.keys(relays));
+              console.log('Relays refetched:', cachedRelays);
+         } else {
+            cachedRelays = [];
+             console.warn('Error refetching relays after disconnect:')
+          }
+     } catch (error) {
+        console.warn('Error refetching relays after disconnect:', error)
+          cachedRelays = [];
+     }
+    if (cachedRelays.length === 0) {
+          console.warn('Relays are empty cannot continue')
+          alert('Relays are empty cannot continue')
+        return;
+    }
     clearFeed();
     lastEventTime = null;
     categories.clear();
     follows.clear();
-     await fetchFollows()
+    await fetchFollows()
     fetchEvents();
 }
+
 
 // Add a refresh button next to "Connecter avec Nostr"
 let refreshButton; // Declare refreshButton outside the connect listener
@@ -738,81 +773,3 @@ fetchLatestButton.addEventListener('click', () => {
 });
 
 
-connectButton.addEventListener('click', async () => {
-    try {
-        if (!nostr) {
-            nostr = window.nostr;
-        }
-        if (nostr) {
-            userPubKey = await nostr.getPublicKey();
-            connectionStatus.textContent = 'Connecté à Nostr';
-             try {
-                const relays = await nostr.getRelays();
-
-                if (relays) {
-                    cachedRelays = Array.from(Object.keys(relays));
-                } else {
-                    cachedRelays = [];
-                }
-
-            } catch (error) {
-                console.warn('Error fetching relays:', error)
-                alert('Error fetching relays from nostr extension, please check the console.')
-                return;
-            }
-
-            console.log('Relays from nostr:', cachedRelays);
-            let relayUrl = relayUrlInput.value;
-            if (!relayUrl && cachedRelays && cachedRelays.length > 0) {
-                relayUrl = cachedRelays[0];
-                relayUrlInput.value = relayUrl;
-                console.warn('No Relay found in input, using nostr relay :', relayUrl);
-            } else if (!relayUrl) {
-                console.warn('No Relay found in input or nostr plugin, please add a relay');
-                alert('No Relay found in input or nostr plugin, please add a relay')
-                return;
-            }
-            console.log('Nostr extension found:', nostr);
-            relay = new WebSocket(relayUrl);
-            if (!refreshButton) {
-                refreshButton = document.createElement('button');
-                refreshButton.textContent = 'Rafraîchir';
-                refreshButton.id = 'refreshButton';
-                refreshButton.addEventListener('click', refreshFeed);
-                connectButton.parentNode.insertBefore(refreshButton, connectButton.nextSibling);
-                connectButton.parentNode.insertBefore(fetchLatestButton, refreshButton.nextSibling);
-
-            }
-            relay.onopen = async () => {
-                console.log("WebSocket connection opened.");
-                try {
-                    await fetchUserProfile();
-                    await fetchFollows();
-                    addCategorySelectorToUI();
-                    updateCategoryOptions();
-                   fetchEvents();
-                    window.addEventListener('scroll', handleScroll);
-                } catch (error) {
-                    console.error("Erreur lors du chargement des données utilisateur :", error)
-                }
-            };
-            relay.onclose = () => {
-                console.log("WebSocket connection closed.");
-                 if (refreshButton && refreshButton.parentNode){
-                     refreshButton.parentNode.removeChild(refreshButton);
-                      fetchLatestButton.parentNode.removeChild(fetchLatestButton)
-                      refreshButton = null
-                 }
-            };
-            relay.onerror = (error) => {
-                console.error("WebSocket error:", error);
-            };
-
-        } else {
-            alert('Extension Nostr Connect non trouvée. Veuillez l\'installer.');
-        }
-    } catch (error) {
-        console.error("Error connecting to Nostr:", error);
-        alert('Erreur de connexion avec Nostr. Veuillez vérifier votre extension.');
-    }
-});
