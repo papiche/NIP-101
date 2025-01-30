@@ -63,7 +63,7 @@ function hexToNpub(hexPubKey) {
     return bech32String;
 }
 
-function hexToNprofile1(hexPubKey, relays = []) {
+function hexToNprofile1(hexPubKey) {
     const bytes = [];
     for (let c = 0; c < hexPubKey.length; c += 2) {
         bytes.push(parseInt(hexPubKey.substring(c, c + 2), 16));
@@ -81,24 +81,7 @@ function hexToNprofile1(hexPubKey, relays = []) {
             bits -= 5;
         }
     }
-
-    if (bits > 0) {
-        base32String += base32Chars[(buffer << (5 - bits)) & 31];
-    }
-    for (const relay of relays) {
-        const relayBytes = [].concat(...relay.split('').map((c) => c.charCodeAt(0) >>> 0));
-        base32String += base32Chars[relayBytes.length];
-        for (let j = 0; j < relayBytes.length; j++) {
-            buffer = (buffer << 8) | relayBytes[j];
-            bits += 8;
-            while (bits >= 5) {
-                base32String += base32Chars[(buffer >>> (bits - 5)) & 31];
-                bits -= 5;
-            }
-        }
-    }
-
-    if (bits > 0) {
+     if (bits > 0) {
         base32String += base32Chars[(buffer << (5 - bits)) & 31];
     }
     const hrp = "nprofile";
@@ -162,11 +145,100 @@ function addPostToFeed(event, section) {
                 btn.addEventListener('click', () => ratePost(post, mood));
                 trustButtonsDiv.appendChild(btn);
             }
-            const showTrustButton = post.querySelector('.show-trust-button');
-            showTrustButton.addEventListener('click', () => toggleTrustEvents(post));
-            updateTrustLevelDisplay(post, event.pubkey);
      }
+    const showTrustButton = post.querySelector('.show-trust-button');
+    showTrustButton.addEventListener('click', () => toggleTrustEvents(post));
+    updateTrustLevelDisplay(post, event.pubkey);
+
       updateCategories(post, event);
+}
+function createFeedSection(title) {
+    const section = document.createElement('div');
+    section.id = title.toLowerCase().replace(" ", "-")
+    if (title === 'My Posts'){
+        section.classList.add('my-posts-section');
+    }
+    const header = document.createElement('h2');
+    header.textContent = title;
+    section.appendChild(header);
+    feed.appendChild(section);
+    return section;
+}
+// Function to toggle the display of trust events
+function toggleTrustEvents(postElement) {
+    const trustEventsDiv = postElement.querySelector('.trust-events');
+    const eventId = postElement.getAttribute('data-eventid');
+
+    if (trustEventsDiv.style.display === 'none') {
+        trustEventsDiv.style.display = 'block';
+        fetchAndDisplayTrustEvents(postElement, eventId);
+    } else {
+        trustEventsDiv.style.display = 'none';
+        trustEventsDiv.innerHTML = '';
+    }
+}
+
+// Function to fetch and display trust events
+async function fetchAndDisplayTrustEvents(postElement, eventId) {
+    const trustEventsDiv = postElement.querySelector('.trust-events');
+        let filter = {
+            kinds: [33],
+            "#e": [eventId]
+        };
+      const isMyPost = postElement.closest('.my-posts-section');
+    if (isMyPost) {
+        filter["authors"] = [userPubKey];
+    }
+          if (selectedCategory !== 'all' && selectedCategory !== 'general'){
+              filter["#category"] = [selectedCategory]
+        }
+    relay.send(JSON.stringify(["REQ", trustReqId, filter]));
+    trustEventsDiv.innerHTML = '';
+    let ratings = [];
+    relay.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data[0] === "EVENT") {
+            const event = data[2];
+            if (event.tags && event.tags.length > 0) {
+                let rating = null;
+                let targetPubKey = null;
+                let category = 'N/A'
+                event.tags.forEach(tag => {
+                    if (tag[0] === 'rating') {
+                        rating = parseFloat(tag[1])
+                    }
+                    if (tag[0] === 'p') {
+                        targetPubKey = tag[1]
+                    }
+                      if (tag[0] === 'category') {
+                        category = tag[1]
+                    }
+                });
+                const eventDiv = document.createElement('div');
+                eventDiv.textContent = `User: ${targetPubKey}, Rating: ${rating}, Category: ${category}`;
+                trustEventsDiv.appendChild(eventDiv);
+                if (rating) {
+                    ratings.push(rating);
+                }
+            }
+        }
+        if (data[0] === "EOSE") {
+            let averageRating = null;
+            if (ratings.length > 0) {
+                const sum = ratings.reduce((acc, rating) => acc + rating, 0);
+                averageRating = sum / ratings.length;
+            }
+            const averageDiv = document.createElement('div');
+            averageDiv.textContent = `Average Rating: ${averageRating !== null ? averageRating.toFixed(2) : "N/A"}`
+            trustEventsDiv.appendChild(averageDiv)
+
+            console.log('Trust events have been fetched')
+        }
+    }
+     relay.onerror = (error) => {
+              console.error("WebSocket error in fetchAndDisplayTrustEvents:", error);
+        };
 }
 
 function addCategorySelectorToUI() {
@@ -231,7 +303,7 @@ function addFollowedKeyToUI(pubkey) {
     const listItem = document.createElement('li');
     listItem.setAttribute('data-pubkey', pubkey);
     const link = document.createElement('a');
-    const nprofile1 = hexToNprofile1(pubkey, cachedRelays);
+    const nprofile1 = hexToNprofile1(pubkey);
     link.href = `https://nostter.app/${nprofile1}`;
     link.textContent = nprofile1;
     link.target = '_blank';
@@ -240,20 +312,6 @@ function addFollowedKeyToUI(pubkey) {
     document.getElementById('followedKeysSection').style.display = 'block';
 }
 
-
-// Function to toggle the display of trust events
-function toggleTrustEvents(postElement) {
-    const trustEventsDiv = postElement.querySelector('.trust-events');
-    const eventId = postElement.getAttribute('data-eventid');
-
-    if (trustEventsDiv.style.display === 'none') {
-        trustEventsDiv.style.display = 'block';
-        fetchAndDisplayTrustEvents(postElement, eventId);
-    } else {
-        trustEventsDiv.style.display = 'none';
-        trustEventsDiv.innerHTML = '';
-    }
-}
 
 function clearFeed() {
     while (feed.firstChild) {
@@ -512,7 +570,11 @@ async function fetchFollows() {
 
 // Function to fetch the user's note
 function fetchEvents() {
-    if (loading) return;
+    console.log("fetchEvents: fonction appelée.");
+    if (loading) {
+       console.log("fetchEvents: Chargement en cours, la requête est ignorée.")
+        return;
+    }
     loading = true;
     let filter = {
         kinds: [1],
@@ -521,15 +583,23 @@ function fetchEvents() {
     };
     if (lastEventTime) {
         filter.until = lastEventTime;
+        console.log("fetchEvents: La requête est une requête de pagination.", filter)
+    } else {
+        console.log("fetchEvents: La requête est une requête pour les dernier posts.", filter)
     }
-
-    relay.send(JSON.stringify(["REQ", feedReqId, filter]));
-    console.log('REQ fetchEvents sent', filter);
+    try {
+        relay.send(JSON.stringify(["REQ", feedReqId, filter]));
+        console.log('fetchEvents: REQ fetchEvents sent', filter);
+    } catch (error) {
+        console.error("fetchEvents: Erreur lors de l'envoi de la requête au relay:", error);
+           loading = false;
+    }
 
     relay.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data[0] === "EVENT") {
             const eventData = data[2];
+              console.log("fetchEvents: Un event a été reçu", eventData);
              let section ;
             if (eventData.pubkey === userPubKey) {
                section =  document.getElementById('my-posts') || createFeedSection('My Posts')
@@ -542,82 +612,16 @@ function fetchEvents() {
            lastEventTime = eventData.created_at;
         }
         if (data[0] === 'EOSE') {
-            console.log('EOSE for events received');
+              console.log('fetchEvents: EOSE for events received');
             loading = false;
             updateCategories();
         }
     };
+        relay.onerror = (error) => {
+        console.error("fetchEvents: WebSocket error:", error);
+           loading = false;
+    };
 };
-
-
-function createFeedSection(title) {
-    const section = document.createElement('div');
-    section.id = title.toLowerCase().replace(" ", "-")
-    const header = document.createElement('h2');
-    header.textContent = title;
-    section.appendChild(header);
-    feed.appendChild(section);
-    return section;
-}
-
-// Function to fetch and display trust events
-async function fetchAndDisplayTrustEvents(postElement, eventId) {
-    const trustEventsDiv = postElement.querySelector('.trust-events');
-        let filter = {
-            kinds: [33],
-            "#e": [eventId]
-        };
-          if (selectedCategory !== 'all' && selectedCategory !== 'general'){
-              filter["#category"] = [selectedCategory]
-        }
-    relay.send(JSON.stringify(["REQ", trustReqId, filter]));
-    trustEventsDiv.innerHTML = '';
-    let ratings = [];
-    relay.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data[0] === "EVENT") {
-            const event = data[2];
-            if (event.tags && event.tags.length > 0) {
-                let rating = null;
-                let targetPubKey = null;
-                let category = 'N/A'
-                event.tags.forEach(tag => {
-                    if (tag[0] === 'rating') {
-                        rating = parseFloat(tag[1])
-                    }
-                    if (tag[0] === 'p') {
-                        targetPubKey = tag[1]
-                    }
-                    if (tag[0] === 'category') {
-                        category = tag[1]
-                    }
-                });
-                const eventDiv = document.createElement('div');
-                eventDiv.textContent = `User: ${targetPubKey}, Rating: ${rating}, Category: ${category}`;
-                trustEventsDiv.appendChild(eventDiv);
-                if (rating) {
-                    ratings.push(rating);
-                }
-            }
-        }
-        if (data[0] === "EOSE") {
-            let averageRating = null;
-            if (ratings.length > 0) {
-                const sum = ratings.reduce((acc, rating) => acc + rating, 0);
-                averageRating = sum / ratings.length;
-            }
-            const averageDiv = document.createElement('div');
-            averageDiv.textContent = `Average Rating: ${averageRating !== null ? averageRating.toFixed(2) : "N/A"}`
-            trustEventsDiv.appendChild(averageDiv)
-
-            console.log('Trust events have been fetched')
-        }
-    }
-     relay.onerror = (error) => {
-              console.error("WebSocket error in fetchAndDisplayTrustEvents:", error);
-        };
-}
 
 
 // Function to calculate trust scores
@@ -767,9 +771,9 @@ const fetchLatestButton = document.createElement('button');
 fetchLatestButton.textContent = 'Récupérer les derniers';
 fetchLatestButton.id = 'fetchLatestButton';
 fetchLatestButton.addEventListener('click', () => {
+     console.log("Récupérer les derniers: bouton cliqué.");
         clearFeed();
         lastEventTime = null;
         fetchEvents();
 });
-
 
