@@ -13,21 +13,19 @@ let userPubKey;
 let relay;
 let follows = new Set();
 let userProfile = {};
-let trustScores = new Map();
 const profileReqId = "profile_req";
 const followsReqId = "follows_req";
 const feedReqId = "feed_req";
 const trustReqId = "trust_req";
-const limit = 20; // max number of posts loaded at once
-
+const limit = 20;
 let lastEventTime = null;
 let loading = false;
 let categories = new Set();
 let selectedCategory = 'all';
 let categorySelect;
 let customCategoryInput;
-let cachedRelays = []; // Add cache for relays
-let categorySelectorInitialized = false; // Add a flag
+let cachedRelays = [];
+let categorySelectorInitialized = false;
 
 const moodLevels = {
     '🤬': -100,
@@ -40,17 +38,14 @@ const moodLevels = {
 
 // -- helper functions
 function hexToNpub(hexPubKey) {
-    // 1. Convert hex to bytes
     const bytes = [];
     for (let c = 0; c < hexPubKey.length; c += 2) {
         bytes.push(parseInt(hexPubKey.substring(c, c + 2), 16));
     }
-    // 2. Encode bytes to base32
     const base32Chars = "abcdefghijklmnopqrstuvwxyz234567";
     let base32String = "";
     let buffer = 0;
     let bits = 0;
-
     for (let i = 0; i < bytes.length; i++) {
         buffer = (buffer << 8) | bytes[i];
         bits += 8;
@@ -59,12 +54,9 @@ function hexToNpub(hexPubKey) {
             bits -= 5;
         }
     }
-
     if (bits > 0) {
         base32String += base32Chars[(buffer << (5 - bits)) & 31];
     }
-
-    // 3. Create the Bech32 string
     const hrp = "npub";
     const checksum = bech32Checksum(hrp, base32String);
     const bech32String = hrp + "1" + base32String + checksum;
@@ -72,12 +64,10 @@ function hexToNpub(hexPubKey) {
 }
 
 function hexToNprofile1(hexPubKey, relays = []) {
-    // 1. Convert hex pubkey to bytes
     const bytes = [];
     for (let c = 0; c < hexPubKey.length; c += 2) {
         bytes.push(parseInt(hexPubKey.substring(c, c + 2), 16));
     }
-    // 2. Encode bytes to base32
     const base32Chars = "abcdefghijklmnopqrstuvwxyz234567";
     let base32String = "";
     let buffer = 0;
@@ -95,7 +85,6 @@ function hexToNprofile1(hexPubKey, relays = []) {
     if (bits > 0) {
         base32String += base32Chars[(buffer << (5 - bits)) & 31];
     }
-    // 2.5 Add relay hints bytes (length of each URL in a byte and URL)
     for (const relay of relays) {
         const relayBytes = [].concat(...relay.split('').map((c) => c.charCodeAt(0) >>> 0));
         base32String += base32Chars[relayBytes.length];
@@ -112,7 +101,6 @@ function hexToNprofile1(hexPubKey, relays = []) {
     if (bits > 0) {
         base32String += base32Chars[(buffer << (5 - bits)) & 31];
     }
-    // 3. Create the Bech32 string
     const hrp = "nprofile";
     const checksum = bech32Checksum(hrp, base32String);
     const bech32String = hrp + "1" + base32String + checksum;
@@ -149,28 +137,41 @@ function addPostToFeed(event) {
     post.classList.add('post');
     post.setAttribute('data-pubkey', event.pubkey);
     post.setAttribute('data-eventid', event.id);
-    post.innerHTML = `<p>${event.content}</p><div class="trust-buttons"></div> <button class="show-trust-button">Show Ratings</button> <div class="trust-events" style="display: none;"></div>`;
+
+    const date = new Date(event.created_at * 1000);
+    const formattedDate = date.toLocaleString();
+    const pubkey = hexToNpub(event.pubkey);
+    let categoriesText = '';
+        if(event.tags){
+            event.tags.forEach(tag => {
+                 if(tag[0] === 'category')
+                  categoriesText += ` <span class="category-tag">${tag[1]}</span>`
+            })
+        }
+
+   post.innerHTML = `<div class="post-header"> <span class="post-author"> ${pubkey}</span>  <span class="post-date"> ${formattedDate} </span></div> <p>${event.content}</p>  <div class="post-categories"> ${categoriesText}</div> <div class="trust-buttons"></div> <button class="show-trust-button">Show Ratings</button> <div class="trust-events" style="display: none;"></div>`;
     feed.appendChild(post);
 
+
     const trustButtonsDiv = post.querySelector('.trust-buttons');
-    for (const mood in moodLevels) {
-        const btn = document.createElement('button');
-        btn.textContent = mood;
-        btn.addEventListener('click', () => ratePost(post, mood));
-        trustButtonsDiv.appendChild(btn);
-    }
 
-    const showTrustButton = post.querySelector('.show-trust-button');
-    showTrustButton.addEventListener('click', () => toggleTrustEvents(post));
-
-    updateTrustLevelDisplay(post, event.pubkey);
-    // updateCategories
-    updateCategories(post, event)
+     if (event.pubkey !== userPubKey) {
+            for (const mood in moodLevels) {
+                const btn = document.createElement('button');
+                btn.textContent = mood;
+                btn.addEventListener('click', () => ratePost(post, mood));
+                trustButtonsDiv.appendChild(btn);
+            }
+            const showTrustButton = post.querySelector('.show-trust-button');
+            showTrustButton.addEventListener('click', () => toggleTrustEvents(post));
+            updateTrustLevelDisplay(post, event.pubkey);
+     }
+      updateCategories(post, event);
 }
 
 function addCategorySelectorToUI() {
     if (categorySelectorInitialized) {
-        return; // Do not re-initialize if already done
+        return;
     }
 
     categorySelect = document.createElement('select');
@@ -217,36 +218,26 @@ function addCategorySelectorToUI() {
         }
     });
 
-    categorySelectorInitialized = true; // set the flag
+    categorySelectorInitialized = true;
 }
-
 
 
 // Function to add followed key to the UI
 function addFollowedKeyToUI(pubkey) {
     const followedKeysList = document.getElementById('followedKeysList');
-    console.log('addFollowedKeyToUI called for pubkey:', pubkey);
-
-    // Check if the key already exists in the list
     if (followedKeysList.querySelector(`[data-pubkey="${pubkey}"]`)) {
-        console.log('Pubkey already exists, skipping:', pubkey);
-        return; // Do not add if it already exists
+        return;
     }
-
     const listItem = document.createElement('li');
     listItem.setAttribute('data-pubkey', pubkey);
     const link = document.createElement('a');
-
-    // Convert hex pubkey to nprofile1 format using cached relays
     const nprofile1 = hexToNprofile1(pubkey, cachedRelays);
-    console.log('nprofile1 generated:', nprofile1);
     link.href = `https://nostter.app/${nprofile1}`;
     link.textContent = nprofile1;
     link.target = '_blank';
     listItem.appendChild(link);
     followedKeysList.appendChild(listItem);
     document.getElementById('followedKeysSection').style.display = 'block';
-    console.log('Pubkey added to UI:', pubkey);
 }
 
 
@@ -271,7 +262,7 @@ function clearFeed() {
 }
 
 function filterFeed() {
-    clearFeed(); // Clear existing posts
+    clearFeed();
     lastEventTime = null;
     fetchEvents()
 }
@@ -284,28 +275,22 @@ function updateCategories(post, event) {
             }
         })
     }
-
-    // update categories UI
-     updateCategoryOptions();
+    updateCategoryOptions();
 }
 
 function updateCategoryOptions() {
     if (!categorySelect) return;
-
     categorySelect.innerHTML = '';
-
     const allOption = document.createElement('option');
     allOption.value = 'all';
     allOption.textContent = 'All';
     categorySelect.appendChild(allOption);
-
     categories.forEach(category => {
         const option = document.createElement('option');
         option.value = category;
         option.textContent = category;
         categorySelect.appendChild(option);
     });
-
     const customOption = document.createElement('option');
     customOption.value = 'custom';
     customOption.textContent = 'Custom';
@@ -342,15 +327,14 @@ async function ratePost(postElement, mood) {
         created_at: Math.floor(Date.now() / 1000)
     };
 
-    // Sign the event
     let signedEvent;
     try {
         signedEvent = await nostr.signEvent(trustEvent);
     } catch (error) {
         console.error("Error signing the event:", error);
         alert("Erreur lors de la signature de l'événement. Vérifiez l'extension Nostr Connect.")
+          return;
     }
-
     try {
         if (signedEvent) {
             relay.send(JSON.stringify(["EVENT", signedEvent]));
@@ -374,12 +358,11 @@ connectButton.addEventListener('click', async () => {
         if (nostr) {
             userPubKey = await nostr.getPublicKey();
             connectionStatus.textContent = 'Connecté à Nostr';
-            // Try to get relays and set the input value
-            try {
+             try {
                 const relays = await nostr.getRelays();
 
                 if (relays) {
-                    cachedRelays = Array.from(Object.keys(relays)); // Extract keys
+                    cachedRelays = Array.from(Object.keys(relays));
                 } else {
                     cachedRelays = [];
                 }
@@ -390,9 +373,7 @@ connectButton.addEventListener('click', async () => {
                 return;
             }
 
-
             console.log('Relays from nostr:', cachedRelays);
-
             let relayUrl = relayUrlInput.value;
             if (!relayUrl && cachedRelays && cachedRelays.length > 0) {
                 relayUrl = cachedRelays[0];
@@ -403,30 +384,35 @@ connectButton.addEventListener('click', async () => {
                 alert('No Relay found in input or nostr plugin, please add a relay')
                 return;
             }
-
             console.log('Nostr extension found:', nostr);
-
             relay = new WebSocket(relayUrl);
-
+            if (!refreshButton) {
+                refreshButton = document.createElement('button');
+                refreshButton.textContent = 'Rafraîchir';
+                refreshButton.id = 'refreshButton';
+                refreshButton.addEventListener('click', refreshFeed);
+                connectButton.parentNode.insertBefore(refreshButton, connectButton.nextSibling);
+            }
             relay.onopen = async () => {
                 console.log("WebSocket connection opened.");
-                 try {
-                        await fetchUserProfile();
-                        await fetchFollows();
-                        addCategorySelectorToUI();
-                         updateCategoryOptions();
-                         fetchEvents();
-                        // Add scroll listener for pagination
-                        window.addEventListener('scroll', handleScroll);
-                    } catch (error) {
-                        console.error("Erreur lors du chargement des données utilisateur :", error)
+                try {
+                    await fetchUserProfile();
+                    await fetchFollows();
+                    addCategorySelectorToUI();
+                    updateCategoryOptions();
+                   fetchEvents();
+                    window.addEventListener('scroll', handleScroll);
+                } catch (error) {
+                    console.error("Erreur lors du chargement des données utilisateur :", error)
                 }
             };
-
             relay.onclose = () => {
                 console.log("WebSocket connection closed.");
+                 if (refreshButton && refreshButton.parentNode){
+                     refreshButton.parentNode.removeChild(refreshButton);
+                      refreshButton = null
+                 }
             };
-
             relay.onerror = (error) => {
                 console.error("WebSocket error:", error);
             };
@@ -451,20 +437,14 @@ async function fetchUserProfile() {
         console.log("REQ profile sent:", JSON.stringify(["REQ", profileReqId, filter]));
 
         relay.onmessage = (event) => {
-            console.log("relay.onmessage received:", event) // Log the raw message
-            const data = JSON.parse(event.data);
+             const data = JSON.parse(event.data);
 
             if (data[0] === "EVENT") {
                 const event = data[2];
-                console.log("EVENT received for profile:", event);
                 try {
                     userProfile = JSON.parse(event.content);
-                    console.log('User Profile parsed:', userProfile);
-
-                    // show profile Section
                     profileSection.style.display = 'block'
-
-                    if (userProfile.name) {
+                     if (userProfile.name) {
                         profileName.textContent = userProfile.name;
                     }
                     if (userProfile.picture) {
@@ -481,24 +461,24 @@ async function fetchUserProfile() {
 
             } else if (data[0] === "EOSE") {
                 console.log('EOSE received for profile');
-                resolve(); // Resolve the promise when EOSE is received.
+                resolve();
             } else if (data[0] === 'NOTICE') {
                 console.log('NOTICE received for profile:', data)
-                reject(data); // Reject on 'NOTICE'
+                reject(data);
             }
         }
-        relay.onerror = (error) => {
+         relay.onerror = (error) => {
             console.error("WebSocket error in fetchUserProfile:", error);
-            reject(error); // Reject the promise if WebSocket has an error.
+            reject(error);
         };
-    })
+    });
 }
 
 /// Function to fetch the public key the user is following
 async function fetchFollows() {
     return new Promise((resolve, reject) => {
         const followedKeysList = document.getElementById('followedKeysList');
-        followedKeysList.innerHTML = ''; // Clear existing list
+        followedKeysList.innerHTML = '';
 
         const filter = {
             kinds: [3],
@@ -524,6 +504,10 @@ async function fetchFollows() {
                 resolve();
             }
         };
+         relay.onerror = (error) => {
+            console.error("WebSocket error in fetchFollows:", error);
+            reject(error);
+        };
     });
 }
 
@@ -533,13 +517,12 @@ function fetchEvents() {
     loading = true;
     let filter = {
         kinds: [1],
-        authors: [...follows, userPubKey],
+       // authors: [...follows, userPubKey], // removed authors to fetch all post
         limit: limit
     };
-    // Remove the until filter so we don't limit by time
-    /*if (lastEventTime) {
+    if (lastEventTime) {
         filter.until = lastEventTime;
-    }*/
+    }
 
     relay.send(JSON.stringify(["REQ", feedReqId, filter]));
     console.log('REQ fetchEvents sent', filter);
@@ -548,13 +531,15 @@ function fetchEvents() {
         const data = JSON.parse(event.data);
         if (data[0] === "EVENT") {
             const eventData = data[2];
-            addPostToFeed(eventData);
+              if (eventData.pubkey !== userPubKey) {  // filter out posts by current user
+                 addPostToFeed(eventData);
+              }
            lastEventTime = eventData.created_at;
         }
         if (data[0] === 'EOSE') {
             console.log('EOSE for events received');
             loading = false;
-             updateCategories();
+            updateCategories();
         }
     };
 };
@@ -613,7 +598,11 @@ async function fetchAndDisplayTrustEvents(postElement, eventId) {
             console.log('Trust events have been fetched')
         }
     }
+     relay.onerror = (error) => {
+              console.error("WebSocket error in fetchAndDisplayTrustEvents:", error);
+        };
 }
+
 
 // Function to calculate trust scores
 async function calculateTrustScores(targetPubKey, category) {
@@ -676,62 +665,6 @@ async function calculateTrustScores(targetPubKey, category) {
     });
 }
 
-// Function to fetch kind 33 events & display Trust event list
-async function fetchAndDisplayTrustEvents(postElement, eventId) {
-    const trustEventsDiv = postElement.querySelector('.trust-events');
-        let filter = {
-            kinds: [33],
-            "#e": [eventId]
-        };
-          if (selectedCategory !== 'all' && selectedCategory !== 'general'){
-              filter["#category"] = [selectedCategory]
-        }
-    relay.send(JSON.stringify(["REQ", trustReqId, filter]));
-    trustEventsDiv.innerHTML = '';
-    let ratings = [];
-    relay.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data[0] === "EVENT") {
-            const event = data[2];
-            if (event.tags && event.tags.length > 0) {
-                let rating = null;
-                let targetPubKey = null;
-                let category = 'N/A'
-                event.tags.forEach(tag => {
-                    if (tag[0] === 'rating') {
-                        rating = parseFloat(tag[1])
-                    }
-                    if (tag[0] === 'p') {
-                        targetPubKey = tag[1]
-                    }
-                    if (tag[0] === 'category') {
-                        category = tag[1]
-                    }
-                });
-                const eventDiv = document.createElement('div');
-                eventDiv.textContent = `User: ${targetPubKey}, Rating: ${rating}, Category: ${category}`;
-                trustEventsDiv.appendChild(eventDiv);
-                if (rating) {
-                    ratings.push(rating);
-                }
-            }
-        }
-        if (data[0] === "EOSE") {
-            let averageRating = null;
-            if (ratings.length > 0) {
-                const sum = ratings.reduce((acc, rating) => acc + rating, 0);
-                averageRating = sum / ratings.length;
-            }
-            const averageDiv = document.createElement('div');
-            averageDiv.textContent = `Average Rating: ${averageRating !== null ? averageRating.toFixed(2) : "N/A"}`
-            trustEventsDiv.appendChild(averageDiv)
-
-            console.log('Trust events have been fetched')
-        }
-    }
-}
-
 
 function calculateAverage(ratings) {
     if (ratings.length === 0) {
@@ -783,20 +716,103 @@ function handleScroll() {
     }
 }
 
-
 // Function to refresh the feed
 async function refreshFeed() {
-    clearFeed(); // Clear existing posts
+    clearFeed();
     lastEventTime = null;
-    categories.clear(); // Clear existing categories
+    categories.clear();
     follows.clear();
-    await fetchFollows();
+     await fetchFollows()
     fetchEvents();
 }
 
 // Add a refresh button next to "Connecter avec Nostr"
-const refreshButton = document.createElement('button');
-refreshButton.textContent = 'Rafraîchir';
-refreshButton.id = 'refreshButton';
-refreshButton.addEventListener('click', refreshFeed);
-connectButton.parentNode.insertBefore(refreshButton, connectButton.nextSibling);
+let refreshButton; // Declare refreshButton outside the connect listener
+const fetchLatestButton = document.createElement('button');
+fetchLatestButton.textContent = 'Récupérer les derniers';
+fetchLatestButton.id = 'fetchLatestButton';
+fetchLatestButton.addEventListener('click', () => {
+        clearFeed();
+        lastEventTime = null;
+        fetchEvents();
+});
+
+
+connectButton.addEventListener('click', async () => {
+    try {
+        if (!nostr) {
+            nostr = window.nostr;
+        }
+        if (nostr) {
+            userPubKey = await nostr.getPublicKey();
+            connectionStatus.textContent = 'Connecté à Nostr';
+             try {
+                const relays = await nostr.getRelays();
+
+                if (relays) {
+                    cachedRelays = Array.from(Object.keys(relays));
+                } else {
+                    cachedRelays = [];
+                }
+
+            } catch (error) {
+                console.warn('Error fetching relays:', error)
+                alert('Error fetching relays from nostr extension, please check the console.')
+                return;
+            }
+
+            console.log('Relays from nostr:', cachedRelays);
+            let relayUrl = relayUrlInput.value;
+            if (!relayUrl && cachedRelays && cachedRelays.length > 0) {
+                relayUrl = cachedRelays[0];
+                relayUrlInput.value = relayUrl;
+                console.warn('No Relay found in input, using nostr relay :', relayUrl);
+            } else if (!relayUrl) {
+                console.warn('No Relay found in input or nostr plugin, please add a relay');
+                alert('No Relay found in input or nostr plugin, please add a relay')
+                return;
+            }
+            console.log('Nostr extension found:', nostr);
+            relay = new WebSocket(relayUrl);
+            if (!refreshButton) {
+                refreshButton = document.createElement('button');
+                refreshButton.textContent = 'Rafraîchir';
+                refreshButton.id = 'refreshButton';
+                refreshButton.addEventListener('click', refreshFeed);
+                connectButton.parentNode.insertBefore(refreshButton, connectButton.nextSibling);
+                connectButton.parentNode.insertBefore(fetchLatestButton, refreshButton.nextSibling);
+
+            }
+            relay.onopen = async () => {
+                console.log("WebSocket connection opened.");
+                try {
+                    await fetchUserProfile();
+                    await fetchFollows();
+                    addCategorySelectorToUI();
+                    updateCategoryOptions();
+                   fetchEvents();
+                    window.addEventListener('scroll', handleScroll);
+                } catch (error) {
+                    console.error("Erreur lors du chargement des données utilisateur :", error)
+                }
+            };
+            relay.onclose = () => {
+                console.log("WebSocket connection closed.");
+                 if (refreshButton && refreshButton.parentNode){
+                     refreshButton.parentNode.removeChild(refreshButton);
+                      fetchLatestButton.parentNode.removeChild(fetchLatestButton)
+                      refreshButton = null
+                 }
+            };
+            relay.onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+
+        } else {
+            alert('Extension Nostr Connect non trouvée. Veuillez l\'installer.');
+        }
+    } catch (error) {
+        console.error("Error connecting to Nostr:", error);
+        alert('Erreur de connexion avec Nostr. Veuillez vérifier votre extension.');
+    }
+});
