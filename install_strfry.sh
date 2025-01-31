@@ -1,4 +1,8 @@
 #!/bin/bash
+## IPFS BINARY
+## strfry + strfry.conf
+strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
+strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
 
 # Définition des chemins
 WORKSPACE_DIR="$HOME/.zen/workspace"
@@ -63,7 +67,74 @@ install_strfry() {
     fi
 }
 
-# Exécution des fonctions
+# Fonction pour installer nostr-commander-rs
+install_nostr_commander() {
+    echo "Installation de nostr-commander-rs..."
+    ## nostr-commander-rs
+    nostr_amd64="/ipfs/QmeP6QD7Men8KtgX9mCNXFuGM5edTLQ7gsUWEvmpBNGZUo/nostr-commander-rs"
+    nostr_arm64="/ipfs/QmcwSZmM3TpEViT39gDAtkDsSuWtZvQNyW659dMDgptKaW/nostr-commander-rs"
+
+    # Déterminer l'architecture
+    ARCH=$(uname -m)
+
+    # Définir l'URL IPFS en fonction de l'architecture
+    if [ "$ARCH" = "x86_64" ]; then
+        NOSTR_COMMANDER_CID="$nostr_amd64"
+    elif [ "$ARCH" = "aarch64" ]; then
+        NOSTR_COMMANDER_CID="$nostr_arm64"
+    else
+        echo "Architecture non supportée pour nostr-commander-rs"
+        return 1
+    fi
+
+    # Télécharger et installer nostr-commander-rs
+    ipfs get -o "$HOME/.local/bin/nostr-commander-rs" "$NOSTR_COMMANDER_CID"
+    chmod +x "$HOME/.local/bin/nostr-commander-rs"
+
+    CREDENTIALS_DIR="$HOME/.local/share/nostr-commander-rs"
+    mkdir -p $CREDENTIALS_DIR
+    CREDENTIALS_FILE="$CREDENTIALS_DIR/credentials.json"
+
+    echo -e "${GREEN}Création du fichier credentials.json...${NC}"
+    mkdir -p "$CREDENTIALS_DIR"
+    cat > "$CREDENTIALS_FILE" <<EOL
+{
+  "secret_key_bech32": "nsec1hsmhy4d6ve325gxpgk0lzlmu4vymf49r4gq07sw5wjsezz74nrls8cryds",
+  "public_key_bech32": "npub1eq0gkvwm43jc506neat4y8t4cyp4z2w846qtxexuc5syh9h5v47sptlfff",
+  "relays": [
+    {
+      "url": "wss://relay.g1sms.fr/",
+      "proxy": null
+    },
+    {
+      "url": "ws://127.0.0.1:7777/",
+      "proxy": null
+    }
+  ],
+  "metadata": {
+    "name": "coucou",
+    "display_name": "coucou",
+    "about": "coucou",
+    "picture": "http://127.0.0.1:8080/ipfs/QmbUAMgnTm4dFnH66kgmUXpBBqUMdTmfedvzuYTmgXd8s9",
+    "nip05": "support@qo-op.com"
+  },
+  "contacts": [],
+  "subscribed_pubkeys": [],
+  "subscribed_authors": [],
+  "subscribed_channels": []
+}
+EOL
+
+    echo "nostr-commander-rs installé"
+}
+
+########################################
+## INSTALL NOSTR CLIENT
+[[ ! $(which nostr-commander-rs) && $(which ipfs) ]] && install_nostr_commander
+
+
+########################################
+## INSTALL NOSTR RELAY
 if [[ ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
     install_dependencies
     clone_or_update_repo
