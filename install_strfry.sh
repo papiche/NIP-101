@@ -54,7 +54,7 @@ update_strfry() {
 
 # Fonction pour installer ou mettre à jour strfry
 install_strfry() {
-    if [[ $(diff "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/strfry") ]]; then
+    if [[ -s "$STRFRY_SRC_DIR/strfry" && ! -s "$STRFRY_INSTALL_DIR/strfry") ]]; then
         echo "Installation strfry..."
         cp "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/"
     else
