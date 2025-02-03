@@ -64,7 +64,7 @@ install_strfry() {
     # Copie du fichier de configuration s'il n'existe pas déjà
     if [ ! -f "$STRFRY_INSTALL_DIR/strfry.conf" ]; then
         echo "$STRFRY_INSTALL_DIR/strfry.conf"
-        cp "$STRFRY_SRC_DIR/strfry.conf" "$STRFRY_INSTALL_DIR/"
+        cat "$STRFRY_SRC_DIR/strfry.conf" | sed "s~127.0.0.1~0.0.0.0~g" > "$STRFRY_INSTALL_DIR/strfry.conf"
     fi
 }
 
