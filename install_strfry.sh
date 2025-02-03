@@ -11,7 +11,7 @@ STRFRY_INSTALL_DIR="$HOME/.zen/strfry"
 
 # Création des répertoires nécessaires
 mkdir -p "$WORKSPACE_DIR"
-mkdir -p "$STRFRY_INSTALL_DIR"
+mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/"
 
 # Fonction pour installer les dépendances (basée sur Ubuntu/Debian)
 install_dependencies() {
