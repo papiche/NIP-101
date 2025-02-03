@@ -10,6 +10,7 @@ STRFRY_SRC_DIR="$WORKSPACE_DIR/strfry"
 STRFRY_INSTALL_DIR="$HOME/.zen/strfry"
 
 # Création des répertoires nécessaires
+mkdir -p ./tmp
 mkdir -p "$WORKSPACE_DIR"
 mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/"
 
