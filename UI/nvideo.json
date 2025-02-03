@@ -1,0 +1,33 @@
+{
+  "content": "Newcastle 1x0 Fulham ⚽ Murphy / 37' 🏆 Premier League\nhttps://cdn.nostrcheck.me/bafe52c49892f29d73fca8b5b3a0e1fb5bf43d21ee10aa053b673cdeaa30ef3b.mp4\n\n#GaMeTiMe Daily Sports Snap 📸 ",
+  "created_at": 1738425376,
+  "id": "74a1c745c0f233d7bdee32bdc057e4619ff872ab7e3398f1ecc33c4689177cda",
+  "kind": 1,
+  "pubkey": "0403c86a1bb4cfbc34c8a493fbd1f0d158d42dd06d03eaa3720882a066d3a378",
+  "sig": "e92a341aea33ddb46fb11f1b009d58c8a6316f33b87e505d29706a8204e190a321d86354c5ef52ced7d35b09d9e11adfec9130ad82d0dd74808d243993c413e7",
+  "tags": [
+    [
+      "t",
+      "GaMeTiMe"
+    ],
+    [
+      "t",
+      "gametime"
+    ],
+    [
+      "r",
+      "https://cdn.nostrcheck.me/bafe52c49892f29d73fca8b5b3a0e1fb5bf43d21ee10aa053b673cdeaa30ef3b.mp4"
+    ],
+    [
+      "imeta",
+      "url https://cdn.nostrcheck.me/bafe52c49892f29d73fca8b5b3a0e1fb5bf43d21ee10aa053b673cdeaa30ef3b.mp4",
+      "x bafe52c49892f29d73fca8b5b3a0e1fb5bf43d21ee10aa053b673cdeaa30ef3b",
+      "size 723166",
+      "m video/mp4",
+      "dim 640x362",
+      "blurhash i9EpfG%gX9s*bJoxs:tQWTxzW[NFaeWUogxatQs;xNx]f-sltRj]odofjbxKR:R$Rkt7tRt7t7ogx2spf,niW=t6f6WVjZ",
+      "ox bafe52c49892f29d73fca8b5b3a0e1fb5bf43d21ee10aa053b673cdeaa30ef3b",
+      "alt "
+    ]
+  ]
+}
