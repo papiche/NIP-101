@@ -54,7 +54,7 @@ update_strfry() {
 
 # Fonction pour installer ou mettre à jour strfry
 install_strfry() {
-    if [[ -s "$STRFRY_SRC_DIR/strfry" && ! -s "$STRFRY_INSTALL_DIR/strfry") ]]; then
+    if [[ -s "$STRFRY_SRC_DIR/strfry" && ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
         echo "Installation strfry..."
         cp "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/"
     else
@@ -104,6 +104,10 @@ install_nostr_commander() {
   "relays": [
     {
       "url": "wss://relay.g1sms.fr/",
+      "proxy": null
+    },
+    {
+      "url": "wss://relay.copylaradio.com/",
       "proxy": null
     },
     {
