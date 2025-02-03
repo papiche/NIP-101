@@ -13,7 +13,7 @@ OLD_PID=$(cat $HOME/.zen/strfry/.pid)
 ## LAUNCHING NEW RELAY
 cd $HOME/.zen/strfry/
 mkdir -p strfry-db/
-./strfry relay 2>&1>$MY_PATH/tmp/strfry.log &
+./strfry relay 2>&1>$HOME/.zen/tmp/strfry.log &
 echo $! > .pid
 cd -
 
