@@ -3,18 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Network UI</title>
+    <title>Nostr Social</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
 </head>
 <body>
-    <div id="app">
-        <div id="cardContainer" class="card-container">
-            <!-- N1 cards will be generated here -->
-        </div>
-         <div id="n2Container" class="card-container n2-container" style="display: none;">
-          <!-- N2 cards will be generated here -->
-        </div>
-    </div>
-   <script src="app.js"></script>
+
+    <header>
+        <h1>Nostr Social</h1>
+    </header>
+
+    <main>
+        <section id="connection-section">
+            <button id="connectButton">Connect to Nostr</button>
+            <div id="status"></div>
+        </section>
+
+        <section id="profile-section">
+            <h2>Profile</h2>
+            <div id="profile-container">
+                <img id="profileAvatar" src="default_avatar.png" alt="Avatar">
+                <div id="profile-info">
+                    <h3 id="profileName"></h3>
+                    <p id="profileAbout"></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="relay-selection-section">
+            <h2>Select Relay for Messages</h2>
+            <div id="relay-selection-buttons">
+                <!-- Relay buttons will be dynamically added here -->
+            </div>
+        </section>
+
+        <section id="messages-section">
+            <h2>Send Message</h2>
+            <textarea id="messageInput" placeholder="Message"></textarea>
+            <button id="sendMessageButton" disabled>Send Message</button>
+        </section>
+
+        <section id="carousel-section">
+            <h2>Latest Messages (Carousel)</h2>
+            <label for="messageSource">Message Source:</label>
+            <select id="messageSource">
+                <option value="own">My Messages</option>
+                <option value="friends">Friends' Messages</option>
+                <option value="relay">Relay's Last 30</option>
+            </select>
+            <label for="tagFilter">Filter by Tag:</label>
+            <input type="text" id="tagFilter" placeholder="Enter tag to filter">
+            <div class="carousel">
+                <button class="carousel-button prev" data-direction="prev"><i class="fas fa-chevron-left"></i></button>
+                <div class="carousel-track-container">
+                    <ul class="carousel-track" id="messageCarousel">
+                        <!-- Messages will be dynamically added here -->
+                    </ul>
+                </div>
+                <button class="carousel-button next" data-direction="next"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </section>
+
+        <section id="friends-messages-section">
+            <h2>Friends' Messages</h2>
+            <ul id="friendsMessagesList">
+                <!-- Friends' messages will be dynamically added here -->
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2024 Nostr Social App</p>
+    </footer>
+
+    <div id="debug"></div>
+
+    <script src="script.js"></script>
 </body>
 </html>

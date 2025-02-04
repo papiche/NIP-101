@@ -106,4 +106,4 @@ This project is provided as-is and for educational and experimental purposes onl
 *   [NIP-101: Decentralized Trust System for Nostr](https://github.com/papiche/nostr-nips/blob/NIP-101/101.md)
 *   [Nostr protocol](https://github.com/nostr-protocol)
 ### - (^‿‿^) - 
-/ipfs/QmSJn2EUWFq8ttkPpwnLKuoWhYYhWxtcvCPEC5yG87DA3L
+/ipfs/QmcioFah8N5cdc4L6KjPg8GaUyEL4PmrChSs8nzbABwu7T
