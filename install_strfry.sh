@@ -66,6 +66,8 @@ install_strfry() {
         echo "$STRFRY_INSTALL_DIR/strfry.conf"
         cat "$STRFRY_SRC_DIR/strfry.conf" | sed "s~127.0.0.1~0.0.0.0~g" > "$STRFRY_INSTALL_DIR/strfry.conf"
     fi
+    ## COPY (RE)START SCRIPT
+    cp start_strfry-relay.sh "$STRFRY_INSTALL_DIR/start.sh"
 }
 
 # Fonction pour installer nostr-commander-rs

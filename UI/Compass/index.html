@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Compass</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Nostr Compass</h1>
+        <div id="status">Not Connected</div>
+    </header>
+
+    <main>
+        <section id="profile-input">
+            <h2>Enter Profile Information</h2>
+            <label for="profilePubKey">Profile Pubkey:</label>
+            <input type="text" id="profilePubKey" placeholder="Enter Pubkey">
+            <label for="relayUrl">Relay URL:</label>
+            <input type="text" id="relayUrl" placeholder="Enter Relay URL">
+            <button id="fetchProfileButton">Fetch Profile</button>
+        </section>
+
+        <section id="profile-display">
+            <h2>Profile</h2>
+            <div id="profile-container">
+                <img id="profileAvatar" src="default_avatar.png" alt="Avatar">
+                <img id="profileBanner" src="" alt="Banner">
+                <div id="profile-info">
+                    <h3 id="profileName"></h3>
+                    <p id="profileAbout"></p>
+                    <p id="profileNip05"></p>
+                    <p id="profileLud16"></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="relays-display">
+            <h2>Relays</h2>
+            <ul id="relaysList">
+                <!-- Relays will be displayed here -->
+            </ul>
+        </section>
+
+        <section id="relations-display">
+            <h2>Relations</h2>
+            <h3>P2P (Direct Follows)</h3>
+            <ul id="p2pList">
+                <!-- P2P relations will be displayed here -->
+            </ul>
+            <h3>12P (Second Degree)</h3>
+            <ul id="twelvePList">
+                <!-- 12P relations will be displayed here -->
+            </ul>
+            <h3>P21 (Third Degree)</h3>
+            <ul id="p21List">
+                <!-- P21 relations will be displayed here -->
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2024 Nostr Compass</p>
+    </footer>
+
+    <div id="debug"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
