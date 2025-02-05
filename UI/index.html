@@ -6,7 +6,6 @@
     <title>Nostr Social</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
 </head>
 <body>
 
@@ -31,6 +30,26 @@
             </div>
         </section>
 
+        <section id="relay-selection-section">
+            <h2>Select Relay for Messages</h2>
+            <div id="relay-selection-buttons">
+                <!-- Relay buttons will be dynamically added here -->
+            </div>
+        </section>
+
+         <section id="media-upload-section">
+            <h2>Upload Media</h2>
+            <input type="file" id="mediaInput">
+            <button id="uploadButton">Upload</button>
+            <div id="mediaInfo"></div>
+        </section>
+
+        <section id="messages-section">
+            <h2>Send Message</h2>
+            <textarea id="messageInput" placeholder="Message"></textarea>
+            <button id="sendMessageButton" disabled>Send Message</button>
+        </section>
+
         <section id="carousel-section">
             <h2>Latest Messages (Carousel)</h2>
             <label for="messageSource">Message Source:</label>
@@ -52,20 +71,12 @@
             </div>
         </section>
 
-        <section id="relay-selection-section">
-            <h2>Select Relay for Messages</h2>
-            <div id="relay-selection-buttons">
-                <!-- Relay buttons will be dynamically added here -->
-            </div>
+        <section id="friends-messages-section">
+            <h2>Friends' Messages</h2>
+            <ul id="friendsMessagesList">
+                <!-- Friends' messages will be dynamically added here -->
+            </ul>
         </section>
-
-        <section id="messages-section">
-            <h2>Send Message</h2>
-            <textarea id="messageInput" placeholder="Message"></textarea>
-            <button id="sendMessageButton" disabled>Send Message</button>
-        </section>
-
-
     </main>
 
     <footer>

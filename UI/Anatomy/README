@@ -1,0 +1,73 @@
+# Nostr Anatomy
+
+## Description
+
+Nostr Anatomy est un outil d'exploration et d'analyse des événements Nostr. Il permet aux développeurs, aux chercheurs et aux utilisateurs avancés de plonger dans les détails des événements, d'inspecter et de modifier les profils, et de mieux comprendre le protocole Nostr.
+
+## Fonctionnalités
+
+-   **Connexion Nostr Connect :** Se connecter à l'aide de l'extension Nostr Connect.
+-   **Exploration des Relais :** Liste et sélection des relais connectés.
+-   **Analyse des Événements :**
+    -   Récupération d'événements par ID ou par type (kind).
+    -   Affichage détaillé des événements dans une liste déroulante.
+    -   Visualisation claire des informations de l'événement (ID, pubkey, date, kind, tags, contenu, signature).
+-   **Gestion des Profils :**
+    -   Récupération des profils par clé publique.
+    -   Affichage des informations du profil (nom, description, image, NIP-05, etc.).
+    -   Modification des informations du profil (nom, description, image, etc.) et publication des mises à jour.
+-   **Aide sur les Kinds :** Description des différents types d'événements Nostr.
+-   **Interface Utilisateur Améliorée :** Interface claire et facile à utiliser.
+
+## Technologies Utilisées
+
+-   HTML
+-   CSS
+-   JavaScript
+-   Nostr Connect
+-   DOMPurify (pour la validation des entrées)
+-   highlight.js (pour la coloration syntaxique du JSON)
+
+## Installation
+
+1.  Assurez-vous d'avoir l'extension Nostr Connect installée et configurée.
+2.  Clonez ce dépôt :
+
+    ```bash
+    git clone [URL du dépôt]
+    cd nostr-anatomy
+    ```
+3.  Ouvrez `index.html` dans votre navigateur.
+
+## Utilisation
+
+1.  **Connexion :** Cliquez sur "Connect to Nostr" pour vous connecter avec Nostr Connect.
+2.  **Sélection du Relay :** Choisissez un relay dans la section "Select Relay for Messages".
+3.  **Exploration des Événements :**
+    -   Entrez un ID d'événement dans le champ "Event ID" et/ou sélectionnez un type (kind) d'événement dans le champ "Event Kind".
+    -   Cliquez sur "Fetch Event" pour récupérer les événements.
+    -   Les événements seront affichés dans une liste. Cliquez sur "Show Details" pour afficher les détails de chaque événement.
+4.  **Gestion des Profils :**
+    -   Entrez une clé publique dans le champ "Profile Pubkey".
+    -   Cliquez sur "Fetch Profile" pour récupérer le profil.
+    -   Les informations du profil seront affichées.
+    -   Cliquez sur "Edit Profile" pour modifier les informations du profil et publier les mises à jour.
+
+## Notes importantes
+
+-   **Sécurité :** Assurez-vous de valider les informations du profil avant de les modifier et de les publier.
+-   **Erreurs :** L'application n'est pas complètement implémentée et peut contenir des erreurs.
+
+## À faire (TODO)
+
+-   Implémenter la gestion de plusieurs relays simultanément.
+-   Améliorer l'interface utilisateur avec un framework CSS (Bootstrap, Materialize).
+-   Implémenter l'écoute en temps réel des événements (NIP-01).
+
+## Auteur
+
+[Votre Nom]
+
+## Licence
+
+AGPL

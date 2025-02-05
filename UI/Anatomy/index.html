@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Anatomy</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="purify.min.js"></script>
+    <link rel="stylesheet" href="default.min.css">
+    <script src="highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+
+    <header>
+        <h1>Nostr Anatomy</h1>
+        <button id="connectButton">Connect to Nostr</button>
+        <div id="status">Not Connected</div>
+    </header>
+
+    <main>
+        <section id="relays-selection-section">
+            <h2>Select Relay for Messages</h2>
+            <div id="relay-selection-buttons">
+                <!-- Relay buttons will be dynamically added here -->
+            </div>
+        </section>
+        <section id="profile-management">
+            <h2>Profile Management</h2>
+            <label for="profilePubKey">Profile Pubkey:</label>
+            <input type="text" id="profilePubKey" placeholder="Enter Pubkey">
+            <button id="fetchProfileButton">Fetch Profile</button>
+            <button id="editProfileButton"  disabled>Edit Profile</button>
+            <div id="profileDetails">
+                <!-- Profile details and editing tools will be here -->
+                <label for="profileName">Name:</label>
+                <input type="text" id="profileName" disabled>
+
+                <label for="profileAbout">About:</label>
+                <textarea id="profileAbout" disabled></textarea>
+
+                <label for="profilePicture">Picture URL:</label>
+                <input type="text" id="profilePicture" disabled>
+
+                <label for="profileNip05">NIP-05:</label>
+                <input type="text" id="profileNip05" disabled>
+
+                <label for="profileLud16">Lightning Address (lud16):</label>
+                <input type="text" id="profileLud16" disabled>
+            </div>
+        </section>
+        <section id="event-analysis">
+            <h2>Event Analysis</h2>
+            <label for="eventId">Event ID:</label>
+            <input type="text" id="eventId" placeholder="Enter Event ID">
+            <label for="eventKind">Event Kind (optional):</label>
+            <input type="number" id="eventKind" placeholder="Enter Event Kind">
+            <button id="fetchEventButton">Fetch Event</button>
+
+            <div id="eventList">
+                <!-- Event list will be displayed here -->
+            </div>
+        </section>
+ <section id="event-kind-help">
+            <h2>Event Kind Help</h2>
+            <ul>
+                <li><strong>0:</strong> Metadata (profile information)</li>
+                <li><strong>1:</strong> Text Note (short message)</li>
+                <li><strong>3:</strong> Contact List (follows)</li>
+                <li><strong>4:</strong> Encrypted Direct Message</li>
+                <li><strong>6:</strong> Repost</li>
+                <li><strong>7:</strong> Reaction (like, dislike)</li>
+                <li><strong>40:</strong> Channel Creation</li>
+                <li><strong>41:</strong> Channel Metadata</li>
+                <li><strong>42:</strong> Channel Message</li>
+                <li><strong>10002:</strong> Relay List Metadata</li>
+                <li><strong>30023:</strong> Long-form Content (article, blog post)</li>
+                <!-- Add more as needed -->
+            </ul>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>© 2024 Nostr Anatomy</p>
+    </footer>
+
+    <div id="debug"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

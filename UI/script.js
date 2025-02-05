@@ -9,12 +9,41 @@ let messages = [];
 let tagFilter = '';
 let messageSource = 'relay';
 let profiles = {}; // Store profiles by pubkey
+let nip96ServerUrl = null; // Will be discovered dynamically
+let uploadedMediaInfo = null; // Store NIP-94 info
 
 // --- Utility Functions ---
 function log(message) {
     const debugDiv = document.getElementById('debug');
     debugDiv.innerHTML += message + "<br>";
     console.log(message);
+}
+
+// --- NIP-96 Discovery Function ---
+async function discoverNip96Url(domain) {
+    const wellKnownUrl = `https://${domain}/.well-known/nostr/nip96.json`;
+
+    try {
+        const response = await fetch(wellKnownUrl);
+
+        if (!response.ok) {
+            log(`Failed to fetch NIP-96 metadata: ${response.status} ${response.statusText}`);
+            return null;
+        }
+
+        const data = await response.json();
+        log(`NIP96 metadata ${JSON.stringify(data)}`);
+        if (data && data.api_url) { // Use api_url instead of uploadUrl
+            log(`Discovered NIP-96 upload URL: ${data.api_url}`);
+            return data.api_url;
+        } else {
+            log("NIP-96 metadata does not contain api_url.");
+            return null;
+        }
+    } catch (error) {
+        log(`Error discovering NIP-96 URL: ${error.message}`);
+        return null;
+    }
 }
 
 // --- Nostr Connect Functions ---
@@ -273,10 +302,20 @@ async function sendMessage() {
         return;
     }
 
+    let tags = [];
+
+    if (uploadedMediaInfo) {
+        // Add the imeta tag to the message's tags
+        const { nip94_event } = uploadedMediaInfo;
+        if (nip94_event && nip94_event.tags) {
+            tags.push(["imeta", ...nip94_event.tags.flat()]); // Flatten nested arrays
+        }
+    }
+
     const event = {
         kind: 1,
         content: message,
-        tags: [],
+        tags: tags,
         created_at: Math.floor(Date.now() / 1000)
     };
 
@@ -292,11 +331,99 @@ async function sendMessage() {
                 log(`Relay ${relayUrl} is not open, cannot send message.`);
             }
         }
+         // Clear media info after message is sent
+        clearMediaInfo();
 
     } catch (error) {
         log(`Error sending message: ${error.message}`);
         alert(`Error sending message: ${error.message}`);
     }
+}
+
+// --- Media Upload Functions ---
+async function uploadMedia() {
+    const mediaInput = document.getElementById('mediaInput');
+    const file = mediaInput.files[0];
+
+    if (!file) {
+        alert("Please select a file");
+        return;
+    }
+
+    if (!nip96ServerUrl) {
+        alert("NIP-96 upload URL not discovered yet.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch(nip96ServerUrl, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json' // Specify that we expect JSON
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            // Log the error response for debugging
+            const errorText = await response.text();
+            log(`Upload failed with status ${response.status}: ${errorText}`);
+            throw new Error(`Upload failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === "success") {
+            log(`Upload successful: ${JSON.stringify(data)}`);
+            displayUploadedMediaInfo(data);
+
+        } else {
+            log(`Upload failed: ${data.message}`);
+            alert(`Upload failed: ${data.message}`);
+            clearMediaInfo();
+        }
+
+    } catch (error) {
+        log(`Upload error: ${error.message}`);
+        alert(`Upload error: ${error.message}`);
+        clearMediaInfo();
+    }
+}
+
+function displayUploadedMediaInfo(data) {
+    const mediaInfoDiv = document.getElementById('mediaInfo');
+    mediaInfoDiv.innerHTML = ''; // Clear previous info
+    if (data && data.nip94_event) {
+        let mediaInfo = '<strong>Uploaded Media Info:</strong><br>';
+        data.nip94_event.tags.forEach(tag => {
+            if (tag[0] === 'url') {
+                mediaInfo += `URL: <a href="${tag[1]}" target="_blank">${tag[1]}</a><br>`;
+            } else if (tag[0] === 'm') {
+                mediaInfo += `Type: ${tag[1]}<br>`;
+            } else if (tag[0] === 'dim') {
+                mediaInfo += `Dimensions: ${tag[1]}<br>`;
+            } else if (tag[0] === 'ox') {
+                mediaInfo += `Hash: ${tag[1]}<br>`;
+            }
+            // Add more tag handling as needed
+        });
+        mediaInfoDiv.innerHTML = mediaInfo;
+        uploadedMediaInfo = data; // Store the uploaded media info
+         // Display a media preview if available (e.g., image or video)
+        if (data.mimeType && data.mimeType.startsWith('image/')) {
+            mediaInfoDiv.innerHTML += `<img src="${data.nip94_event.tags.find(tag => tag[0] === 'url')[1]}" alt="Media Preview" style="max-width: 100%; max-height: 150px;">`;
+        } else if (data.mimeType && data.mimeType.startsWith('video/')) {
+            mediaInfoDiv.innerHTML += `<video src="${data.nip94_event.tags.find(tag => tag[0] === 'url')[1]}" controls style="max-width: 100%; max-height: 150px;"></video>`;
+        }
+    }
+}
+
+function clearMediaInfo() {
+    document.getElementById('mediaInfo').innerHTML = '';
+    uploadedMediaInfo = null;
 }
 
 function fetchMessages() {
@@ -368,6 +495,7 @@ function processMessage(eventData, ws) { // Receive 'ws' here
         log(`processMessage - Message ${eventData.id} filtered out due to tagFilter: ${tagFilter}`);
     }
 }
+
 function displayNoFriendsMessage() {
     const carouselTrack = document.getElementById('messageCarousel');
     carouselTrack.innerHTML = '<li>No friends followed or no friends have profile</li>';
@@ -400,16 +528,15 @@ function updateCarousel(ws) { // Receive 'ws' here
         let messageContent = '';
 
         if (imetaTag) {
-            const imetaData = {};
-            imetaTag.forEach(item => {
-                const parts = item.split(' ');
-                if (parts.length === 2) {
-                    const key = parts[0];
-                    const value = parts[1];
-                    imetaData[key] = value;
-                }
-            });
-
+           const imetaData = {};
+           // Skip the first element ("imeta") and iterate in pairs (key, value)
+           for (let i = 1; i < imetaTag.length; i += 2) {
+              const key = imetaTag[i];
+              const value = imetaTag[i + 1];
+                if (key && value) {
+                   imetaData[key] = value;
+                 }
+            }
             messageContent = '<strong>Media Info:</strong><br>';
             messageContent += `URL: <a href="${imetaData.url}" target="_blank">${imetaData.url}</a><br>`;
             messageContent += `Type: ${imetaData.m || 'N/A'}<br>`;
@@ -450,9 +577,19 @@ function updateCarousel(ws) { // Receive 'ws' here
 }
 
 // --- Event Listeners ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Discover NIP-96 URL on startup
+    const domain = "g1sms.fr"; // Replace with the appropriate domain
+    nip96ServerUrl = await discoverNip96Url(domain);
+    if (!nip96ServerUrl) {
+        alert("Failed to discover NIP-96 upload URL. Media upload will be disabled.");
+        document.getElementById('uploadButton').disabled = true;
+    }
+
     document.getElementById('connectButton').addEventListener('click', connectToNostr);
     document.getElementById('sendMessageButton').addEventListener('click', sendMessage);
+
+    document.getElementById('uploadButton').addEventListener('click', uploadMedia);
 
     document.querySelectorAll('.carousel-button').forEach(button => {
         button.addEventListener('click', () => {

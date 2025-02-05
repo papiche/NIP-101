@@ -29,11 +29,11 @@ section {
     border-radius: 5px;
 }
 
-#connection-section, #messages-section {
+#connection-section, #messages-section, #media-upload-section {
     text-align: center;
 }
 
-#profile-section h2, #relays-section h2, #messages-section h2, #carousel-section h2 {
+#profile-section h2, #relays-section h2, #messages-section h2, #carousel-section h2, #media-upload-section h2 {
     border-bottom: 1px solid #ccc;
     padding-bottom: 5px;
 }
@@ -79,6 +79,13 @@ ul {
 
 li {
     margin-bottom: 5px;
+}
+#mediaInfo {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px dashed #ccc;
+    border-radius: 5px;
+    text-align: left;
 }
 
 /* Carousel Styles */
@@ -178,7 +185,7 @@ li {
 
 #relay-selection-buttons button {
     padding: 5px 10px;
-    background-color: #000;
+    background-color: #f0f0f0;
     border: 1px solid #ccc;
     border-radius: 5px;
     cursor: pointer;
@@ -190,4 +197,3 @@ li {
     color: #fff;
     border-color: #4cae4c;
 }
-

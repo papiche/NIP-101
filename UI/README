@@ -1,0 +1,85 @@
+# Nostr Social App
+
+## Description
+
+Nostr Social App is a minimalist web application designed to interact with the Nostr decentralized social network. It allows users to connect using the Nostr Connect browser extension, view relays, display their profile, send messages, and view messages from other users.
+
+## Features
+
+-   **Nostr Connect Integration:** Connect to the Nostr network using the Nostr Connect browser extension.
+-   **Relay Management:** View a list of connected relays and select a relay to fetch messages from.
+-   **Profile Display:** Display user profile information, including avatar, name, and description.
+-   **Message Sending:** Send text messages to the Nostr network.
+-   **Message Carousel:** View the latest messages from selected relays, friends, or the user's own messages in a carousel.
+-   **Tag Filtering:** Filter messages by specific tags.
+-   **Message Sourcing:** Choose the source of messages to display (own, friends, relay).
+
+## Technologies Used
+
+-   HTML
+-   CSS
+-   JavaScript
+-   Nostr Connect Browser Extension
+-   [Optional] Node.js (with Express) for backend file upload and NIP-86 server interaction (example provided, requires implementation)
+
+## Setup Instructions
+
+1.  **Install Nostr Connect:** Ensure you have the Nostr Connect browser extension installed and configured.
+2.  **Clone the Repository:**
+    ```bash
+    git clone [repository URL]
+    cd [repository directory]
+    ```
+3.  **Open `index.html` in your browser:** The application should start automatically.
+
+    *   If using the provided Node.js backend:
+        1.  Install Node.js dependencies:
+            ```bash
+            cd backend
+            npm install
+            ```
+        2.  Start the server:
+            ```bash
+            node server.js
+            ```
+        3.  Ensure the `nip86ServerUrl` variable in `script.js` points to your running backend.
+
+## Usage
+
+1.  **Connect to Nostr:** Click the "Connect to Nostr" button to connect your Nostr account through the Nostr Connect extension.
+2.  **Select a Relay:** Choose a relay from the available buttons to fetch messages.
+3.  **View Profile:** Your profile information will be displayed automatically.
+4.  **Send Message:** Enter your message in the text area and click the "Send Message" button.
+5.  **View Messages:** The latest messages will be displayed in the carousel.
+6.  **Filter Messages:** Use the "Message Source" and "Tag Filter" options to customize the displayed messages.
+
+## Backend (Optional)
+
+The provided `backend/server.js` file is an example Node.js server that simulates interactions with a NIP-86 server for file uploads. This is *not* a fully functional NIP-86 server and **requires implementation** to connect to your actual NIP-86 server.
+
+**Important:** Replace the simulation in `backend/server.js` with your real NIP-86 server interaction logic.
+
+## Progressive Web App (PWA)
+
+This application can be turned into a Progressive Web App (PWA) for a better mobile experience. To do so:
+
+1.  Create a `manifest.json` file with the required PWA settings.
+2.  Register a Service Worker to enable offline capabilities and installability.
+3.  Include a link to the `manifest.json` in your `index.html` file:
+    ```html
+    <link rel="manifest" href="manifest.json">
+    ```
+
+## Customization
+
+-   **Styling:** Customize the look and feel of the application by modifying the `style.css` file.
+-   **Relays:** Add or remove default relays in the `getRelays()` function in `script.js`.
+-   **Features:** Extend the application with additional Nostr features, such as direct messaging, user following, and event publishing.
+
+## Contributing
+
+Contributions are welcome! Feel free to submit pull requests, bug reports, and feature requests.
+
+## License
+
+AGPL
