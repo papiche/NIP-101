@@ -1,5 +1,7 @@
 # Nostr Crypto Tool
 
+## NOT WORKING : Job in progress
+
 A command-line tool for encrypting and decrypting files, optionally sending them as direct messages to Nostr relays, supporting NIP-04 and NIP-44.
 
 ## Overview
@@ -116,15 +118,6 @@ This tool implements the following Nostr Improvement Proposals (NIPs):
 -   **Private Key Security:** Treat your private key with extreme care. Do not share it and store it securely.
 -   **Ephemeral Keys:** The tool uses ephemeral keys to derive each shared secret, providing forward secrecy.
 
-## Authors
+## Thanks
 
 This file uses libs, keys and tools by all the NOSTR community.
-The author is an opensource enthusiast, if you appreciate it give a tip to make the opensource space grow and for this project to be improved!
-
-```text
-LNURL1DP68GURN8GHJ7UM0DXYXG5X82MCVDE6X2UM0DX5EKZWM30D3H82UNVWQHKX6TR
-```
-or DM
-```text
-npub1xvz7gdmtyl474t6syc4s3p9u8f683s8w2t2j48w978g8n9954kq0m8qg60
-```

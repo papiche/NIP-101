@@ -1,9 +1,6 @@
 #!/bin/bash
-MY_PATH="`dirname \"$0\"`"              # relative
-MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
-
-if [[ ! -s $HOME/.zen/strfry/strfry ]]; then
-    echo "$HOME/.zen/strfry/strfry is missing ... EXIT"
+## THIS SCRIPT IS LAUNCHING "strfry relay"
+    echo "$HOME/.zen/strfry/strfry is missing !! "
     exit 1
 fi
 

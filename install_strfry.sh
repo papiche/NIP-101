@@ -10,7 +10,6 @@ STRFRY_SRC_DIR="$WORKSPACE_DIR/strfry"
 STRFRY_INSTALL_DIR="$HOME/.zen/strfry"
 
 # Création des répertoires nécessaires
-mkdir -p ./tmp
 mkdir -p "$WORKSPACE_DIR"
 mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/"
 
@@ -43,23 +42,26 @@ compile_strfry() {
     echo "Compiling strfry..."
     git submodule update --init
     make setup-golpe
-    make -j4
+    make -j3
 }
 
 # Fonction pour compiler strfry
 update_strfry() {
     echo "Updating strfry..."
     make update-submodules
-    make -j4
+    make -j3
 }
 
 # Fonction pour installer ou mettre à jour strfry
 install_strfry() {
-    if [[ -s "$STRFRY_SRC_DIR/strfry" && ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
-        echo "Installation strfry..."
-        cp "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/"
-    else
-        echo "strfry binary unchanged..."
+    if [[ -s "$STRFRY_SRC_DIR/strfry" ]]; then
+        if ! cmp -s "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/strfry"; then
+            echo "Installation strfry..."
+            cp -f "$STRFRY_SRC_DIR/strfry" "$STRFRY_INSTALL_DIR/"
+            chmod +x "$STRFRY_INSTALL_DIR/strfry"
+        else
+            echo "strfry binary unchanged..."
+        fi
     fi
     # Copie du fichier de configuration s'il n'existe pas déjà
     if [ ! -f "$STRFRY_INSTALL_DIR/strfry.conf" ]; then
@@ -68,76 +70,8 @@ install_strfry() {
     fi
     ## COPY (RE)START SCRIPT
     cp start_strfry-relay.sh "$STRFRY_INSTALL_DIR/start.sh"
+    mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/" # strfry-db/
 }
-
-# Fonction pour installer nostr-commander-rs
-install_nostr_commander() {
-    echo "Installation de nostr-commander-rs..."
-    ## nostr-commander-rs
-    nostr_amd64="/ipfs/QmeP6QD7Men8KtgX9mCNXFuGM5edTLQ7gsUWEvmpBNGZUo/nostr-commander-rs"
-    nostr_arm64="/ipfs/QmcwSZmM3TpEViT39gDAtkDsSuWtZvQNyW659dMDgptKaW/nostr-commander-rs"
-
-    # Déterminer l'architecture
-    ARCH=$(uname -m)
-
-    # Définir l'URL IPFS en fonction de l'architecture
-    if [ "$ARCH" = "x86_64" ]; then
-        NOSTR_COMMANDER_CID="$nostr_amd64"
-    elif [ "$ARCH" = "aarch64" ]; then
-        NOSTR_COMMANDER_CID="$nostr_arm64"
-    else
-        echo "Architecture non supportée pour nostr-commander-rs"
-        return 1
-    fi
-
-    # Télécharger et installer nostr-commander-rs
-    ipfs get -o "$HOME/.local/bin/nostr-commander-rs" "$NOSTR_COMMANDER_CID"
-    chmod +x "$HOME/.local/bin/nostr-commander-rs"
-
-    CREDENTIALS_DIR="$HOME/.local/share/nostr-commander-rs"
-    mkdir -p $CREDENTIALS_DIR
-    CREDENTIALS_FILE="$CREDENTIALS_DIR/credentials.json"
-
-    echo -e "${GREEN}Création du fichier credentials.json...${NC}"
-    mkdir -p "$CREDENTIALS_DIR"
-    cat > "$CREDENTIALS_FILE" <<EOL
-{
-  "secret_key_bech32": "nsec1hsmhy4d6ve325gxpgk0lzlmu4vymf49r4gq07sw5wjsezz74nrls8cryds",
-  "public_key_bech32": "npub1eq0gkvwm43jc506neat4y8t4cyp4z2w846qtxexuc5syh9h5v47sptlfff",
-  "relays": [
-    {
-      "url": "wss://relay.g1sms.fr/",
-      "proxy": null
-    },
-    {
-      "url": "wss://relay.copylaradio.com/",
-      "proxy": null
-    },
-    {
-      "url": "ws://127.0.0.1:7777/",
-      "proxy": null
-    }
-  ],
-  "metadata": {
-    "name": "coucou",
-    "display_name": "coucou",
-    "about": "coucou",
-    "picture": "http://127.0.0.1:8080/ipfs/QmbUAMgnTm4dFnH66kgmUXpBBqUMdTmfedvzuYTmgXd8s9",
-    "nip05": "support@qo-op.com"
-  },
-  "contacts": [],
-  "subscribed_pubkeys": [],
-  "subscribed_authors": [],
-  "subscribed_channels": []
-}
-EOL
-
-    echo "nostr-commander-rs installé"
-}
-
-########################################
-## INSTALL NOSTR CLIENT
-[[ ! $(which nostr-commander-rs) && $(which ipfs) ]] && install_nostr_commander
 
 
 ########################################
