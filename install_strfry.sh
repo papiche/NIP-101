@@ -73,7 +73,6 @@ install_strfry() {
     mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/" # strfry-db/
 }
 
-
 ########################################
 ## INSTALL NOSTR RELAY
 if [[ ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
