@@ -20,7 +20,7 @@ cd -
 ## KILL OLD REALY
 if [[ ! -z $OLD_PID ]]; then
     echo "Stopping old strfry PID : $OLD_PID"
-    kill $OLD_PID
+    kill -USR1 $OLD_PID
 fi
 
 exit 0
