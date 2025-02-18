@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atomic Nostr - La Chimie des Connexions</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <h1><i class="fas fa-atom"></i> Atomic Nostr</h1>
+            <nav>
+                <ul>
+                    <li><a href="#concept">Concept</a></li>
+                    <li><a href="#visuel">Visuel Atomique</a></li>
+                    <li><a href="#molecules">Analyse Moléculaire</a></li>
+                    <li><a href="#rencontres">Rencontres</a></li>
+                    <li><a href="#inscription">Inscription</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section id="hero" class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Découvrez la Chimie des Connexions sur Nostr</h1>
+                <p>Explorez votre réseau Nostr sous un angle atomique, visualisez vos relations et trouvez des connexions pertinentes basées sur la confiance et la proximité.</p>
+                <a href="#inscription" class="button primary-button">Rejoindre Atomic Nostr</a>
+            </div>
+            <div class="hero-image">
+                <img src="assets/hero-image.svg" alt="Visualisation atomique de Nostr">
+            </div>
+        </div>
+    </section>
+
+    <section id="concept" class="concept section-padding">
+        <div class="container">
+            <h2>Le Concept Atomic Nostr</h2>
+            <div class="concept-grid">
+                <div class="concept-item">
+                    <i class="fas fa-circle-atom concept-icon"></i>
+                    <h3>Votre Atome Nostr</h3>
+                    <p>Visualisez votre identité Nostr comme un atome, avec un noyau (votre identité) et des couches électroniques (vos cercles relationnels).</p>
+                </div>
+                <div class="concept-item">
+                    <i class="fas fa-link concept-icon"></i>
+                    <h3>Molécules Sociales</h3>
+                    <p>Découvrez les "molécules" que vous formez avec d'autres utilisateurs : communautés, groupes d'intérêt, basés sur la confiance et l'interaction.</p>
+                </div>
+                <div class="concept-item">
+                    <i class="fas fa-map-marker-alt concept-icon"></i>
+                    <h3>Rencontres de Proximité</h3>
+                    <p>Activez le mode GPS pour trouver des "atomes" compatibles près de vous, en privilégiant les relations de confiance (Niveau 1 et 2).</p>
+                </div>
+                <div class="concept-item">
+                    <i class="fas fa-certificate concept-icon"></i>
+                    <h3>Certifications P2P</h3>
+                    <p>Comprenez la nature de vos "liaisons atomiques" : certifications mutuelles (P2P), unilatérales (12P/P21) pour évaluer la confiance.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="visuel" class="visuel section-padding">
+        <div class="container">
+            <h2>Votre Visuel Atomique Personnalisé</h2>
+            <p>Visualisez en temps réel l'évolution de votre "atome Nostr" en fonction de vos interactions et de votre réseau.  (Visuel dynamique ici - Canvas ou SVG en JS)</p>
+            <div class="atom-visualization" id="atomCanvasContainer">
+                <canvas id="atomCanvas" width="400" height="400"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section id="molecules" class="molecules section-padding">
+        <div class="container">
+            <h2>Analyse Moléculaire de Votre Réseau</h2>
+            <p>Explorez les "molécules" que vous formez : identifiez les groupes d'utilisateurs avec lesquels vous êtes le plus connecté et leurs "atomes" constitutifs.</p>
+            <div class="molecule-analysis">
+                <div class="molecule-list" id="moleculeList">
+                    <!-- Liste des molécules (générée par JS) -->
+                </div>
+                <div class="atom-details" id="atomDetails">
+                    <!-- Détails de l'atome sélectionné (généré par JS) -->
+                    <p>Sélectionnez un atome dans une molécule pour voir ses détails.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="rencontres" class="rencontres section-padding">
+        <div class="container">
+            <h2>Rencontres Atomiques de Proximité (Mode GPS)</h2>
+            <p>Activez le mode GPS pour découvrir des "atomes" compatibles près de vous.  Nous privilégions les relations de confiance de niveau 1 (amis directs) et niveau 2 (amis d'amis) pour des rencontres authentiques et sécurisées.</p>
+            <div class="rencontres-info">
+                <p><i class="fas fa-info-circle"></i>  Fonctionnalité GPS optionnelle et respectueuse de votre vie privée.  La localisation n'est partagée qu'avec votre consentement et uniquement avec les connexions pertinentes.</p>
+                <p><i class="fas fa-shield-alt"></i>  Sécurité et confiance au cœur des rencontres :  priorité aux relations de niveau 1 et 2 pour des interactions plus authentiques.</p>
+            </div>
+             <div class="rencontres-visual">
+                <img src="assets/rencontres-map.svg" alt="Carte conceptuelle des rencontres de proximité">
+            </div>
+        </div>
+    </section>
+
+
+    <section id="inscription" class="inscription section-padding">
+        <div class="container">
+            <h2>Rejoignez la Communauté Atomic Nostr</h2>
+            <p>Inscrivez-vous avec votre adresse email pour être informé du lancement de l'application et des prochaines étapes du projet.</p>
+            <form id="inscriptionForm">
+                <input type="email" id="email" placeholder="Votre adresse email" required>
+                <button type="submit" class="button primary-button">S'inscrire</button>
+            </form>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>© 2024 Atomic Nostr - Projet Conceptuel.  <a href="#">Mentions Légales</a> | <a href="#">Contact</a></p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

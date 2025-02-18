@@ -21,5 +21,5 @@ plugin_path="$1"
 # Modifier directement la ligne correspondant au plugin
 sed -i "s|^\(\s*plugin\s*=\s*\).*|\1\"$plugin_path\"|" "$config_file"
 
-echo "relay.writePolicy.plugin updated successfully to \"$plugin_path\"."
+echo "strfry writePolicy.plugin updated successfully to \"$plugin_path\"."
 

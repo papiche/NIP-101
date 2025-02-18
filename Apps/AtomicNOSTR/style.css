@@ -1,0 +1,318 @@
+/* style.css */
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f9;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+header {
+    background-color: #fff;
+    padding: 20px 0;
+    border-bottom: 1px solid #eee;
+}
+
+header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #3498db; /* Primary color - Blue */
+}
+
+header h1 i {
+    margin-right: 8px;
+}
+
+nav ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+}
+
+nav ul li {
+    margin-left: 20px;
+}
+
+nav ul li a {
+    text-decoration: none;
+    color: #555;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+nav ul li a:hover {
+    color: #3498db;
+}
+
+.section-padding {
+    padding: 60px 0;
+}
+
+.hero {
+    background-color: #e6f7ff; /* Light blue background */
+    padding: 100px 0;
+    text-align: center;
+}
+
+.hero .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hero-content {
+    flex: 1;
+    text-align: left;
+    padding-right: 40px;
+}
+
+.hero h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+    color: #2c3e50; /* Darker text color */
+}
+
+.hero p {
+    font-size: 18px;
+    color: #777;
+    margin-bottom: 30px;
+}
+
+.hero-image {
+    flex: 1;
+    text-align: center;
+}
+
+.hero-image img {
+    max-width: 100%;
+    height: auto;
+}
+
+.button {
+    display: inline-block;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+}
+
+.primary-button {
+    background-color: #3498db;
+    color: #fff;
+}
+
+.primary-button:hover {
+    background-color: #2980b9;
+}
+
+.concept-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.concept-item {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.concept-icon {
+    font-size: 48px;
+    color: #3498db;
+    margin-bottom: 20px;
+}
+
+.concept-item h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.concept-item p {
+    color: #777;
+}
+
+.visuel {
+    background-color: #fff;
+}
+
+.atom-visualization {
+    text-align: center;
+    margin-top: 30px;
+}
+
+#atomCanvas {
+    border: 1px solid #ccc;
+}
+
+.molecules {
+    background-color: #f4f7f9;
+}
+
+.molecule-analysis {
+    display: flex;
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.molecule-list {
+    flex: 1;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    overflow-y: auto; /* Pour la scrollbar si la liste est longue */
+    max-height: 300px;
+}
+
+.molecule-list h3 {
+    margin-top: 0;
+}
+
+.molecule-list ul {
+    list-style: none;
+    padding: 0;
+}
+
+.molecule-list ul li {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.molecule-list ul li:last-child {
+    border-bottom: none;
+}
+
+.molecule-list ul li:hover {
+    background-color: #f0f0f0;
+}
+
+
+.atom-details {
+    flex: 2;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.rencontres {
+    background-color: #e6f7ff; /* Light blue background */
+    text-align: center;
+}
+
+.rencontres-info {
+    margin-top: 30px;
+    text-align: left;
+}
+
+.rencontres-info p {
+    margin-bottom: 15px;
+    color: #555;
+}
+
+.rencontres-info i {
+    color: #3498db;
+    margin-right: 8px;
+}
+
+.rencontres-visual {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.rencontres-visual img {
+    max-width: 80%;
+    height: auto;
+}
+
+
+.inscription {
+    background-color: #fff;
+    text-align: center;
+}
+
+#inscriptionForm {
+    margin-top: 30px;
+}
+
+#inscriptionForm input[type="email"] {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    margin-right: 10px;
+    width: 250px;
+}
+
+footer {
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    padding: 20px 0;
+    font-size: 14px;
+}
+
+footer a {
+    color: #fff;
+    text-decoration: none;
+    margin: 0 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 15px;
+    }
+    header .container, .hero .container {
+        flex-direction: column;
+        text-align: center;
+    }
+    header nav ul {
+        margin-top: 20px;
+        flex-direction: column;
+        align-items: center;
+    }
+    header nav ul li {
+        margin-left: 0;
+        margin-bottom: 10px;
+    }
+    .hero-content {
+        padding-right: 0;
+    }
+    .hero-image {
+        margin-top: 30px;
+    }
+    .molecule-analysis {
+        flex-direction: column;
+    }
+    #inscriptionForm input[type="email"] {
+        width: 100%;
+        margin-bottom: 10px;
+        margin-right: 0;
+    }
+}
