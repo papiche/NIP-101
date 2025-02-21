@@ -5,37 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nostr Compass</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="swiper-bundle.min.css">
+
 </head>
 <body>
 
     <header>
-        <h1>Nostr Compass</h1>
+        <h1>Nostr Compass ⚛️</h1>
         <div id="status">Not Connected</div>
     </header>
 
     <main>
         <section id="profile-input">
-            <h2>Enter Profile Information</h2>
+            <h2>Select Profile</h2>
             <label for="profilePubKey">Profile Pubkey:</label>
-            <input type="text" id="profilePubKey" placeholder="Enter Pubkey">
+            <input type="text" id="profilePubKey" value="npub1w25fyk90kknw499ku6q9j77sfx3888eyfr20kq2rj7f5gnm8qrfqd6uqu8" placeholder="Enter Pubkey (npub1...)">
             <label for="relayUrl">Relay URL:</label>
-            <input type="text" id="relayUrl" placeholder="Enter Relay URL">
-            <button id="fetchProfileButton">Fetch Profile</button>
+            <input type="text" id="relayUrl" value="wss://relay.g1sms.fr" placeholder="Enter Relay URL (wss://...)">
+            <button id="fetchProfileButton"><i class="fas fa-atom"></i> Atomic Profile</button>
         </section>
 
-        <section id="profile-display">
-            <h2>Profile</h2>
-            <div id="profile-container">
-                <img id="profileAvatar" src="default_avatar.png" alt="Avatar">
-                <img id="profileBanner" src="" alt="Banner">
-                <div id="profile-info">
-                    <h3 id="profileName"></h3>
-                    <p id="profileAbout"></p>
-                    <p id="profileNip05"></p>
-                    <p id="profileLud16"></p>
-                </div>
-            </div>
-        </section>
+<section id="profile-display">
+    <h2>Profile</h2>
+    <div id="profile-container">
+        <img id="profileBanner" src="" alt="Banner">
+        <div id="profile-info">
+            <img id="profileAvatar" src="default_avatar.png" alt="Avatar">
+            <h3 id="profileName"></h3>
+            <p id="profileAbout"></p>
+            <p id="profileNip05"></p>
+            <p id="profileLud16"></p>
+            <p id="profileWebsite"></p>
+        </div>
+    </div>
+</section>
 
         <section id="relays-display">
             <h2>Relays</h2>
@@ -44,29 +48,48 @@
             </ul>
         </section>
 
-        <section id="relations-display">
-            <h2>Relations</h2>
-            <h3>P2P (Direct Follows)</h3>
-            <ul id="p2pList">
-                <!-- P2P relations will be displayed here -->
-            </ul>
-            <h3>12P (Second Degree)</h3>
-            <ul id="twelvePList">
-                <!-- 12P relations will be displayed here -->
-            </ul>
-            <h3>P21 (Third Degree)</h3>
-            <ul id="p21List">
-                <!-- P21 relations will be displayed here -->
-            </ul>
-        </section>
+<section id="relations-display">
+    <h2>Relations</h2>
+    <h3>P2P (Following/Followed)</h3>
+    <div class="swiper-container">
+        <div class="swiper-wrapper" id="p2pList">
+            <!-- P2P relations will be displayed here -->
+        </div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-pagination"></div>
+    </div>
+
+    <h3>12P (Following only)</h3>
+    <div class="swiper-container">
+        <div class="swiper-wrapper" id="twelvePList">
+            <!-- 12P relations will be displayed here -->
+        </div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-pagination"></div>
+    </div>
+
+    <h3>P21 (Followed only)</h3>
+    <div class="swiper-container">
+        <div class="swiper-wrapper" id="p21List">
+            <!-- P21 relations will be displayed here -->
+        </div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-pagination"></div>
+    </div>
+</section>
     </main>
 
     <footer>
-        <p>© 2024 Nostr Compass</p>
+        <p>© 2024 Nostr Molecular Compass ⚛️</p>
     </footer>
 
     <div id="debug"></div>
 
+    <script src="swiper-bundle.min.js"></script>
+    <script src="nostr.bundle.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
