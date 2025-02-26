@@ -13,7 +13,7 @@ LOG_FILE = os.path.join(LOG_DIR, "kind_33_events.log")
 NOSTR_CMD = "nostr-commander-rs"
 NSEC_FILE = "nostr_private_key.txt"
 RELAY = "ws://127.0.0.1:7777"
-IPFS_GATEWAY = "https://ipfs.copylaradi.com"  # URL du nœud IPFS local
+IPFS_GATEWAY = "https://ipfs.copylaradio.com"  # URL du nœud IPFS local
 
 # Création du dossier de logs s'il n'existe pas
 os.makedirs(LOG_DIR, exist_ok=True)
