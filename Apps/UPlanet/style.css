@@ -1,107 +1,284 @@
-/* Reset et base */
+/* --- Variables CSS pour le thème --- */
+:root {
+    --color-bg: #f0f2f5; /* Fond clair */
+    --color-bg-content: white; /* Fond des cartes/sections */
+    --color-text-primary: #333; /* Texte principal */
+    --color-text-secondary: #777; /* Texte secondaire (dates, etc.) */
+    --color-border: #ddd; /* Bordures */
+    --color-primary: #1da1f2; /* Bleu (Twitter like) */
+    --color-secondary: #e0e0e0; /* Gris clair secondaire */
+    --color-accent: #4caf50; /* Vert (accent) */
+    --color-error: #f44336; /* Rouge (erreur) */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Thème sombre (basculé par classe 'dark-mode' sur <body>) */
+body.dark-mode {
+    --color-bg: #121212; /* Fond sombre */
+    --color-bg-content: #1e1e1e; /* Fond des cartes sombres */
+    --color-text-primary: #eee; /* Texte clair en sombre */
+    --color-text-secondary: #aaa;
+    --color-border: #333;
+    --color-primary: #29b6f6; /* Bleu plus clair en sombre */
+    --color-secondary: #444;
+}
+
+
+/* --- Reset et Base --- */
 body {
     font-family: sans-serif;
     margin: 0;
-    background-color: #f0f2f5; /* Fond Facebook/Twitter clair */
-    color: #333;
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
+    transition: background-color 0.3s, color 0.3s; /* Transition pour le mode sombre */
 }
 
-.container {
+.app-container {
     display: flex;
     flex-direction: column;
-    max-width: 1200px;
+    max-width: 1400px; /* Augmenter la largeur max */
     margin: 0 auto;
-    padding: 20px;
+    padding: 0; /* Enlever le padding container */
 }
 
-header {
+/* --- Header --- */
+.app-header {
+    background-color: var(--color-bg-content);
+    border-bottom: 1px solid var(--color-border);
+    padding: 10px 20px;
+    box-shadow: var(--shadow-sm);
+    position: sticky; /* Header fixe en haut */
+    top: 0;
+    z-index: 100; /* Assurer que le header est au-dessus du contenu */
+}
+
+.header-inner {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #ddd;
+    max-width: 1200px; /* Limiter la largeur interne du header */
+    margin: 0 auto;
 }
 
 .logo {
-    font-size: 1.5em;
+    font-size: 1.6em;
     font-weight: bold;
+    margin-right: 20px;
 }
 
-nav button {
+.header-actions {
+    display: flex;
+    align-items: center;
+}
+
+#connect-button, #dark-mode-toggle {
     padding: 8px 15px;
-    background-color: #1da1f2; /* Bleu Twitter */
-    color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    margin-left: 10px;
+    background-color: var(--color-primary);
+    color: white;
+    transition: background-color 0.2s;
+}
+#dark-mode-toggle {
+    background-color: var(--color-secondary);
+    color: var(--color-text-primary);
+}
+#connect-button:hover, #dark-mode-toggle:hover {
+    opacity: 0.9;
 }
 
-/* Layout principal */
-main, aside {
+/* Menu Toggle (Hamburger) - Mobile */
+.menu-toggle {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 5px;
+    margin-right: 10px;
+    display: none; /* Caché par défaut sur desktop */
+}
+
+/* Connection Badge */
+.connection-status {
+    display: flex;
+    align-items: center;
+    background-color: var(--color-secondary);
+    color: var(--color-text-primary);
+    padding: 6px 10px;
+    border-radius: 5px;
+    margin-right: 10px;
+    font-size: 0.9em;
+}
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    background-color: gray; /* Gris = Déconnecté */
+}
+.connection-status.connected .status-indicator {
+    background-color: green; /* Vert = Connecté */
+}
+
+
+/* --- App Layout (Sidebar & Main Content) --- */
+.app-main-content, .app-sidebar {
     padding: 20px;
 }
 
-main {
+.app-main-content {
     flex-grow: 1;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background-color: var(--color-bg); /* Fond transparent pour le contenu principal */
 }
 
-aside.sidebar {
-    width: 300px;
-    margin-right: 20px;
-    background-color: white;
+.app-sidebar {
+    width: 320px; /* Augmenter la largeur de la sidebar */
+    background-color: var(--color-bg); /* Fond transparent pour la sidebar */
+    padding-top: 30px; /* Espace haut pour aligner avec le contenu */
+}
+
+.sidebar-content {
+    background-color: var(--color-bg-content);
     border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-md);
     padding: 20px;
-    display: flex; /* Pour aligner les sections verticalement */
-    flex-direction: column;
+    position: sticky; /* Sidebar fixe au scroll */
+    top: 80px; /* Espace sous le header sticky */
+    max-height: calc(100vh - 100px); /* Hauteur max pour éviter de dépasser le viewport */
+    overflow-y: auto; /* Scroll si le contenu dépasse */
 }
 
-main.main-content, .sidebar {
-    margin-top: 20px; /* Espace entre header et contenu */
-}
 
 @media (min-width: 768px) {
-    .container {
+    .app-container {
         flex-direction: row; /* Sidebar à gauche, Main à droite sur écrans larges */
     }
-    aside.sidebar {
-        flex-direction: column; /* Sidebar reste vertical */
+    .app-sidebar {
+        flex-direction: column;
+        margin-right: 20px;
     }
-    main.main-content {
-        margin-left: 20px; /* Espace entre sidebar et contenu principal */
-        margin-top: 20px; /* Aligner avec le sidebar */
+    .app-main-content {
+        margin-left: 0; /* Pas de marge sur desktop */
+        margin-top: 0;
+    }
+    .menu-toggle {
+        display: none; /* Cacher le toggle sur desktop */
+    }
+    .app-sidebar {
+        display: block !important; /* Afficher la sidebar sur desktop */
+    }
+}
+
+@media (max-width: 767px) {
+    .app-container {
+        flex-direction: column; /* Mobile: contenu principal puis sidebar */
+    }
+    .app-sidebar {
+        width: 100%; /* Sidebar pleine largeur sur mobile */
+        margin-right: 0;
+        margin-top: 20px;
+        display: none; /* Cacher la sidebar par défaut sur mobile */
+    }
+    .app-main-content {
+        margin-left: 0; /* Pas de marge sur mobile */
+        margin-top: 0;
+    }
+    .menu-toggle {
+        display: block; /* Afficher le toggle sur mobile */
     }
 }
 
 
-/* Profil Sidebar */
+/* --- Profil Sidebar --- */
+.profile-banner {
+    height: 100px; /* Hauteur fixe pour la bannière */
+    overflow: hidden; /* Cacher le débordement de l'image */
+    border-radius: 8px 8px 0 0; /* Arrondir seulement le haut */
+    margin-bottom: 15px;
+}
+.profile-banner img {
+    width: 100%;
+    height: auto; /* Ajuster la hauteur automatiquement */
+    display: block; /* Enlever l'espace blanc sous l'image */
+    object-fit: cover; /* Couvrir l'espace sans déformer l'image */
+    object-position: center top; /* Positionner l'image en haut */
+}
+
+
 .profile-card {
     text-align: center;
-    margin-bottom: 20px;
     padding-bottom: 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 20px;
 }
 
 .avatar {
-    width: 80px;
-    height: 80px;
+    width: 90px; /* Augmenter la taille de l'avatar */
+    height: 90px;
     border-radius: 50%;
     margin-bottom: 10px;
+    border: 3px solid var(--color-bg-content); /* Bordure autour de l'avatar */
+    box-shadow: var(--shadow-sm);
 }
 
-#edit-profile-button {
-    padding: 6px 12px;
-    background-color: #e0e0e0;
+.profile-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+.stat-item {
+    text-align: center;
+}
+.stat-number {
+    font-weight: bold;
+    display: block;
+    font-size: 1.2em;
+}
+.stat-label {
+    color: var(--color-text-secondary);
+    font-size: 0.9em;
+}
+
+.button-secondary, .button-primary {
+    padding: 8px 15px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     margin-top: 10px;
+    display: inline-block; /* Boutons inline */
+    text-align: center;
+    text-decoration: none; /* Enlever le soulignement des liens */
+    color: white; /* Texte blanc par défaut */
+    background-color: var(--color-secondary); /* Couleur par défaut */
+    color: var(--color-text-primary); /* Texte sombre pour secondaire */
+    transition: background-color 0.2s;
+}
+.button-primary {
+    background-color: var(--color-primary);
+    color: white;
+}
+.button-secondary:hover, .button-primary:hover {
+    opacity: 0.9;
 }
 
-/* Relais Sidebar */
+.view-profile-link {
+    display: block;
+    margin-top: 10px;
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.view-profile-link:hover {
+    color: darken(var(--color-primary), 10%);
+}
+
+
+/* --- Relais Sidebar --- */
 .relays-section h3 {
     margin-top: 0;
     margin-bottom: 10px;
@@ -113,103 +290,206 @@ main.main-content, .sidebar {
 }
 
 #relays-list li {
-    padding: 5px 0;
-    border-bottom: 1px dashed #eee;
+    padding: 8px 10px; /* Plus de padding */
+    border-bottom: 1px dashed var(--color-border);
+    font-size: 0.95em;
 }
 
 #relays-list li:last-child {
     border-bottom: none;
 }
 
-/* Editeur de Profil (caché par défaut) */
-#profile-editor {
-    padding: 20px;
+
+/* --- Content Menu (Navigation) --- */
+.content-menu {
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
 }
 
-#profile-editor.hidden {
+.content-menu .menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    justify-content: flex-start; /* Menu à gauche */
+    overflow-x: auto; /* Scroll horizontal si dépassement */
+}
+
+.content-menu .menu-item {
+    margin-right: 20px;
+    cursor: pointer;
+    padding: 8px 15px;
+    border-radius: 5px;
+    transition: background-color 0.2s, color 0.2s;
+    color: var(--color-text-secondary);
+}
+
+.content-menu .menu-item:hover, .content-menu .menu-item.active {
+    background-color: var(--color-secondary);
+    color: var(--color-text-primary);
+    font-weight: bold;
+}
+
+.content-menu .menu-item.active {
+    color: var(--color-primary); /* Couleur active plus visible */
+}
+
+
+/* --- Content Sections (Profil, Editor, Message, UPlanet, Logs) --- */
+.content-section {
+    padding: 20px;
+    background-color: var(--color-bg-content);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 20px;
+}
+
+.content-section.hidden {
     display: none;
+}
+
+/* Profil Section */
+#profile-section h2 {
+    margin-top: 0;
+}
+
+
+/* Editeur de Profil */
+#profile-editor h2 {
+    margin-top: 0;
 }
 
 #profile-form label {
     display: block;
-    margin-top: 10px;
+    margin-top: 15px;
     font-weight: bold;
+    margin-bottom: 5px;
 }
 
 #profile-form input[type="text"],
 #profile-form input[type="url"],
 #profile-form textarea {
     width: 100%;
-    padding: 8px;
-    margin-top: 5px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid var(--color-border);
     border-radius: 5px;
-    box-sizing: border-box; /* Important pour éviter que le padding n'élargisse le champ */
+    box-sizing: border-box;
+    font-size: 1em;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-content); /* Fond identique au content */
 }
 
 #profile-form textarea {
-    resize: vertical; /* Permettre le redimensionnement vertical */
-    min-height: 100px;
+    resize: vertical;
+    min-height: 120px;
 }
 
 #profile-form button[type="submit"],
 #profile-form button[type="button"] {
-    padding: 8px 15px;
-    background-color: #4caf50; /* Vert pour enregistrer */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
     margin-right: 10px;
 }
-#profile-form button[type="button"] {
-    background-color: #f44336; /* Rouge pour annuler */
+
+
+/* Nouveau Message Section */
+#new-message-section h2 {
+    margin-top: 0;
 }
 
-
-/* Nouveau Message */
-#new-message-section {
-    padding: 20px;
-    border-bottom: 1px solid #eee;
-}
-
-#new-message-form textarea {
+.message-textarea {
     width: 100%;
-    min-height: 100px;
-    padding: 8px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
+    min-height: 150px;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid var(--color-border);
     border-radius: 5px;
     box-sizing: border-box;
     resize: vertical;
+    font-size: 1em;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-content);
 }
 
-#new-message-form input[type="file"] {
-    margin-bottom: 10px;
-}
-
-#new-message-form button[type="submit"] {
-    padding: 8px 15px;
-    background-color: #1da1f2; /* Bleu Twitter */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-/* Flux UPlanet */
-#uplanet-feed {
-    padding: 20px;
-}
-
-.post {
-    border-bottom: 1px solid #eee;
-    padding-bottom: 15px;
+.message-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 15px;
 }
 
-.post:last-child {
+.image-upload-input {
+    /* Style input file si nécessaire */
+}
+
+#message-preview {
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    padding: 15px;
+    margin-top: 15px;
+    background-color: var(--color-bg-content);
+}
+#message-preview.hidden {
+    display: none;
+}
+#message-preview-content {
+    margin-bottom: 10px;
+    white-space: pre-line; /* Conserver les sauts de ligne dans la preview */
+}
+#message-preview-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+#message-preview-image.hidden {
+    display: none;
+}
+
+
+/* UPlanet Feed Section */
+#uplanet-feed h2 {
+    margin-top: 0;
+}
+
+.uplanet-filters {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.uplanet-filters label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+.uplanet-filters select {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-content);
+    color: var(--color-text-primary);
+}
+
+.uplanet-map {
+    height: 300px; /* Hauteur fixe pour la carte */
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+
+.uplanet-posts {
+    /* Styles pour la liste des posts UPlanet */
+}
+
+/* Post Card (UPlanet & General) */
+.post-card {
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    background-color: var(--color-bg-content);
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+    padding: 15px;
+}
+.post-card:last-child {
     border-bottom: none;
     margin-bottom: 0;
     padding-bottom: 0;
@@ -222,8 +502,8 @@ main.main-content, .sidebar {
 }
 
 .post-avatar {
-    width: 40px;
-    height: 40px;
+    width: 45px; /* Avatar légèrement plus grand dans les posts */
+    height: 45px;
     border-radius: 50%;
     margin-right: 10px;
 }
@@ -234,12 +514,14 @@ main.main-content, .sidebar {
 }
 
 .post-date {
-    color: #777;
+    color: var(--color-text-secondary);
     font-size: 0.9em;
 }
 
 .post-content p {
     margin-top: 0;
+    margin-bottom: 10px; /* Espace sous le texte du message */
+    white-space: pre-line; /* Respecter les sauts de ligne */
 }
 
 .post-image {
@@ -247,52 +529,44 @@ main.main-content, .sidebar {
     height: auto;
     margin-top: 10px;
     border-radius: 8px;
+    box-shadow: var(--shadow-sm); /* Ombre sur les images */
 }
 
 
-/* Footer */
-footer {
-    text-align: center;
-    padding: 20px 0;
-    color: #777;
-    border-top: 1px solid #ddd;
-    margin-top: 30px;
+/* Logs Relais Section */
+#relay-logs-section h2 {
+    margin-top: 0;
 }
 
-/* Menu */
-.menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex; /* Menu horizontal */
+.relay-logs {
+    background-color: var(--color-bg-content);
+    border: 1px solid var(--color-border);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
 }
 
-.menu-item {
-    margin-right: 20px;
-    cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 5px;
-    transition: background-color 0.2s;
-}
-
-.menu-item:hover, .menu-item.active {
-    background-color: #e0e0e0; /* Gris clair au hover/actif */
-}
-
-.menu-item.active {
-    font-weight: bold;
-}
-
-/* Logs Relais */
-#relay-logs-section {
-    padding: 20px;
-}
-
-#relay-logs-output {
+.relay-logs-output {
     background-color: #f7f7f7; /* Fond gris clair pour les logs */
-    border: 1px solid #ccc;
+    border: none; /* Enlever la bordure interne du textarea */
     padding: 10px;
     border-radius: 5px;
-    overflow-y: scroll; /* Barre de défilement si nécessaire */
-    white-space: pre-wrap; /* Conserver les sauts de ligne */
+    overflow-y: scroll;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9em;
+    width: 100%;
+    min-height: 200px;
+    box-sizing: border-box; /* Important pour le padding */
+    color: var(--color-text-primary); /* Couleur du texte des logs */
+}
+
+
+/* --- Footer --- */
+.app-footer {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--color-text-secondary);
+    border-top: 1px solid var(--color-border);
+    margin-top: 30px;
 }

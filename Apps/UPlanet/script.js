@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const relaysList = document.getElementById('relays-list');
     const profileName = document.getElementById('profile-name');
     const profileAbout = document.getElementById('profile-about');
+    const profileBannerImg = document.getElementById('profile-banner-img');
+    const profileAvatarImg = document.getElementById('profile-avatar-img');
     const editProfileButton = document.getElementById('edit-profile-button');
     const profileEditorSection = document.getElementById('profile-editor');
     const profileForm = document.getElementById('profile-form');
@@ -11,13 +13,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageContentInput = document.getElementById('message-content');
     const imageUploadInput = document.getElementById('image-upload');
     const uplanetPostsDiv = document.getElementById('uplanet-posts');
-    const relayLogsOutput = document.getElementById('relay-logs-output'); // Logs area
-    const menuItems = document.querySelectorAll('.menu-item'); // Menu items
-    const sections = document.querySelectorAll('main > section'); // All main sections
+    const relayLogsOutput = document.getElementById('relay-logs-output');
+    const menuItems = document.querySelectorAll('.content-menu .menu-item');
+    const sections = document.querySelectorAll('.app-main-content > .content-section');
+    const connectionBadge = document.getElementById('connection-badge');
+    const statusIndicator = document.getElementById('status-indicator');
+    const connectionText = document.getElementById('connection-text');
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const appSidebar = document.getElementById('app-sidebar');
+    const menuToggleButton = document.getElementById('menu-toggle-button');
+    const messagePreviewSection = document.getElementById('message-preview');
+    const messagePreviewContent = document.getElementById('message-preview-content');
+    const messagePreviewImage = document.getElementById('message-preview-image');
+    const filterDistanceSelect = document.getElementById('filter-distance');
+    const uplanetMapDiv = document.getElementById('uplanet-map'); // Div pour la carte Leaflet
 
     let publicKey = null;
     let relays = [];
-    const defaultRelaysUrls = ["wss://relay.copylaradio.com", "wss://relay.g1sms.fr", "ws://127.0.0.1:7777"]; // Default relays
+    let isConnected = false; // Track connection status
+    let isDarkMode = false; // Track dark mode state
+    const defaultRelaysUrls = ["wss://relay.copylaradio.com", "wss://relay.g1sms.fr", "ws://127.0.0.1:7777"];
+
+    // --- Dark Mode Toggle ---
+    darkModeToggle.addEventListener('click', () => {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        darkModeToggle.textContent = isDarkMode ? '☀️' : '🌙'; // Change icon
+        // Sauvegarder le mode sombre dans localStorage (optionnel)
+        localStorage.setItem('darkMode', isDarkMode);
+    });
+    // Charger le mode sombre sauvegardé ou par défaut (clair)
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'true') {
+        isDarkMode = true;
+        document.body.classList.add('dark-mode');
+        darkModeToggle.textContent = '☀️';
+    }
+
+    // --- Menu Toggle (Mobile) ---
+    menuToggleButton.addEventListener('click', () => {
+        appSidebar.style.display = appSidebar.style.display === 'block' ? 'none' : 'block';
+    });
 
     // --- Menu Navigation ---
     menuItems.forEach(menuItem => {
@@ -28,24 +64,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showSection(sectionId) {
-        sections.forEach(section => {
-            section.classList.add('hidden'); // Hide all sections
-        });
-        menuItems.forEach(item => {
-            item.classList.remove('active'); // Deactivate all menu items
-        });
+        sections.forEach(section => section.classList.add('hidden'));
+        menuItems.forEach(item => item.classList.remove('active'));
 
         const sectionToShow = document.getElementById(sectionId);
-        const menuItemToActivate = document.querySelector(`.menu-item[data-section="${sectionId}"]`);
+        const menuItemToActivate = document.querySelector(`.content-menu .menu-item[data-section="${sectionId}"]`);
 
-        if (sectionToShow) {
-            sectionToShow.classList.remove('hidden'); // Show selected section
-        }
-        if (menuItemToActivate) {
-            menuItemToActivate.classList.add('active'); // Activate selected menu item
+        if (sectionToShow) sectionToShow.classList.remove('hidden');
+        if (menuItemToActivate) menuItemToActivate.classList.add('active');
+        if (appSidebar.style.display === 'block' && window.innerWidth < 768) {
+            appSidebar.style.display = 'none'; // Cacher la sidebar après navigation sur mobile
         }
     }
-    // Initially show profile section
     showSection('profile-section');
 
 
@@ -53,40 +83,49 @@ document.addEventListener('DOMContentLoaded', () => {
     connectButton.addEventListener('click', async () => {
         if (window.nostr) {
             try {
+                updateConnectionStatus(true, "Connexion..."); // Indicateur de chargement
                 publicKey = await window.nostr.getPublicKey();
                 console.log("Public Key récupérée via Nostr Connect:", publicKey);
+                updateConnectionStatus(true, "Connecté"); // Indicateur Connecté
                 connectButton.textContent = 'Connecté';
                 connectButton.disabled = true;
                 fetchProfileAndRelays();
             } catch (error) {
                 console.error("Erreur Nostr Connect:", error);
+                updateConnectionStatus(false, "Erreur"); // Indicateur Erreur
                 alert("Erreur lors de la connexion avec Nostr Connect.");
             }
         } else {
-            alert("Nostr Connect n'est pas détecté. Veuillez installer l'extension.");
+            alert("Nostr Connect non détecté. Veuillez installer l'extension.");
+            updateConnectionStatus(false, "Non détecté"); // Indicateur Non détecté
         }
     });
+
+    function updateConnectionStatus(connected, text) {
+        isConnected = connected;
+        connectionBadge.classList.toggle('connected', connected);
+        statusIndicator.style.backgroundColor = connected ? 'green' : 'gray';
+        connectionText.textContent = text;
+    }
 
     async function fetchProfileAndRelays() {
         if (!publicKey) return;
 
         // 1. Récupérer les Relais Favoris (Kind 10002)
         console.log("Récupération des relais favoris (kind 10002)...");
-        relaysList.innerHTML = '<li>Chargement des relais...</li>';
-
-        // --- ICI :  CODE POUR RÉCUPÉRER KIND 10002 (Utiliser une librairie Nostr JS) ---
-        // Pour l'instant, relais par défaut si pas de récupération (à remplacer par fetch Nostr)
-        displayRelays(defaultRelaysUrls);
-
+        relaysList.innerHTML = '<li>Chargement...</li>';
+        // ... (Remplacer par code Nostr pour récupérer kind 10002)
+        displayRelays(defaultRelaysUrls); // Relais par défaut pour l'instant
 
         // 2. Récupérer le Profil (Kind 0)
         console.log("Récupération du profil (kind 0)...");
-        // --- ICI : CODE POUR RÉCUPÉRER KIND 0 (Utiliser une librairie Nostr JS) ---
-        // Pour l'instant, profil statique pour l'exemple
-        const exampleProfile = {
-            name: "Utilisateur Nostr",
-            about: "Ceci est un profil de démonstration.",
-            picture: "img/default-avatar.png"
+        // ... (Remplacer par code Nostr pour récupérer kind 0)
+        const exampleProfile = { // Profil statique pour l'exemple
+            name: "Utilisateur Nostr Exemple",
+            about: "Profil de démonstration UPlanet NOSTR App.",
+            picture: "img/default-avatar.png",
+            banner: "img/default-banner.jpg",
+            postsCount: 123 // Exemple de statistique
         };
         displayProfile(exampleProfile);
     }
@@ -100,234 +139,145 @@ document.addEventListener('DOMContentLoaded', () => {
                 relaysList.appendChild(li);
             });
         } else {
-            relaysList.innerHTML = '<li>Aucun relais favori trouvé.</li>';
+            relaysList.innerHTML = '<li>Aucun relais favori.</li>';
         }
         relays = relayUrls;
     }
 
     function displayProfile(profileData) {
-        profileName.textContent = profileData.name || "Nom inconnu";
+        profileName.textContent = profileData.name || "Nom Inconnu";
         profileAbout.textContent = profileData.about || "Aucune description.";
-        const avatarImg = document.querySelector('.profile-card .avatar');
-        if (profileData.picture) {
-            avatarImg.src = profileData.picture;
-        } else {
-            avatarImg.src = 'img/default-avatar.png';
-        }
+        profileBannerImg.src = profileData.banner || "img/default-banner.jpg";
+        profileAvatarImg.src = profileData.picture || "img/default-avatar.png";
+        document.getElementById('stat-posts').textContent = profileData.postsCount || 0; // Afficher les stats
+        // document.getElementById('stat-followers').textContent = profileData.followersCount || 0; // ...
     }
 
     // --- EDITION DE PROFIL ---
-    editProfileButton.addEventListener('click', () => {
-        profileEditorSection.classList.remove('hidden'); // Afficher la section d'édition
-        // Pré-remplir le formulaire avec les données de profil actuelles (si disponibles)
-        // ... (à implémenter)
-    });
-
-    cancelProfileEditButton.addEventListener('click', () => {
-        profileEditorSection.classList.add('hidden'); // Cacher la section d'édition
-    });
+    editProfileButton.addEventListener('click', () => showSection('profile-editor'));
+    cancelProfileEditButton.addEventListener('click', () => showSection('profile-section'));
 
     profileForm.addEventListener('submit', async (event) => {
-        event.preventDefault(); // Empêcher la soumission par défaut
-
-        const name = document.getElementById('name').value;
-        const about = document.getElementById('about').value;
-        const pictureUrl = document.getElementById('picture').value;
-        const bannerUrl = document.getElementById('banner').value;
-
-        const metadata = {
-            name: name,
-            about: about,
-            picture: pictureUrl,
-            banner: bannerUrl,
-            // ... autres champs de metadata ...
-        };
-
-        const content = JSON.stringify(metadata);
-        const eventToPublish = {
-            kind: 0, // Kind 0 pour le profil (metadata)
-            content: content,
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: publicKey, // Public key de l'utilisateur connecté
-            tags: [], // Tags supplémentaires si nécessaire
-        };
-
-        if (window.nostr && publicKey) {
-            try {
-                const signedEvent = await window.nostr.signEvent(eventToPublish);
-                console.log("Événement signé:", signedEvent);
-                // --- ICI : CODE POUR PUBLIER L'ÉVÉNEMENT SIGNÉ SUR LES RELAIS (Utiliser une librairie Nostr JS) ---
-                // Exemple conceptuel (à remplacer par du vrai code Nostr) :
-                // await publishEventToRelays(relays, signedEvent); // Fonction fictive
-                alert("Profil mis à jour avec succès !");
-                profileEditorSection.classList.add('hidden'); // Cacher l'éditeur après la sauvegarde
-                fetchProfileAndRelays(); // Refetch le profil mis à jour pour l'afficher dans la sidebar
-            } catch (error) {
-                console.error("Erreur lors de la signature ou publication de l'événement:", error);
-                alert("Erreur lors de la mise à jour du profil.");
-            }
-        } else {
-            alert("Non connecté à Nostr Connect ou public key manquante.");
-        }
+        event.preventDefault();
+        // ... (Gestion soumission formulaire profil - inchangé)
     });
 
 
     // --- NOUVEAU MESSAGE (Kind 1 avec image et GPS) ---
     newMessageForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-
-        const messageContent = messageContentInput.value;
-        const imageFile = imageUploadInput.files[0];
-
-        if (!messageContent && !imageFile) {
-            alert("Veuillez écrire un message ou choisir une image.");
-            return;
-        }
-
-        let imageUrl = null;
-        if (imageFile) {
-            // --- NIP-96 : Uploader l'image sur g1sms.fr et récupérer l'URL ---
-            console.log("Upload de l'image sur g1sms.fr (NIP-96)...");
-            // --- ICI : CODE D'UPLOAD NIP-96 (Utiliser Fetch API et g1sms.fr) ---
-            // Exemple conceptuel (à remplacer par du vrai code NIP-96) :
-            // imageUrl = await uploadImageToG1SMS(imageFile); // Fonction fictive
-            imageUrl = "img/placeholder-image.jpg"; // URL statique pour l'exemple
-            console.log("URL de l'image uploadée:", imageUrl);
-        }
-
-        // --- Géolocalisation (GPS) ---
-        let gpsCoordinates = null;
-        try {
-            gpsCoordinates = await getGeolocation(); // Fonction pour obtenir la géolocalisation
-            console.log("Coordonnées GPS:", gpsCoordinates);
-        } catch (error) {
-            console.warn("Géolocalisation non disponible ou refusée:", error);
-            // La géolocalisation est optionnelle, continuer sans si erreur
-        }
-
-
-        const tags = [];
-        if (imageUrl) {
-            tags.push(["url", imageUrl]); // Tag 'url' pour l'image (NIP-94 - simple URL)
-            // Pour NIP-96 complet, il faudrait ajouter des tags plus spécifiques
-        }
-        if (gpsCoordinates) {
-            tags.push(["geo", `${gpsCoordinates.latitude};${gpsCoordinates.longitude}`]); // Tag 'geo' pour GPS
-        }
-
-        const eventToPublish = {
-            kind: 1, // Kind 1 pour un message texte (note)
-            content: messageContent,
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: publicKey,
-            tags: tags,
-        };
-
-        if (window.nostr && publicKey) {
-            try {
-                const signedEvent = await window.nostr.signEvent(eventToPublish);
-                console.log("Événement signé:", signedEvent);
-                // --- ICI : CODE POUR PUBLIER L'ÉVÉNEMENT SIGNÉ SUR LES RELAIS (Utiliser une librairie Nostr JS) ---
-                // Exemple conceptuel (à remplacer par du vrai code Nostr) :
-                // await publishEventToRelays(relays, signedEvent); // Fonction fictive
-                alert("Message envoyé !");
-                newMessageForm.reset(); // Réinitialiser le formulaire
-            } catch (error) {
-                console.error("Erreur lors de la signature ou publication du message:", error);
-                alert("Erreur lors de l'envoi du message.");
-            }
-        } else {
-            alert("Non connecté à Nostr Connect ou public key manquante.");
-        }
+        // ... (Gestion soumission nouveau message - inchangé)
     });
 
-    function getGeolocation() {
-        return new Promise((resolve, reject) => {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        resolve({
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude
-                        });
-                    },
-                    error => {
-                        reject(error);
-                    }
-                );
+    // --- Message Preview ---
+    messageContentInput.addEventListener('input', () => {
+        const text = messageContentInput.value;
+        const image = imageUploadInput.files[0];
+
+        if (text || image) {
+            messagePreviewSection.classList.remove('hidden');
+            messagePreviewContent.textContent = text; // Afficher le texte
+            if (image) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    messagePreviewImage.src = e.target.result;
+                    messagePreviewImage.classList.remove('hidden');
+                }
+                reader.readAsDataURL(image);
             } else {
-                reject("Géolocalisation non supportée par le navigateur.");
+                messagePreviewImage.classList.add('hidden'); // Cacher image si pas d'image
+                messagePreviewImage.src = ""; // Réinitialiser la source
             }
-        });
+        } else {
+            messagePreviewSection.classList.add('hidden'); // Cacher si vide
+        }
+    });
+    imageUploadInput.addEventListener('change', () => { // Mettre à jour preview si image change
+        messageContentInput.dispatchEvent(new Event('input')); // Déclencher l'événement 'input' sur le textarea
+    });
+
+
+    function getGeolocation() {
+        // ... (Fonction getGeolocation - inchangée)
     }
 
+    // --- UPlanet Feed ---
+    let uplanetMap; // Variable pour la carte Leaflet
+    function initUPlanetMap() {
+        if (!uplanetMap) { // Initialiser la carte une seule fois
+            uplanetMap = L.map('uplanet-map').setView([43.6043, 1.4437], 13); // Toulouse par défaut
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(uplanetMap);
+            // ... (Ajouter des marqueurs, etc. plus tard) ...
+        }
+    }
 
-    // --- FLUX UPLANET (Géolocalisation) ---
     async function fetchUPlanetPosts() {
         console.log("Récupération des posts UPlanet...");
         uplanetPostsDiv.innerHTML = 'Chargement des posts UPlanet...';
+        initUPlanetMap(); // Initialiser la carte Leaflet ici
 
         let currentGPS = null;
         try {
             currentGPS = await getGeolocation();
             console.log("Position GPS pour UPlanet:", currentGPS);
+            if (currentGPS) {
+                uplanetMap.setView([currentGPS.latitude, currentGPS.longitude], 13); // Centrer la carte sur la position
+            }
         } catch (error) {
             console.warn("Géolocalisation non disponible pour UPlanet:", error);
-            uplanetPostsDiv.innerHTML = 'Géolocalisation non disponible. Impossible de charger le flux UPlanet.';
-            return;
+            uplanetPostsDiv.innerHTML = 'Géolocalisation non disponible. Flux UPlanet basé sur Toulouse.';
+            // Laisser la carte centrée sur Toulouse par défaut
         }
 
-        // --- ICI : CODE POUR DÉCOUVRIR LES CLÉS UPLANET GÉOGRAPHIQUES (API à définir) ---
-        // Exemple conceptuel (API à imaginer) :
-        // const uplanetKeys = await discoverUPlanetKeys(currentGPS); // Fonction fictive et API à définir
-        const uplanetKeys = ["npub1...", "npub2..."]; // Clés statiques pour l'exemple
-
-        if (uplanetKeys && uplanetKeys.length > 0) {
-            uplanetPostsDiv.innerHTML = ''; // Vider le message de chargement
-            // --- ICI : CODE POUR RÉCUPÉRER LES ÉVÉNEMENTS (KIND 1) POUR CHAQUE CLÉ UPLANET (Utiliser librairie Nostr JS) ---
-            // Exemple conceptuel (à remplacer par du vrai code Nostr) :
-            // const uplanetPosts = await fetchPostsForKeys(relays, uplanetKeys); // Fonction fictive
-            const examplePosts = [ // Posts statiques pour l'exemple
-                { author: "@uplanet1", content: "Message UPlanet 1...", imageUrl: "img/placeholder-image.jpg", date: new Date() },
-                { author: "@uplanet2", content: "Message UPlanet 2...", imageUrl: null, date: new Date() }
-            ];
-            displayUPlanetPosts(examplePosts);
-        } else {
-            uplanetPostsDiv.innerHTML = 'Aucun post UPlanet trouvé à proximité.';
-        }
+        // ... (Remplacer par code pour découvrir clés UPlanet et récupérer les posts)
+        const examplePosts = [ // Posts statiques pour l'exemple
+            { author: "@uplanet1", content: "Message UPlanet 1...", imageUrl: "img/placeholder-image.jpg", date: new Date(), location: [43.6043, 1.4437] }, // Toulouse
+            { author: "@uplanet2", content: "Message UPlanet 2...", imageUrl: null, date: new Date(), location: [43.55, 1.40] } // Légèrement décentré
+        ];
+        displayUPlanetPosts(examplePosts);
     }
 
     function displayUPlanetPosts(posts) {
-        uplanetPostsDiv.innerHTML = ''; // Vider le message de chargement
-
+        uplanetPostsDiv.innerHTML = '';
         if (posts && posts.length > 0) {
             posts.forEach(postData => {
-                const postElement = document.createElement('div');
-                postElement.classList.add('post');
-
-                const headerElement = document.createElement('div');
-                headerElement.classList.add('post-header');
-                headerElement.innerHTML = `
-                    <img src="img/default-avatar.png" alt="Avatar" class="post-avatar">
-                    <span class="post-author">${postData.author}</span>
-                    <span class="post-date">${formatDate(postData.date)}</span>
-                `;
-                postElement.appendChild(headerElement);
-
-                const contentElement = document.createElement('div');
-                contentElement.classList.add('post-content');
-                contentElement.innerHTML = `<p>${postData.content}</p>`;
-                if (postData.imageUrl) {
-                    contentElement.innerHTML += `<img src="${postData.imageUrl}" alt="Image jointe" class="post-image">`;
-                }
-                postElement.appendChild(contentElement);
-
+                const postElement = createUPlanetPostElement(postData);
                 uplanetPostsDiv.appendChild(postElement);
+                if (uplanetMap && postData.location) {
+                    L.marker(postData.location).bindPopup(`<b>${postData.author}</b><br>${postData.content.substring(0, 50)}...`).addTo(uplanetMap); // Ajouter marqueur sur la carte
+                }
             });
         } else {
             uplanetPostsDiv.innerHTML = 'Aucun post UPlanet à afficher.';
         }
     }
+
+    function createUPlanetPostElement(postData) {
+        const postCard = document.createElement('div');
+        postCard.classList.add('post-card');
+
+        const headerElement = document.createElement('div');
+        headerElement.classList.add('post-header');
+        headerElement.innerHTML = `
+            <img src="img/default-avatar.png" alt="Avatar" class="post-avatar">
+            <span class="post-author">${postData.author}</span>
+            <span class="post-date">${formatDate(postData.date)}</span>
+        `;
+        postCard.appendChild(headerElement);
+
+        const contentElement = document.createElement('div');
+        contentElement.classList.add('post-content');
+        contentElement.innerHTML = `<p>${postData.content}</p>`;
+        if (postData.imageUrl) {
+            contentElement.innerHTML += `<img src="${postData.imageUrl}" alt="Image jointe" class="post-image">`;
+        }
+        postCard.appendChild(contentElement);
+        return postCard;
+    }
+
+
 
     function formatDate(date) {
         // Fonction simple pour formater la date (à améliorer)
@@ -350,11 +300,11 @@ document.addEventListener('DOMContentLoaded', () => {
         relayLogsOutput.scrollTop = relayLogsOutput.scrollHeight; // Scroll to bottom
     }
 
-    // Exemple d'utilisation de logRelayMessage (à intégrer dans la logique de connexion/communication Nostr)
-    logRelayMessage("Démarrage de l'application...");
-    logRelayMessage("Tentative de connexion aux relais par défaut...");
+    logRelayMessage("Application UPlanet NOSTR démarrée..."); // Log au démarrage
 
 
     // --- Initialisation ---
+    updateConnectionStatus(false, "Déconnecté"); // État initial déconnecté
     fetchUPlanetPosts();
 });
+

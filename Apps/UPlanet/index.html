@@ -3,14 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mon App Nostr (Look Twitter/Facebook)</title>
+    <title>UPlanet ♥️BOX Nostr App</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Leaflet CSS (pour la carte UPlanet) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo">Mon App Nostr</div>
-            <nav>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-inner">
+                <button class="menu-toggle" id="menu-toggle-button">
+                    ☰ <!-- Hamburger Icon -->
+                </button>
+                <div class="logo">UPlanet ♥️BOX</div>
+                <div class="header-actions">
+                    <span class="connection-status" id="connection-badge">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="connection-text">Déconnecté</span>
+                    </span>
+                    <button id="connect-button">Connecter</button>
+                    <button id="dark-mode-toggle">🌙</button> <!-- Dark Mode Toggle Icon -->
+                </div>
+            </div>
+        </header>
+
+        <aside class="app-sidebar" id="app-sidebar">
+            <div class="sidebar-content">
+                <div class="profile-banner">
+                    <img src="img/default-banner.jpg" alt="Bannière de Profil" id="profile-banner-img">
+                </div>
+                <div class="profile-card">
+                    <img src="img/default-avatar.png" alt="Avatar" class="avatar" id="profile-avatar-img">
+                    <h2 id="profile-name">Nom d'utilisateur</h2>
+                    <p id="profile-about">Description du profil...</p>
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <span class="stat-number" id="stat-posts">0</span>
+                            <span class="stat-label">Messages</span>
+                        </div>
+                        <!-- Conceptuel - Followers/Following non standard Nostr -->
+                        <!-- <div class="stat-item">
+                            <span class="stat-number" id="stat-followers">0</span>
+                            <span class="stat-label">Followers</span>
+                        </div> -->
+                    </div>
+                    <button id="edit-profile-button" class="button-secondary">Modifier Profil</button>
+                    <a href="#profile-section" class="view-profile-link">Voir mon profil</a>
+                </div>
+
+                <div class="relays-section">
+                    <h3>Relais Favoris</h3>
+                    <ul id="relays-list">
+                        <li>Chargement...</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <main class="app-main-content">
+            <nav class="content-menu">
                 <ul class="menu">
                     <li class="menu-item active" data-section="profile-section">Profil</li>
                     <li class="menu-item" data-section="new-message-section">Nouveau Message</li>
@@ -18,33 +69,15 @@
                     <li class="menu-item" data-section="relay-logs-section">Logs Relais</li>
                     <li class="menu-item" data-section="profile-editor">Modifier Profil</li>
                 </ul>
-                <button id="connect-button">Connecter avec Nostr Connect</button>
             </nav>
-        </header>
 
-        <aside class="sidebar">
-            <div class="profile-card">
-                <img src="img/default-avatar.png" alt="Avatar" class="avatar">
-                <h2 id="profile-name">Nom d'utilisateur</h2>
-                <p id="profile-about">Description du profil...</p>
-                <button id="edit-profile-button">Modifier Profil</button>
-            </div>
-
-            <div class="relays-section">
-                <h3>Relais Favoris</h3>
-                <ul id="relays-list">
-                    <li>Chargement des relais...</li>
-                </ul>
-            </div>
-        </aside>
-
-        <main class="main-content">
-            <section id="profile-section">
+            <section id="profile-section" class="content-section">
                 <h2>Mon Profil</h2>
-                <p>Informations de votre profil Nostr seront affichées ici.</p>
+                <p>Vos informations de profil Nostr seront affichées ici en détail.</p>
+                <!-- Détails du profil ici -->
             </section>
 
-            <section id="profile-editor" class="hidden">
+            <section id="profile-editor" class="content-section hidden">
                 <h2>Modifier mon Profil</h2>
                 <form id="profile-form">
                     <label for="name">Nom:</label>
@@ -59,41 +92,63 @@
                     <label for="banner">URL de la bannière:</label>
                     <input type="url" id="banner" placeholder="URL de la bannière">
 
-                    <button type="submit">Enregistrer Profil</button>
-                    <button type="button" id="cancel-profile-edit">Annuler</button>
+                    <button type="submit" class="button-primary">Enregistrer</button>
+                    <button type="button" id="cancel-profile-edit" class="button-secondary">Annuler</button>
                 </form>
             </section>
 
-            <section id="new-message-section" class="hidden">
+            <section id="new-message-section" class="content-section hidden">
                 <h2>Nouveau Message</h2>
                 <form id="new-message-form">
-                    <textarea id="message-content" placeholder="Quoi de neuf ?"></textarea>
-                    <input type="file" id="image-upload" accept="image/*">
-                    <button type="submit">Envoyer</button>
+                    <textarea id="message-content" placeholder="Quoi de neuf ?" class="message-textarea"></textarea>
+                    <div class="message-actions">
+                        <input type="file" id="image-upload" accept="image/*" class="image-upload-input">
+                        <button type="submit" class="button-primary">Envoyer</button>
+                    </div>
+                    <div id="message-preview" class="message-preview hidden">
+                        <h3>Aperçu du Message</h3>
+                        <div id="message-preview-content"></div>
+                        <img id="message-preview-image" src="" alt="Prévisualisation Image" class="hidden">
+                    </div>
                 </form>
             </section>
 
-            <section id="uplanet-feed" class="hidden">
+            <section id="uplanet-feed" class="content-section hidden">
                 <h2>Flux UPlanet (Géolocalisation)</h2>
-                <div id="uplanet-posts">
+                <div class="uplanet-filters">
+                    <label for="filter-distance">Distance:</label>
+                    <select id="filter-distance">
+                        <option value="1">1km</option>
+                        <option value="5">5km</option>
+                        <option value="10" selected>10km</option>
+                        <option value="25">25km</option>
+                    </select>
+                    <!-- ... autres filtres (types de contenu, tags) ... -->
+                </div>
+                <div id="uplanet-map" class="uplanet-map">
+                    <!-- Carte Leaflet ici -->
+                </div>
+                <div id="uplanet-posts" class="uplanet-posts">
                     <!-- Les messages UPlanet seront affichés ici -->
                     <!-- ... posts ... -->
                 </div>
             </section>
 
-            <section id="relay-logs-section" class="hidden">
+            <section id="relay-logs-section" class="content-section hidden">
                 <h2>Logs des Relais</h2>
-                <div id="relay-logs">
+                <div id="relay-logs" class="relay-logs">
                     <!-- Les logs des relais seront affichés ici -->
-                    <textarea id="relay-logs-output" readonly style="width: 100%; min-height: 200px; font-family: monospace; font-size: 0.9em;"></textarea>
+                    <textarea id="relay-logs-output" readonly class="relay-logs-output"></textarea>
                 </div>
             </section>
         </main>
 
-        <footer>
-            <p>© 2024 Mon App Nostr</p>
+        <footer class="app-footer">
+            <p>UPlanet NOSTR App</p>
         </footer>
     </div>
+    <!-- Leaflet JavaScript (pour la carte UPlanet) -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
