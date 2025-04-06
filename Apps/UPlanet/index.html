@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon App Nostr (Look Twitter/Facebook)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Mon App Nostr</div>
+            <nav>
+                <ul class="menu">
+                    <li class="menu-item active" data-section="profile-section">Profil</li>
+                    <li class="menu-item" data-section="new-message-section">Nouveau Message</li>
+                    <li class="menu-item" data-section="uplanet-feed">UPlanet</li>
+                    <li class="menu-item" data-section="relay-logs-section">Logs Relais</li>
+                    <li class="menu-item" data-section="profile-editor">Modifier Profil</li>
+                </ul>
+                <button id="connect-button">Connecter avec Nostr Connect</button>
+            </nav>
+        </header>
+
+        <aside class="sidebar">
+            <div class="profile-card">
+                <img src="img/default-avatar.png" alt="Avatar" class="avatar">
+                <h2 id="profile-name">Nom d'utilisateur</h2>
+                <p id="profile-about">Description du profil...</p>
+                <button id="edit-profile-button">Modifier Profil</button>
+            </div>
+
+            <div class="relays-section">
+                <h3>Relais Favoris</h3>
+                <ul id="relays-list">
+                    <li>Chargement des relais...</li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <section id="profile-section">
+                <h2>Mon Profil</h2>
+                <p>Informations de votre profil Nostr seront affichées ici.</p>
+            </section>
+
+            <section id="profile-editor" class="hidden">
+                <h2>Modifier mon Profil</h2>
+                <form id="profile-form">
+                    <label for="name">Nom:</label>
+                    <input type="text" id="name" placeholder="Votre nom">
+
+                    <label for="about">À propos:</label>
+                    <textarea id="about" placeholder="Votre description"></textarea>
+
+                    <label for="picture">URL de l'avatar:</label>
+                    <input type="url" id="picture" placeholder="URL de l'avatar">
+
+                    <label for="banner">URL de la bannière:</label>
+                    <input type="url" id="banner" placeholder="URL de la bannière">
+
+                    <button type="submit">Enregistrer Profil</button>
+                    <button type="button" id="cancel-profile-edit">Annuler</button>
+                </form>
+            </section>
+
+            <section id="new-message-section" class="hidden">
+                <h2>Nouveau Message</h2>
+                <form id="new-message-form">
+                    <textarea id="message-content" placeholder="Quoi de neuf ?"></textarea>
+                    <input type="file" id="image-upload" accept="image/*">
+                    <button type="submit">Envoyer</button>
+                </form>
+            </section>
+
+            <section id="uplanet-feed" class="hidden">
+                <h2>Flux UPlanet (Géolocalisation)</h2>
+                <div id="uplanet-posts">
+                    <!-- Les messages UPlanet seront affichés ici -->
+                    <!-- ... posts ... -->
+                </div>
+            </section>
+
+            <section id="relay-logs-section" class="hidden">
+                <h2>Logs des Relais</h2>
+                <div id="relay-logs">
+                    <!-- Les logs des relais seront affichés ici -->
+                    <textarea id="relay-logs-output" readonly style="width: 100%; min-height: 200px; font-family: monospace; font-size: 0.9em;"></textarea>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2024 Mon App Nostr</p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
