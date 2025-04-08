@@ -1,4 +1,13 @@
 #!/bin/bash
+#~ Ce script gère les messages reçus par le relai Nostr en autorisant tout le monde sauf les adresses blacklistées.
+#~ Les adresses qui publient plus de 3 messages en une heure sont temporairement bannies (greylistées).
+
+#~ Format du fichier blacklist.txt :
+#~ Chaque ligne du fichier doit contenir une clé publique blacklistée.
+#~ Exemple :
+#~ blacklisted_pubkey1
+#~ blacklisted_pubkey2
+#~ "
 
 # Définition du fichier de log
 LOG_FILE="$HOME/.zen/strfry/plugin.log"
@@ -27,18 +36,6 @@ fi
 
 # Greylist pour les adresses qui publient trop fréquemment
 declare -A GREYLIST
-
-# Message d'aide sur le fonctionnement et le format du fichier blacklist
-#~ echo "Help:
-#~ Ce script gère les messages reçus par le relai Nostr en autorisant tout le monde sauf les adresses blacklistées.
-#~ Les adresses qui publient plus de 3 messages en une heure sont temporairement bannies (greylistées).
-
-#~ Format du fichier blacklist.txt :
-#~ Chaque ligne du fichier doit contenir une clé publique blacklistée.
-#~ Exemple :
-#~ blacklisted_pubkey1
-#~ blacklisted_pubkey2
-#~ "
 
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
@@ -114,7 +111,7 @@ process_new_event() {
 # Fonction pour mettre à jour le fichier greylist
 update_greylist_file() {
     while true; do
-        echo "Mise à jour du fichier greylist.txt"
+        echo "Mise à jour du fichier greylist.txt" >&2
         echo "${GREYLIST[@]}" > "$GREYLIST_FILE"
         sleep 900 # 15 minutes
     done
