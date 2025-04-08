@@ -68,6 +68,7 @@ is_key_greylisted() {
 # Fonction pour traiter un événement de type 'new'
 process_new_event() {
     local event_json="$1"
+    echo "$event_json" >&2
 
     # Extraire les informations nécessaires de l'événement
     local event_id=$(echo "$event_json" | jq -r '.event.id')
