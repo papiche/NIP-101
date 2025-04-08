@@ -34,7 +34,7 @@ is_key_authorized() {
 # Fonction pour traiter un événement de type 'new'
 process_new_event() {
     local event_json="$1"
-    echo "$event_json" >&2
+    #~ echo "$event_json" >&2
 
     # Extraire les informations nécessaires de l'événement
     local event_id=$(echo "$event_json" | jq -r '.event.id')
@@ -91,7 +91,7 @@ while IFS= read -r line; do
             echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
         fi
     else
-        echo "Non-JSON input received: $line" >&2
+        #~ echo "Non-JSON input received: $line" >&2
         echo "{\"action\": \"reject\"}"
     fi
 
