@@ -83,6 +83,7 @@ while IFS= read -r line; do
             echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
         fi
     else
+        echo "Non-JSON input received: $line" >&2
         echo "{\"action\": \"reject\"}"
     fi
 
