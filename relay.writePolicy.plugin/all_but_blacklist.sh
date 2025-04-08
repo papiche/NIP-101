@@ -29,16 +29,16 @@ fi
 declare -A GREYLIST
 
 # Message d'aide sur le fonctionnement et le format du fichier blacklist
-echo "Help:
-Ce script gère les messages reçus par le relai Nostr en autorisant tout le monde sauf les adresses blacklistées.
-Les adresses qui publient plus de 3 messages en une heure sont temporairement bannies (greylistées).
+#~ echo "Help:
+#~ Ce script gère les messages reçus par le relai Nostr en autorisant tout le monde sauf les adresses blacklistées.
+#~ Les adresses qui publient plus de 3 messages en une heure sont temporairement bannies (greylistées).
 
-Format du fichier blacklist.txt :
-Chaque ligne du fichier doit contenir une clé publique blacklistée.
-Exemple :
-blacklisted_pubkey1
-blacklisted_pubkey2
-"
+#~ Format du fichier blacklist.txt :
+#~ Chaque ligne du fichier doit contenir une clé publique blacklistée.
+#~ Exemple :
+#~ blacklisted_pubkey1
+#~ blacklisted_pubkey2
+#~ "
 
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
