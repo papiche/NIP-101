@@ -1,7 +1,5 @@
 #!/bin/bash
 #~ Ce script gère les messages reçus par le relai Nostr en autorisant tout le monde sauf les adresses blacklistées.
-#~ Les adresses qui publient plus de 3 messages en une heure sont temporairement bannies (greylistées).
-
 #~ Format du fichier blacklist.txt :
 #~ Chaque ligne du fichier doit contenir une clé publique blacklistée.
 #~ Exemple :
@@ -24,18 +22,12 @@ KEY_DIR="$HOME/.zen/game/nostr"
 # Fichier contenant la blacklist
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 
-# Fichier contenant la greylist
-GREYLIST_FILE="$HOME/.zen/strfry/greylist.txt"
-
 # Charger la blacklist depuis le fichier
 if [[ -f "$BLACKLIST_FILE" ]]; then
     BLACKLIST=($(cat "$BLACKLIST_FILE"))
 else
     BLACKLIST=()
 fi
-
-# Greylist pour les adresses qui publient trop fréquemment
-declare -A GREYLIST
 
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
@@ -46,20 +38,6 @@ is_key_blacklisted() {
         fi
     done
     return 1 # Clé non blacklistée
-}
-
-# Fonction pour vérifier si une clé est greylistée
-is_key_greylisted() {
-    local pubkey="$1"
-    local current_time=$(date +%s)
-
-    if [[ -n "${GREYLIST[$pubkey]}" ]]; then
-        local last_message_time=${GREYLIST[$pubkey]}
-        if (( (current_time - last_message_time) < 3600 )); then
-            return 0 # Clé greylistée
-        fi
-    fi
-    return 1 # Clé non greylistée
 }
 
 # Fonction pour traiter un événement de type 'new'
@@ -79,46 +57,9 @@ process_new_event() {
         return
     fi
 
-    # Vérifier si la clé publique est greylistée
-    if is_key_greylisted "$pubkey"; then
-        echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
-        return
-    fi
-
-    # Compter les messages de la clé publique dans la dernière heure
-    if [[ -z "${GREYLIST[$pubkey]}" ]]; then
-        GREYLIST[$pubkey]="$current_time"
-    else
-        local message_count=0
-        local last_message_time=${GREYLIST[$pubkey]}
-        for timestamp in ${GREYLIST[$pubkey]}; do
-            if (( (current_time - timestamp) < 3600 )); then
-                ((message_count++))
-            fi
-        done
-        if (( message_count >= 3 )); then
-            GREYLIST[$pubkey]="$current_time"
-            echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
-            return
-        fi
-        GREYLIST[$pubkey]+=" $current_time"
-    fi
-
-    # Accepter l'événement après traitement
+    # Accepter l'événement
     echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
 }
-
-# Fonction pour mettre à jour le fichier greylist
-update_greylist_file() {
-    while true; do
-        echo "Mise à jour du fichier greylist.txt" >&2
-        echo "${GREYLIST[@]}" > "$GREYLIST_FILE"
-        sleep 900 # 15 minutes
-    done
-}
-
-# Lancer la mise à jour du fichier greylist en arrière-plan
-update_greylist_file &
 
 # Boucle principale qui lit les événements depuis stdin
 while IFS= read -r line; do
