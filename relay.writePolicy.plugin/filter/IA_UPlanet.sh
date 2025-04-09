@@ -56,6 +56,23 @@ is_key_authorized() {
     return 1 # Clé non autorisée
 }
 
+get_key_directory() {
+    local pubkey="$1"
+    local key_file
+    local found_dir=""
+
+    while IFS= read -r -d $'\0' key_file; do
+        if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
+            # Extraire le dernier répertoire du chemin
+            found_dir=$(basename "$(dirname "$key_file")")
+            DKEY="$found_dir"
+            return 0 # Clé autorisée
+        fi
+    done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
+
+    return 1 # Clé non autorisée
+}
+
 # --- Check for correct number of arguments ---
 if [[ $# -lt 6 ]]; then
   echo "Error: Not enough arguments provided."
@@ -80,11 +97,13 @@ echo "  URL: $URL"
 echo ""
 
 # Vérifier si la clé publique est autorisée
-if ! is_key_authorized "$PUBKEY"; then
+if ! get_key_directory "$PUBKEY"; then
     #~ echo "Unauthorized pubkey for kind $kind: $pubkey" >&2
     echo "This NOSTR CARD $PUBKEY is not registered on this Astroport"
     exit 0
 fi
+
+echo "  DKEY: $DKEY"
 
 ### Extract comment from message
 ## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
@@ -103,7 +122,7 @@ echo "Image description received."
 
 #######################################################################
 echo "Generating Ollama answer..."
-ANSWER=$($MY_PATH/question.py "Image : $DESC, COMMENT : $extracted_text. (answer in the same language as COMMENT is written)")
+ANSWER=$($MY_PATH/question.py "CAMERA : $DESC, COMMENT : $extracted_text. (respond in the same language as COMMENT is written)")
 
 if [[ -z "$ANSWER" ]]; then
   echo "Error: Failed to get answer from question.py"
@@ -123,15 +142,22 @@ fi
 
 ## Write nostr message
 echo "Sending NOSTR message..."
-
+echo "$ANSWER\n$URL" >
 # nostr_send_event.py [-h] [--relay RELAY] [--timeout TIMEOUT] [--tags TAGS] private_key kind content
 ~/.zen/Astroport.ONE/tools/nostr_send_event.py \
-  --relay wss://relay.copylaradio.com \
+  --relay $myRELAY \
+  --connect-timeout 10 \
   "$UMAPNSEC" \
   "1" \
-  "$ANSWER" \
+  "$ANSWER\n$URL" \
   --tags "e:$EVENT" \
   --tags "p:$PUBKEY"
+
+## UMAP follow PUBKEY
+~/.zen/Astroport.ONE/tools/nostr_follow.py \
+  --relay $myRELAY \
+  "$UMAPNSEC" \
+  "$PUBKEY"
 
 #######################################################################
 echo ""
