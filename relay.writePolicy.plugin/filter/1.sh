@@ -3,6 +3,8 @@
 
 # Extraire les informations nécessaires de l'événement JSON passé en argument
 event_json="$1"
+echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log"
+
 application=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="application") | .value')
 latitude=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="latitude") | .value')
 longitude=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="longitude") | .value')
