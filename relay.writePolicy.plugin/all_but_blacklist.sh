@@ -22,16 +22,10 @@ KEY_DIR="$HOME/.zen/game/nostr"
 # Fichier contenant la blacklist
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 
-# Charger la blacklist depuis le fichier
-if [[ -f "$BLACKLIST_FILE" ]]; then
-    BLACKLIST=($(cat "$BLACKLIST_FILE"))
-else
-    BLACKLIST=()
-fi
-
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
     local pubkey="$1"
+    local BLACKLIST=($(cat "$BLACKLIST_FILE"))
     for blacklisted_key in "${BLACKLIST[@]}"; do
         if [[ "$pubkey" == "$blacklisted_key" ]]; then
             return 0 # Clé blacklistée
@@ -83,7 +77,6 @@ while IFS= read -r line; do
             echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
         fi
     else
-        echo "Non-JSON input received: $line" >&2
         echo "{\"action\": \"reject\"}"
     fi
 
