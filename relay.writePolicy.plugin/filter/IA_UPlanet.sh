@@ -103,7 +103,7 @@ echo "Image description received."
 
 #######################################################################
 echo "Generating Ollama answer..."
-ANSWER=$(MY_PATH/question.py "Image : $DESC, COMMENT : $extracted_text. (answer in the same language as COMMENT is written)")
+ANSWER=$($MY_PATH/question.py "Image : $DESC, COMMENT : $extracted_text. (answer in the same language as COMMENT is written)")
 
 if [[ -z "$ANSWER" ]]; then
   echo "Error: Failed to get answer from question.py"
@@ -137,7 +137,6 @@ echo "LAT: $LAT"
 echo "LON: $LON"
 echo "Extracted Text: $extracted_text"
 echo "Image Description: $DESC"
-echo "NOSTR Secret (UMAPNSEC): (Generated, not displayed for security)" # Not displaying secret
 echo "Ollama Answer: $ANSWER"
 
 echo ""
