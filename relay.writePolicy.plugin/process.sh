@@ -51,8 +51,8 @@ process_new_event() {
     fi
 
     # Exécuter le filtre correspondant (si le script existe)
-    if [[ -x ./filter/$event_kind.sh ]]; then
-        ./filter/$event_kind.sh "$line"
+    if [[ -x ./filter/$kind.sh ]]; then
+        ./filter/$kind.sh "$event_json"
         if [[ $? -ne 0 ]]; then
             # Si le filtre renvoie un code d'erreur, rejeter l'événement
             #~ echo "Rejecting event of type: $event_type" >&2

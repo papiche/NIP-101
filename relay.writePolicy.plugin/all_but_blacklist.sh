@@ -34,6 +34,7 @@ is_key_blacklisted() {
     return 1 # Clé non blacklistée
 }
 
+
 # Fonction pour traiter un événement de type 'new'
 process_new_event() {
     local event_json="$1"
@@ -49,6 +50,17 @@ process_new_event() {
     if is_key_blacklisted "$pubkey"; then
         echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
         return
+    fi
+
+    # Exécuter le filtre correspondant (si le script existe)
+    if [[ -x ./filter/$kind.sh ]]; then
+        ./filter/$kind.sh "$event_json"
+        if [[ $? -ne 0 ]]; then
+            # Si le filtre renvoie un code d'erreur, rejeter l'événement
+            #~ echo "Rejecting event of type: $event_type" >&2
+            echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
+            return
+        fi
     fi
 
     # Accepter l'événement
