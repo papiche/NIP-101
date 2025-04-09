@@ -82,7 +82,7 @@ echo ""
 # Vérifier si la clé publique est autorisée
 if ! is_key_authorized "$PUBKEY"; then
     #~ echo "Unauthorized pubkey for kind $kind: $pubkey" >&2
-    echo "This NOSTR CARD is not registered on this Astroport"
+    echo "This NOSTR CARD $PUBKEY is not registered on this Astroport"
     exit 0
 fi
 
