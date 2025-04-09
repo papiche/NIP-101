@@ -42,20 +42,6 @@ fi
 KEY_DIR="$HOME/.zen/game/nostr"
 
 # Fonction pour vérifier si une clé est autorisée
-is_key_authorized() {
-    local pubkey="$1"
-    local key_file
-
-    while IFS= read -r -d $'\0' key_file; do
-        if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
-            #~ echo "___FOUND $pubkey in $key_file" >&2
-            return 0 # Clé autorisée
-        fi
-    done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
-
-    return 1 # Clé non autorisée
-}
-
 get_key_directory() {
     local pubkey="$1"
     local key_file
@@ -64,8 +50,7 @@ get_key_directory() {
     while IFS= read -r -d $'\0' key_file; do
         if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
             # Extraire le dernier répertoire du chemin
-            found_dir=$(basename "$(dirname "$key_file")")
-            DKEY="$found_dir"
+            KNAME=$(basename "$(dirname "$key_file")")
             return 0 # Clé autorisée
         fi
     done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
@@ -103,7 +88,7 @@ if ! get_key_directory "$PUBKEY"; then
     exit 0
 fi
 
-echo "  DKEY: $DKEY"
+echo "  KNAME: $KNAME"
 
 ### Extract comment from message
 ## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
@@ -142,22 +127,36 @@ fi
 
 ## Write nostr message
 echo "Sending NOSTR message..."
-echo "$ANSWER\n$URL" >
-# nostr_send_event.py [-h] [--relay RELAY] [--timeout TIMEOUT] [--tags TAGS] private_key kind content
-~/.zen/Astroport.ONE/tools/nostr_send_event.py \
-  --relay $myRELAY \
-  --connect-timeout 10 \
-  "$UMAPNSEC" \
-  "1" \
-  "$ANSWER\n$URL" \
-  --tags "e:$EVENT" \
-  --tags "p:$PUBKEY"
+if [[ ! -z $KNAME ]]; then
+    MOATS=$(date -u +"%Y%m%d%H%M%S%4N") && mkdir -p ~/.zen/game/nostr/$KNAME/MESSAGE
+    echo "$ANSWER\n$URL" > ~/.zen/game/nostr/$KNAME/MESSAGE/$MOATS.txt ## to IPFS (with NOSTR.refresh.sh)
+fi
+
+#######################################################################
+echo "Converting NSEC to HEX for nostpy-cli..."
+NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+if [[ -z "$NPRIV_HEX" ]]; then
+  echo "Error: Failed to convert NSEC to HEX."
+  exit 1
+fi
+echo "NSEC converted to HEX."
+
+#######################################################################
+echo "Sending Nostr Event (Kind 1) using nostpy-cli..."
+
+nostpy-cli send_event \
+  -privkey "$NPRIV_HEX" \
+  -kind 1 \
+  -content "$ANSWER\n$URL" \
+  -tags "[['e', '$EVENT'], ['p', '$PUBKEY']]" \
+  --relay "$myRELAY"
 
 ## UMAP follow PUBKEY
-~/.zen/Astroport.ONE/tools/nostr_follow.py \
-  --relay $myRELAY \
-  "$UMAPNSEC" \
-  "$PUBKEY"
+nostpy-cli send_event \
+    -privkey "$NPRIV_HEX" \
+    -kind 3 \
+    -tags "[['p', '$PUBKEY']]" \
+    --relay "$myRELAY"
 
 #######################################################################
 echo ""
