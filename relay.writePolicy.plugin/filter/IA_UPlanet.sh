@@ -147,7 +147,7 @@ echo "Sending Nostr Event (Kind 1) using nostpy-cli..."
 nostpy-cli send_event \
   -privkey "$NPRIV_HEX" \
   -kind 1 \
-  -content "$ANSWER\n$URL" \
+  -content "$ANSWER" \
   -tags "[['e', '$EVENT'], ['p', '$PUBKEY']]" \
   --relay "$myRELAY"
 
@@ -155,6 +155,7 @@ nostpy-cli send_event \
 nostpy-cli send_event \
     -privkey "$NPRIV_HEX" \
     -kind 3 \
+    -content "" \
     -tags "[['p', '$PUBKEY']]" \
     --relay "$myRELAY"
 
