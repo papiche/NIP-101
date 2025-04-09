@@ -3,6 +3,8 @@
 # Il vérifie que la clé publique de la source du messaage
 # est enregistré comme Nostr Card sur la station Astroport.ONE
 # Selon le type applique un traitement à la volée...
+MY_PATH="`dirname \"$0\"`"              # relative
+MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Définition du fichier de log
 LOG_FILE="$HOME/.zen/strfry/plugin.log"
@@ -51,8 +53,8 @@ process_new_event() {
     fi
 
     # Exécuter le filtre correspondant (si le script existe)
-    if [[ -x ./filter/$kind.sh ]]; then
-        ./filter/$kind.sh "$event_json"
+    if [[ -x $MY_PATH/filter/$kind.sh ]]; then
+        $MY_PATH/filter/$kind.sh "$event_json"
         if [[ $? -ne 0 ]]; then
             # Si le filtre renvoie un code d'erreur, rejeter l'événement
             #~ echo "Rejecting event of type: $event_type" >&2
