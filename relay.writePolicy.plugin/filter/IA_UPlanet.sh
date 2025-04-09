@@ -120,7 +120,10 @@ if [[ -z "$UMAPNSEC" ]]; then
   echo "Error: Failed to generate NOSTR key."
   exit 1
 fi
+
 ## Write nostr message
+echo "Sending NOSTR message..."
+
 # nostr_send_event.py [-h] [--relay RELAY] [--timeout TIMEOUT] [--tags TAGS] private_key kind content
 ~/.zen/Astroport.ONE/tools/nostr_send_event.py \
   --relay wss://relay.copylaradio.com \
@@ -129,6 +132,7 @@ fi
   "$ANSWER" \
   --tags "e:$EVENT" \
   --tags "p:$PUBKEY"
+
 #######################################################################
 echo ""
 echo "--- Summary ---"

@@ -5,7 +5,7 @@ MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Extraire les informations nécessaires de l'événement JSON passé en argument
 event_json="$1"
-echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log"
+#~ echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log" ## DEBUG
 
 application=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "application") | .[1]')
 url=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "url") | .[1]')
