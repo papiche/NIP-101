@@ -24,5 +24,5 @@ if [[ "$application" == "UPlanet" ]]; then
         exit 1 # Latitude ou longitude manquante
     fi
 else
-    exit 10 # Ne pas traiter par ce filtre, laisser process.sh gérer l'autorisation standard
+    exit 0
 fi
