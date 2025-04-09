@@ -38,6 +38,24 @@ if [[ "$1" == "--help" ]]; then
   exit 0
 fi
 
+# Définition du répertoire de stockage des NOSTR Card
+KEY_DIR="$HOME/.zen/game/nostr"
+
+# Fonction pour vérifier si une clé est autorisée
+is_key_authorized() {
+    local pubkey="$1"
+    local key_file
+
+    while IFS= read -r -d $'\0' key_file; do
+        if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
+            #~ echo "___FOUND $pubkey in $key_file" >&2
+            return 0 # Clé autorisée
+        fi
+    done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
+
+    return 1 # Clé non autorisée
+}
+
 # --- Check for correct number of arguments ---
 if [[ $# -lt 6 ]]; then
   echo "Error: Not enough arguments provided."
@@ -60,6 +78,13 @@ echo "  LON: $LON"
 echo "  MESSAGE: $MESSAGE"
 echo "  URL: $URL"
 echo ""
+
+# Vérifier si la clé publique est autorisée
+if ! is_key_authorized "$PUBKEY"; then
+    #~ echo "Unauthorized pubkey for kind $kind: $pubkey" >&2
+    echo "This NOSTR CARD is not registered on this Astroport"
+    exit 0
+fi
 
 ### Extract comment from message
 ## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
