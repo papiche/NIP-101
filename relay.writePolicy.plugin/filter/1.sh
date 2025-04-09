@@ -5,9 +5,9 @@
 event_json="$1"
 echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log"
 
-application=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="application") | .value')
-latitude=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="latitude") | .value')
-longitude=$(echo "$event_json" | jq -r '.event.tags | to_entries[] | select(.key=="longitude") | .value')
+application=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "application") | .[1]')
+latitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "latitude") | .[1]')
+longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitude") | .[1]')
 content=$(echo "$event_json" | jq -r '.event.content')
 event_id=$(echo "$event_json" | jq -r '.event.id')
 pubkey=$(echo "$event_json" | jq -r '.event.pubkey')
