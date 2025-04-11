@@ -54,7 +54,11 @@ else
         NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
         echo "Notice: Astroport Relay Usage"
 
-        RESPN="We noticed you're using our Astroport Relay without being registered in our Web of Trust.\nAvoid this message by joining our self-hosting community, register to $URELAY/scan\n\n/UPlanet${UPLANETG1PUB:0:8}"
+        RESPN="We noticed you're using our Astroport Relay without being registered in our Web of Trust.
+        Avoid this message by joining our self-hosting community.
+        Register to $uSPOT/scan
+
+        /UPlanet${UPLANETG1PUB:0:8}"
 
         nostpy-cli send_event \
           -privkey "$NPRIV_HEX" \
