@@ -52,13 +52,16 @@ else
     if [[ "$pubkey" != "$NPUB_HEX" ]]; then
         UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}" "${UPLANETNAME}" -s)
         NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
-        echo "Notice: Astroport Relay Usage"
+        echo "Notice: Astroport Relay Anonymous Usage"
 
-        RESPN="We noticed you're using our Astroport Relay without being registered in our Web of Trust.
-        Avoid this message by joining our self-hosting community.
-        Register to $uSPOT/scan
+        RESPN="Notice: Astroport Relay Usage:
 
-        /UPlanet${UPLANETG1PUB:0:8}"
+We noticed you're using our Astroport Relay without being registered in our Ğ1 Web of Trust.
+You can avoid this message by joining our self-hosting community.
+$uSPOT/scan
+
+$IPFSNODEID #CopyLaRadio “♥️BOX” relay
+/UPlanet (${UPLANETG1PUB:0:8})"
 
         nostpy-cli send_event \
           -privkey "$NPRIV_HEX" \
