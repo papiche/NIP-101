@@ -1,3 +1,4 @@
+/* style.css - Identique au précédent, pas de changements CSS ici */
 /* --- Variables CSS pour le thème --- */
 :root {
     --color-bg: #f0f2f5; /* Fond clair */
@@ -352,6 +353,89 @@ body {
 /* Profil Section */
 #profile-section h2 {
     margin-top: 0;
+}
+
+/* Detailed Profile Info in Profile Section */
+#detailed-profile-info > div {
+    margin-bottom: 10px;
+    font-size: 0.95em;
+    color: var(--color-text-secondary);
+    word-break: break-all; /* or word-wrap: break-word; */
+}
+
+
+/* Mur N1/N2 Section */
+#n1n2-wall-section h2 {
+    margin-top: 0;
+}
+
+#nostr-messages-feed {
+    position: relative; /* Pour positionner le loader */
+}
+
+#nostr-feed-loading {
+    text-align: center;
+    padding: 15px 0;
+    color: var(--color-text-secondary);
+}
+
+#message-feed-content {
+    /* Styles pour le contenu des messages */
+}
+
+.message {
+    padding: 15px;
+    border-bottom: 1px solid var(--color-border);
+    background-color: var(--color-bg-content); /* Fond blanc pour chaque message */
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 10px;
+}
+.message:last-child {
+    border-bottom: none;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+
+.message-author {
+    font-weight: bold;
+    color: var(--color-text-primary);
+}
+
+.message-content {
+    line-height: 1.5;
+    word-wrap: break-word; /* Pour éviter les débordements de texte */
+}
+
+.message-content a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.message-content a:hover {
+    text-decoration: underline;
+}
+
+#load-more-messages, #no-more-messages, #message-feed-error {
+    text-align: center;
+    padding: 10px 0;
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+
+#message-feed-error {
+    color: var(--color-error);
+}
+#no-more-messages.hidden, #message-feed-error.hidden, #load-more-messages.hidden, #nostr-feed-loading.hidden {
+    display: none;
 }
 
 

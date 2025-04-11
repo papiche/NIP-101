@@ -1,3 +1,4 @@
+// script.js
 document.addEventListener('DOMContentLoaded', () => {
     const connectButton = document.getElementById('connect-button');
     const relaysList = document.getElementById('relays-list');
@@ -27,12 +28,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagePreviewImage = document.getElementById('message-preview-image');
     const filterDistanceSelect = document.getElementById('filter-distance');
     const uplanetMapDiv = document.getElementById('uplanet-map'); // Div pour la carte Leaflet
+    const detailedProfileInfoDiv = document.getElementById('detailed-profile-info'); // Div pour le profil détaillé
+    const profileNpubDisplay = document.getElementById('profile-npub-display');
+    const profileNprofileDisplay = document.getElementById('profile-nprofile-display');
+    const profileNip05Display = document.getElementById('profile-nip05-display');
+    const nostrFeedLoading = document.getElementById('nostr-feed-loading');
+    const messageFeedContentDiv = document.getElementById('message-feed-content');
+    const loadMoreMessagesButton = document.getElementById('load-more-messages');
+    const noMoreMessagesParagraph = document.getElementById('no-more-messages');
+    const messageFeedErrorParagraph = document.getElementById('message-feed-error');
+
 
     let publicKey = null;
     let relays = [];
     let isConnected = false; // Track connection status
     let isDarkMode = false; // Track dark mode state
     const defaultRelaysUrls = ["wss://relay.copylaradio.com", "wss://relay.g1sms.fr", "ws://127.0.0.1:7777"];
+    let userProfileData = null; // Variable pour stocker les données de profil
+    let nostrMessages = []; // Stocker les messages Nostr N1/N2
+    let oldestCreatedAt = null; // Pagination des messages Nostr
+    let isLoadingMessages = false; // Pour éviter de charger plusieurs pages à la fois
 
     // --- Dark Mode Toggle ---
     darkModeToggle.addEventListener('click', () => {
@@ -74,6 +89,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (menuItemToActivate) menuItemToActivate.classList.add('active');
         if (appSidebar.style.display === 'block' && window.innerWidth < 768) {
             appSidebar.style.display = 'none'; // Cacher la sidebar après navigation sur mobile
+        }
+        if (sectionId === 'uplanet-feed') {
+            fetchUPlanetPosts(); // Charger les posts UPlanet quand section active
+        }
+        if (sectionId === 'n1n2-wall-section') {
+            loadInitialNostrMessages(); // Charger les messages N1/N2 quand section active
         }
     }
     showSection('profile-section');
@@ -119,16 +140,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 2. Récupérer le Profil (Kind 0)
         console.log("Récupération du profil (kind 0)...");
-        // ... (Remplacer par code Nostr pour récupérer kind 0)
-        const exampleProfile = { // Profil statique pour l'exemple
-            name: "Utilisateur Nostr Exemple",
-            about: "Profil de démonstration UPlanet NOSTR App.",
-            picture: "img/default-avatar.png",
-            banner: "img/default-banner.jpg",
-            postsCount: 123 // Exemple de statistique
-        };
-        displayProfile(exampleProfile);
+        fetchNostrProfile(publicKey);
     }
+
+    async function fetchNostrProfile(pubkey) {
+        const relayPool = new nostrTools.SimplePool();
+        let profileData = null;
+
+        try {
+            const profileEvent = await relayPool.get(defaultRelaysUrls, { // Utiliser les relais par défaut ou favoris
+                kinds: [0],
+                authors: [pubkey]
+            });
+
+            if (profileEvent && profileEvent.content) {
+                profileData = JSON.parse(profileEvent.content);
+                userProfileData = profileData; // Stocker les données du profil
+                displayProfile(profileData); // Afficher dans la sidebar
+                displayDetailedProfile(profileEvent, pubkey); // Afficher les détails dans la section profil
+            } else {
+                profileName.textContent = "Profil Inconnu";
+                profileAbout.textContent = "Aucune info de profil trouvée.";
+            }
+        } catch (error) {
+            console.error("Erreur lors de la récupération du profil Nostr:", error);
+            profileName.textContent = "Erreur Profil";
+            profileAbout.textContent = "Erreur de chargement du profil.";
+        } finally {
+            relayPool.close(defaultRelaysUrls);
+        }
+    }
+
+    function displayDetailedProfile(profileEvent, pubkey) {
+        if (!profileEvent) {
+            detailedProfileInfoDiv.innerHTML = "<p>Profil Nostr non trouvé.</p>";
+            return;
+        }
+
+        const profileData = JSON.parse(profileEvent.content);
+        profileName.textContent = profileData.name || "Nom Inconnu"; // Sidebar name update
+        profileAbout.textContent = profileData.about || "Aucune description."; // Sidebar about update
+        profileBannerImg.src = profileData.banner || "img/default-banner.jpg"; // Sidebar banner update
+        profileAvatarImg.src = profileData.picture || "img/default-avatar.png"; // Sidebar avatar update
+
+
+        profileNpubDisplay.innerHTML = `<p><b>npub:</b> ${nostrTools.nip19.npubEncode(pubkey)}</p>`;
+        profileNprofileDisplay.innerHTML = `<p><b>nprofile:</b> ${nostrTools.nip19.nprofileEncode({ pubkey: pubkey, relays: defaultRelaysUrls })}</p>`; // Exemple avec relais par défaut
+        profileNip05Display.innerHTML = `<p><b>nip05:</b> ${profileData.nip05 || 'Non défini'}</p>`;
+        // ... afficher d'autres détails à partir de profileData dans detailedProfileInfoDiv ...
+    }
+
 
     function displayRelays(relayUrls) {
         relaysList.innerHTML = '';
@@ -278,7 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-
     function formatDate(date) {
         // Fonction simple pour formater la date (à améliorer)
         const now = new Date();
@@ -303,8 +363,142 @@ document.addEventListener('DOMContentLoaded', () => {
     logRelayMessage("Application UPlanet NOSTR démarrée..."); // Log au démarrage
 
 
+    // --- NOSTR N1/N2 MESSAGE FEED ---
+    async function loadInitialNostrMessages() {
+        if (isLoadingMessages) return;
+        isLoadingMessages = true;
+        nostrFeedLoading.classList.remove('hidden');
+        messageFeedErrorParagraph.classList.add('hidden');
+        messageFeedContentDiv.innerHTML = ''; // Clear existing messages
+        noMoreMessagesParagraph.classList.add('hidden');
+        loadMoreMessagesButton.classList.add('hidden');
+
+        try {
+            const relayPool = new nostrTools.SimplePool();
+            const filter = {
+                kinds: [1], // N1/N2 notes (text notes)
+                limit: 20, // Initial load limit
+                authors: [publicKey] // Filtrer par l'utilisateur connecté - à adapter si besoin
+            };
+            const events = await relayPool.list(defaultRelaysUrls, [filter]); // Utiliser les relais par défaut
+            relayPool.close(defaultRelaysUrls);
+
+            if (events && events.length > 0) {
+                nostrMessages = events.sort((a, b) => b.created_at - a.created_at); // Sort by newest
+                oldestCreatedAt = nostrMessages[nostrMessages.length - 1].created_at;
+                displayNostrMessages(nostrMessages);
+                if (events.length >= filter.limit) { // Show "Load More" if limit reached
+                    loadMoreMessagesButton.classList.remove('hidden');
+                }
+            } else {
+                messageFeedContentDiv.innerHTML = '<p>Aucun message Nostr trouvé.</p>';
+                noMoreMessagesParagraph.classList.remove('hidden'); // "No messages" message
+            }
+        } catch (error) {
+            console.error("Error loading Nostr messages:", error);
+            messageFeedErrorParagraph.textContent = "Erreur de chargement des messages Nostr.";
+            messageFeedErrorParagraph.classList.remove('hidden');
+        } finally {
+            nostrFeedLoading.classList.add('hidden');
+            isLoadingMessages = false;
+        }
+    }
+
+    loadMoreMessagesButton.addEventListener('click', loadMoreNostrMessages); // Listener pour "Charger Plus"
+
+    async function loadMoreNostrMessages() {
+        if (isLoadingMessages || !oldestCreatedAt) return; // Prevent concurrent loading
+        isLoadingMessages = true;
+        loadMoreMessagesButton.disabled = true; // Désactiver le bouton pendant le chargement
+        messageFeedErrorParagraph.classList.add('hidden'); // Cacher les erreurs précédentes
+
+        try {
+            const relayPool = new nostrTools.SimplePool();
+            const filter = {
+                kinds: [1],
+                limit: 10, // Charger plus de messages à chaque fois
+                authors: [publicKey], // Filtrer par l'utilisateur connecté
+                until: oldestCreatedAt // Charger les messages plus anciens
+            };
+            const events = await relayPool.list(defaultRelaysUrls, [filter]);
+            relayPool.close(defaultRelaysUrls);
+
+            if (events && events.length > 0) {
+                const newMessages = events.sort((a, b) => b.created_at - a.created_at);
+                nostrMessages = nostrMessages.concat(newMessages); // Ajouter les nouveaux messages
+                oldestCreatedAt = newMessages[newMessages.length - 1].created_at; // Update oldest timestamp
+                displayNostrMessages(newMessages); // Afficher seulement les nouveaux messages
+                if (events.length < filter.limit) { // Hide "Load More" if no more messages
+                    loadMoreMessagesButton.classList.add('hidden');
+                    noMoreMessagesParagraph.classList.remove('hidden'); // Afficher "Plus de messages"
+                }
+            } else {
+                loadMoreMessagesButton.classList.add('hidden'); // Cacher "Charger Plus" si pas de nouveaux messages
+                noMoreMessagesParagraph.classList.remove('hidden'); // Afficher "Plus de messages"
+            }
+        } catch (error) {
+            console.error("Error loading more Nostr messages:", error);
+            messageFeedErrorParagraph.textContent = "Erreur lors du chargement de plus de messages.";
+            messageFeedErrorParagraph.classList.remove('hidden');
+        } finally {
+            isLoadingMessages = false;
+            loadMoreMessagesButton.disabled = false; // Réactiver le bouton
+        }
+    }
+
+
+    function displayNostrMessages(messagesToDisplay) {
+        messagesToDisplay.forEach(message => {
+            const messageDiv = createNostrMessageElement(message);
+            messageFeedContentDiv.prepend(messageDiv); // Ajouter au début pour ordre chronologique inverse
+        });
+    }
+
+    function createNostrMessageElement(message) {
+        const messageCard = document.createElement('div');
+        messageCard.classList.add('message');
+
+        const headerDiv = document.createElement('div');
+        headerDiv.classList.add('message-header');
+
+        const authorDiv = document.createElement('div');
+        authorDiv.classList.add('message-author');
+        authorDiv.textContent = `Publié le ${formatDate(new Date(message.created_at * 1000))}`; // Format date
+
+        headerDiv.appendChild(authorDiv);
+        messageCard.appendChild(headerDiv);
+
+        const contentDiv = document.createElement('div');
+        contentDiv.classList.add('message-content');
+        contentDiv.innerHTML = formatNostrContent(message); // Format content (liens, mentions)
+        messageCard.appendChild(contentDiv);
+
+        return messageCard;
+    }
+
+    function formatNostrContent(message) {
+        let content = message.content;
+        let formattedContent = content;
+
+        // Liens cliquables
+        formattedContent = formattedContent.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
+        // Mentions #[index] → tag 'p'
+        formattedContent = formattedContent.replace(/#\[(\d+)]/g, (match, index) => {
+            const tag = message.tags?.[parseInt(index)];
+            if (tag && tag[0] === 'p') {
+                const pubkey = tag[1];
+                const npub = nostrTools.nip19.npubEncode(pubkey);
+                return `<a href="https://nostr.band/${npub}" target="_blank" rel="noopener noreferrer">@${npub.slice(0, 8)}...</a>`;
+            }
+            return match;
+        });
+
+        return formattedContent;
+    }
+
+
     // --- Initialisation ---
     updateConnectionStatus(false, "Déconnecté"); // État initial déconnecté
     fetchUPlanetPosts();
 });
-

@@ -43,5 +43,26 @@ if [[ "$application" == "UPlanet" ]]; then
         exit 1 # Latitude ou longitude manquante
     fi
 else
+
+    #~ echo "Creating UPlanet NOSTR response..." sub process
+    (
+    UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}" "${UPLANETNAME}" -s)
+    NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+    echo "Notice: Astroport Relay Usage"
+
+    RESPN="We noticed you're using our Astroport Relay without being registered in our Web of Trust.
+
+Interested in joining our self-hosting community? Register at https://qo-op.com
+
+/UPlanet${UPLANETG1PUB:0:8}"
+
+    nostpy-cli send_event \
+      -privkey "$NPRIV_HEX" \
+      -kind 1 \
+      -content "$RESPN" \
+      -tags "[['e', '$event_id'], ['p', '$pubkey']]" \
+      --relay "$myRELAY"
+    ) &
+
     exit 0
 fi

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <!-- Leaflet CSS (pour la carte UPlanet) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.0.0/lib/nostr.bundle.min.js"></script> <--- Ajout nostr-tools
 </head>
 <body>
     <div class="app-container">
@@ -41,11 +42,6 @@
                             <span class="stat-number" id="stat-posts">0</span>
                             <span class="stat-label">Messages</span>
                         </div>
-                        <!-- Conceptuel - Followers/Following non standard Nostr -->
-                        <!-- <div class="stat-item">
-                            <span class="stat-number" id="stat-followers">0</span>
-                            <span class="stat-label">Followers</span>
-                        </div> -->
                     </div>
                     <button id="edit-profile-button" class="button-secondary">Modifier Profil</button>
                     <a href="#profile-section" class="view-profile-link">Voir mon profil</a>
@@ -64,6 +60,7 @@
             <nav class="content-menu">
                 <ul class="menu">
                     <li class="menu-item active" data-section="profile-section">Profil</li>
+                    <li class="menu-item" data-section="n1n2-wall-section">Mur N1/N2</li> <----- Section Mur N1/N2
                     <li class="menu-item" data-section="new-message-section">Nouveau Message</li>
                     <li class="menu-item" data-section="uplanet-feed">UPlanet</li>
                     <li class="menu-item" data-section="relay-logs-section">Logs Relais</li>
@@ -73,8 +70,27 @@
 
             <section id="profile-section" class="content-section">
                 <h2>Mon Profil</h2>
-                <p>Vos informations de profil Nostr seront affichées ici en détail.</p>
-                <!-- Détails du profil ici -->
+                <div id="detailed-profile-info">  <----- Zone d'affichage du profil détaillé
+                    <p>Informations de profil Nostr détaillées.</p>
+                    <div id="profile-npub-display"></div>
+                    <div id="profile-nprofile-display"></div>
+                    <div id="profile-nip05-display"></div>
+                    <!-- ... autres détails du profil ... -->
+                </div>
+            </section>
+
+            <section id="n1n2-wall-section" class="content-section hidden"> <----- Section Mur N1/N2
+                <h2>Mur Nostr N1/N2</h2>
+                <p>Flux de messages Nostr N1/N2 (à implémenter).</p>
+                <div id="nostr-messages-feed">
+                    <div class="loading-indicator" id="nostr-feed-loading">Chargement des messages...</div>
+                    <div id="message-feed-content">
+                        <!-- Messages N1/N2 seront ajoutés ici -->
+                    </div>
+                    <button id="load-more-messages" class="button-secondary hidden">Charger Plus</button>
+                    <p id="no-more-messages" class="no-more-messages hidden">Plus de messages à charger.</p>
+                    <p id="message-feed-error" class="error hidden"></p>
+                </div>
             </section>
 
             <section id="profile-editor" class="content-section hidden">

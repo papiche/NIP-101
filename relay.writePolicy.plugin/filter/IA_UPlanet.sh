@@ -10,6 +10,9 @@ MY_PATH="$( cd "$MY_PATH" && pwd )"
 [[ ! -s ~/.zen/Astroport.ONE/tools/my.sh ]] && echo "ERROR. Astroport.ONE is missing !!" && exit 1
 source ~/.zen/Astroport.ONE/tools/my.sh ## finding UPLANETNAME
 
+## Maintain Ollama : lsof -i :11434
+$MY_PATH/ollama.me.sh
+
 # --- Help function ---
 print_help() {
   echo "Usage: $(basename "$0") [--help] <pubkey> <latitude> <longitude> <content> <url>"
@@ -126,10 +129,11 @@ if [[ -z "$UMAPNSEC" ]]; then
 fi
 
 ## Write nostr message
-echo "Sending NOSTR message..."
+echo "Sending NOSTR message... copying to IPFS Vault"
 if [[ ! -z $KNAME ]]; then
     MOATS=$(date -u +"%Y%m%d%H%M%S%4N") && mkdir -p ~/.zen/game/nostr/$KNAME/MESSAGE
-    echo "$ANSWER\n$URL" > ~/.zen/game/nostr/$KNAME/MESSAGE/$MOATS.txt ## to IPFS (with NOSTR.refresh.sh)
+    echo "$ANSWER\n$URL\n$LAT/$LON" > ~/.zen/game/nostr/$KNAME/MESSAGE/$MOATS.txt ## to IPFS (with NOSTR.refresh.sh)
+    echo "LAT=$LAT; LON=$LON" > ~/.zen/game/nostr/$KNAME/UMAP
 fi
 
 #######################################################################
