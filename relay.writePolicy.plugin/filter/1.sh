@@ -63,13 +63,13 @@ Scan to Register: $uSPOT/scan
 
 Your current connection details are:
 Relay : #CopyLaRadio “♥️BOX” ($IPFSNODEID)
-UPlanet : ${UPLANETG1PUB:0:8}"
+#UPlanet ${UPLANETG1PUB:0:8}"
 
         nostpy-cli send_event \
           -privkey "$NPRIV_HEX" \
           -kind 1 \
           -content "$RESPN" \
-          -tags "[['e', '$event_id'], ['p', '$pubkey']]" \
+          -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'UPlanet'], ['t', 'CopyLaRadio']]" \
           --relay "$myRELAY"
     fi
     ) &
