@@ -44,24 +44,21 @@ if [[ "$application" == "UPlanet" ]]; then
     fi
 else
 
-    #~ echo "Creating UPlanet NOSTR response..." sub process
+    #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
     (
     source $HOME/.zen/Astroport.ONE/tools/my.sh
-    UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}" "${UPLANETNAME}")
-    NPUB_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNPUB")
-    if [[ "$pubkey" != "$NPUB_HEX" ]]; then
-        UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}" "${UPLANETNAME}" -s)
-        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+    source ~/.zen/game/players/.current/secret.nostr
+    if [[ "$pubkey" != "$HEX" ]]; then
+        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
         echo "Notice: Astroport Relay Anonymous Usage"
 
         RESPN="Hello NOSTR visitor.
 
-We noticed that you're using our Astroport Relay without being registered on the Ğ1 Web of Trust.
+I noticed that you're using our Astroport Relay without being registered on the Ğ1 Web of Trust.
 
-To avoid seeing this message in the future and to join our self-sovereign community.
+To avoid seeing this message in the future, join our self-sovereign community.
 Scan to Register: $uSPOT/scan
 
-Your current connection details are:
 Relay : #CopyLaRadio “♥️BOX” ($IPFSNODEID)
 #UPlanet ${UPLANETG1PUB:0:8}"
 
