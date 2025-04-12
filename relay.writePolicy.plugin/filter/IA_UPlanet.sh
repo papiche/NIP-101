@@ -93,6 +93,11 @@ fi
 
 echo "  KNAME: $KNAME"
 
+## CHECK if $UMAPNPUB = $PUBKEY Then DO not reply
+UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${LAT}" "${UPLANETNAME}${LON}")
+UMAPHEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNPUB")
+[[ $PUBKEY == $UMAPHEX ]] && exit 0
+
 ### Extract comment from message
 ## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
 extracted_text=$(echo "$MESSAGE" | sed 's/\n.*//')

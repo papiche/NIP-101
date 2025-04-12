@@ -70,7 +70,7 @@ else
     #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
     source $HOME/.zen/Astroport.ONE/tools/my.sh
     source ~/.zen/game/players/.current/secret.nostr
-    if [[ "$pubkey" != "$HEX" ]]; then
+    if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
         NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
         echo "Notice: Astroport Relay Anonymous Usage"
 
