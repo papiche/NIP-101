@@ -43,7 +43,7 @@ def describe_image_from_ipfs(ipfs_url, ollama_model="llava", output_json=False):
             messages=[
                 {
                     'role': 'user',
-                    'content': 'Describe this image in detail.',
+                    'content': 'Describe this image.',
                     'images': [temp_image_path],
                 },
             ]
