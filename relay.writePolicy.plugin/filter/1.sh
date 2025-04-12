@@ -18,6 +18,22 @@ created_at=$(echo "$event_json" | jq -r '.event.created_at')
 kind=$(echo "$event_json" | jq -r '.event.kind')
 tags=$(echo "$event_json" | jq -r '.event.tags')
 
+# Fonction pour vérifier si une clé est autorisée
+get_key_directory() {
+    local pubkey="$1"
+    local key_file
+    local found_dir=""
+
+    while IFS= read -r -d $'\0' key_file; do
+        if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
+            # Extraire le dernier répertoire du chemin
+            KNAME=$(basename "$(dirname "$key_file")")
+            return 0 # Clé autorisée
+        fi
+    done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
+
+    return 1 # Clé non autorisée
+}
 
 ### PLAYER can add their own script in https://github.com/papiche/NIP-101/tree/main/relay.writePolicy.plugin/filter
 # Exécuter le filtre correspondant à pubkey (si le script existe)
@@ -44,8 +60,13 @@ if [[ "$application" == "UPlanet" ]]; then
     fi
 else
 
-    #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
+    if get_key_directory "$pubkey"; then
+        echo "OK Authorized key : $KNAME"
+        exit 0
+    fi
+
     (
+    #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
     source $HOME/.zen/Astroport.ONE/tools/my.sh
     source ~/.zen/game/players/.current/secret.nostr
     if [[ "$pubkey" != "$HEX" ]]; then
