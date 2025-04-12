@@ -19,6 +19,7 @@ kind=$(echo "$event_json" | jq -r '.event.kind')
 tags=$(echo "$event_json" | jq -r '.event.tags')
 
 # Fonction pour vérifier si une clé est autorisée
+KEY_DIR="$HOME/.zen/game/nostr"
 get_key_directory() {
     local pubkey="$1"
     local key_file
