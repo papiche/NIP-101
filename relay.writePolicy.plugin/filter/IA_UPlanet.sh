@@ -98,29 +98,32 @@ UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${LAT}"
 UMAPHEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNPUB")
 [[ $PUBKEY == $UMAPHEX ]] && exit 0
 
-## Authorize UMAP to publish
+##################################################################""
+## Authorize UMAP to publish (nostr whitelist)
 mkdir -p ~/.zen/game/nostr/UMAP_${LAT}_${LON}
 if [ "$(cat ~/.zen/game/nostr/UMAP_${LAT}_${LON}/HEX 2>/dev/null)" != "$UMAPHEX" ]; then
   echo "$UMAPHEX" > ~/.zen/game/nostr/UMAP_${LAT}_${LON}/HEX
 fi
-### Extract comment from message
-## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
-extracted_text=$(echo "$MESSAGE" | sed 's/\n.*//')
-echo "Extracted text from message: '$extracted_text'"
+##################################################################""
+
+### Extract message
+message_text=$(echo "$MESSAGE" | sed 's/\n.*//')
+echo "Message text from message: '$message_text'"
 
 #######################################################################
-echo "Looking at the image (using ollama llava)..."
-DESC=$("$MY_PATH/describe_image.py" "$URL" --json | jq -r '.description')
-
-if [[ -z "$DESC" ]]; then
-  echo "Error: Failed to get image description from describe_image.py"
-  exit 1
+if [[ ! -z $URL ]]; then
+    echo "Looking at the image (using ollama + llava)..."
+    DESC="IMAGE : $("$MY_PATH/describe_image.py" "$URL" --json | jq -r '.description')"
 fi
-echo "Image description received."
+#~ if [[ -z "$DESC" ]]; then
+  #~ echo "Error: Failed to get image description from describe_image.py"
+  #~ exit 1
+#~ fi
+#~ echo "Image description received."
 
 #######################################################################
 echo "Generating Ollama answer..."
-ANSWER=$($MY_PATH/question.py "CAMERA : $DESC, COMMENT : $extracted_text. (respond in the same language as COMMENT is written)")
+ANSWER=$($MY_PATH/question.py "$DESC + MESSAGE : $message_text (reformulate or reply if any question is asked, always using the same language as MESSAGE). Sign as 'ASTROBOT' :")
 
 if [[ -z "$ANSWER" ]]; then
   echo "Error: Failed to get answer from question.py"
@@ -139,10 +142,10 @@ if [[ -z "$UMAPNSEC" ]]; then
 fi
 
 ## Write nostr message
-echo "Sending NOSTR message... copying to IPFS Vault"
+echo "Sending NOSTR message... copying to IPFS Vault ! DEBUG !! "
 if [[ ! -z $KNAME ]]; then
     MOATS=$(date -u +"%Y%m%d%H%M%S%4N") && mkdir -p ~/.zen/game/nostr/$KNAME/MESSAGE
-    echo "$ANSWER\n$URL\n$LAT/$LON" > ~/.zen/game/nostr/$KNAME/MESSAGE/$MOATS.txt ## to IPFS (with NOSTR.refresh.sh)
+    echo "$ANSWER\nASTROBOT_$LAT_$LON\n$URL" > ~/.zen/game/nostr/$KNAME/MESSAGE/$MOATS.txt ## to IPFS (with NOSTR.refresh.sh)
     echo "LAT=$LAT; LON=$LON" > ~/.zen/game/nostr/$KNAME/UMAP
 fi
 
@@ -161,7 +164,7 @@ echo "Sending Nostr Event (Kind 1) using nostpy-cli..."
 nostpy-cli send_event \
   -privkey "$NPRIV_HEX" \
   -kind 1 \
-  -content "$ANSWER" \
+  -content "$ANSWER\n\nUMAP_$LAT_$LON" \
   -tags "[['e', '$EVENT'], ['p', '$PUBKEY']]" \
   --relay "$myRELAY"
 
@@ -179,7 +182,7 @@ echo "--- Summary ---"
 echo "PUBKEY: $PUBKEY"
 echo "LAT: $LAT"
 echo "LON: $LON"
-echo "Extracted Text: $extracted_text"
+echo "Message Text: $message_text"
 echo "Image Description: $DESC"
 echo "Ollama Answer: $ANSWER"
 
@@ -187,5 +190,3 @@ echo ""
 echo "Script execution completed."
 
 exit 0
-
-
