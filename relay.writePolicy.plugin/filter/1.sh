@@ -103,20 +103,8 @@ Scan to Register: $uSPOT/scan
 }
 
 
-### PLAYER can add their own script in https://github.com/papiche/NIP-101/tree/main/relay.writePolicy.plugin/filter
-# Exécuter le filtre correspondant à pubkey (si le script existe)
-if [[ -x $MY_PATH/$pubkey.sh ]]; then
-    $MY_PATH/$pubkey.sh "$event_json"
-    if [[ $? -ne 0 ]]; then
-        # Si le filtre renvoie un code d'erreur, rejeter l'événement
-        #~ echo "Rejecting event of type: $event_type" >&2
-        echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
-        return
-    fi
-fi
-
-# Vérifier si l'application est "UPlanet"
 if [[ "$application" == "UPlanet" ]]; then
+# UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
         # Activation du script AI
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$content" "$url" &
@@ -127,7 +115,7 @@ if [[ "$application" == "UPlanet" ]]; then
         exit 1 # Latitude ou longitude manquante
     fi
 else
-
+# Simple NOSTR messages.
     if get_key_directory "$pubkey"; then
         echo "OK Authorized key : $KNAME"
         exit 0
