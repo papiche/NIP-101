@@ -107,7 +107,9 @@ if [[ "$application" == "UPlanet" ]]; then
 # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
         # Activation du script AI
+        [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$content" "$url" &
+        echo "$event_id" > "$COUNT_DIR/lastevent"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         exit 0 # Indiquer que le filtre UPlanet a réussi (clé générée)
     else
