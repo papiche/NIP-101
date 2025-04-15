@@ -103,7 +103,7 @@ Scan to Register: $uSPOT/scan
 }
 
 
-if [[ "$application" == "UPlanet" ]]; then
+if [[ "$application" == UPlanet* ]]; then
 # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
         # Activation du script AI

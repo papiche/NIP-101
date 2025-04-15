@@ -98,6 +98,11 @@ UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${LAT}"
 UMAPHEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNPUB")
 [[ $PUBKEY == $UMAPHEX ]] && exit 0
 
+## Authorize UMAP to publish
+mkdir -p ~/.zen/game/nostr/UMAP_${LAT}_${LON}
+if [ "$(cat ~/.zen/game/nostr/UMAP_${LAT}_${LON}/HEX 2>/dev/null)" != "$UMAPHEX" ]; then
+  echo "$UMAPHEX" > ~/.zen/game/nostr/UMAP_${LAT}_${LON}/HEX
+fi
 ### Extract comment from message
 ## MESSAGE="this is X box or what\nhttps://ipfs.g1sms.fr/ipfs/QmWh7CtnViKS2cMuFWPLe7ywazrMp8VRg1BPvneBZ5UojX/captured-image.png"
 extracted_text=$(echo "$MESSAGE" | sed 's/\n.*//')
