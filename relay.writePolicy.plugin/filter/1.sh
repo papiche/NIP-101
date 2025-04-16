@@ -18,6 +18,13 @@ created_at=$(echo "$event_json" | jq -r '.event.created_at')
 kind=$(echo "$event_json" | jq -r '.event.kind')
 tags=$(echo "$event_json" | jq -r '.event.tags')
 
+############################################################
+## UPlanet IA FREE DEMO TIME
+[[ "$application" == "" ]] && application="UPlanet"
+[[ "$latitude" == "" ]] && latitude="0.00"
+[[ "$longitude" == "" ]] && longitude="0.00"
+###################################################### TEMP
+
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
@@ -153,12 +160,6 @@ get_conversation_thread() {
     echo "$current_content"
 }
 
-
-## UPlanet IA FREE DEMO TIME
-[[ "$application" == "" ]] && application="UPlanet"
-[[ "$latitude" == "" ]] && latitude="0.00"
-[[ "$longitude" == "" ]] && longitude="0.00"
-
 if [[ "$application" == UPlanet* ]]; then
     # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
@@ -167,13 +168,13 @@ if [[ "$application" == UPlanet* ]]; then
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
-
+        ###########################################################
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
-        ######################### UPlanet Message IA Treatment
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
+        ######################### UPlanet Message IA Treatment
         exit 0
     fi
 else
