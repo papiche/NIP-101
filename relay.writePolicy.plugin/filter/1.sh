@@ -7,16 +7,15 @@ MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 event_json="$1"
 #~ echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log" ## DEBUG
 
+created_at=$(echo "$event_json" | jq -r '.event.created_at')
+event_id=$(echo "$event_json" | jq -r '.event.id')
+content=$(echo "$event_json" | jq -r '.event.content')
+pubkey=$(echo "$event_json" | jq -r '.event.pubkey')
+tags=$(echo "$event_json" | jq -r '.event.tags')
 application=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "application") | .[1]')
 url=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "url") | .[1]')
 latitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "latitude") | .[1]')
 longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitude") | .[1]')
-content=$(echo "$event_json" | jq -r '.event.content')
-event_id=$(echo "$event_json" | jq -r '.event.id')
-pubkey=$(echo "$event_json" | jq -r '.event.pubkey')
-created_at=$(echo "$event_json" | jq -r '.event.created_at')
-kind=$(echo "$event_json" | jq -r '.event.kind')
-tags=$(echo "$event_json" | jq -r '.event.tags')
 
 ############################################################
 ## UPlanet IA FREE DEMO TIME
@@ -29,7 +28,6 @@ tags=$(echo "$event_json" | jq -r '.event.tags')
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 MESSAGE_LIMIT=3
-KNAME=""
 
 # Fonction pour vérifier si une clé est autorisée
 KEY_DIR="$HOME/.zen/game/nostr"
@@ -48,6 +46,19 @@ get_key_directory() {
 
     return 1 # Clé non autorisée
 }
+
+
+## CHECK if Nobody, Nostr Player Card or UPlanet key
+check=$(get_key_directory "$pubkey")
+if [[ $check == 1 ]]; then
+    check="nobody"
+else
+    if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
+        check="player"
+    else
+        check="uplanet"
+    fi
+fi
 
 # Fonction pour vérifier et gérer le message "Hello NOSTR visitor"
 handle_visitor_message() {
@@ -122,7 +133,7 @@ get_event_by_id() {
     ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
 }
 
-# Function to get the full conversation thread with a depth limit
+# Function to get the full conversation thread with a depth limit : CHECKIT
 get_conversation_thread() {
     local event_id="$1"
     local depth="$2"
@@ -160,17 +171,7 @@ get_conversation_thread() {
     echo "$current_content"
 }
 
-## CHECK if Nobody, Nostr Player Card or UPlanet key
-check=$(get_key_directory "$pubkey")
-if [[ $check == 1 ]]; then
-    check="nobody"
-else
-    if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
-        check="player"
-    else
-        check="uplanet"
-    fi
-fi
+################# MAIN TREATMENT
 
 if [[ "$application" == UPlanet* ]]; then
     # UPlanet APP NOSTR messages.
@@ -183,9 +184,9 @@ if [[ "$application" == UPlanet* ]]; then
         ###########################################################
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         ######################### UPlanet Message IA Treatment
         exit 0
     fi
@@ -199,3 +200,5 @@ else
         exit 0
     fi
 fi
+
+exit 0
