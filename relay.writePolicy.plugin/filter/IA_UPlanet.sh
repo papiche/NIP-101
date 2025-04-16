@@ -84,12 +84,13 @@ echo "  MESSAGE: $MESSAGE"
 echo "  URL: $URL"
 echo ""
 
-# Vérifier si la clé publique est autorisée
-if ! get_key_directory "$PUBKEY"; then
+## DEMO TIME
+#~ # Vérifier si la clé publique est autorisée
+#~ if ! get_key_directory "$PUBKEY"; then
     #~ echo "Unauthorized pubkey for kind $kind: $pubkey" >&2
-    echo "This NOSTR CARD $PUBKEY is not registered on this Astroport"
-    exit 0
-fi
+    #~ echo "This NOSTR CARD $PUBKEY is not registered on this Astroport"
+    #~ exit 0
+#~ fi
 
 echo "  KNAME: $KNAME"
 
