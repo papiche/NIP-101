@@ -135,7 +135,6 @@ get_event_by_id() {
 # Function to get the full conversation thread with a depth limit : CHECKIT
 get_conversation_thread() {
     local event_id="$1"
-    local depth="$2"
     local current_content=""
     local current_event=$(get_event_by_id "$event_id")
 
@@ -157,17 +156,16 @@ get_conversation_thread() {
             fi
         done <<< "$reply_tags"
 
-        # If this is a reply to another event and depth limit is not reached, get that conversation
-        if [[ -n "$reply_id" && "$reply_id" != "$root_id" && "$depth" -gt 0 ]]; then
-            local parent_content=$(get_conversation_thread "$reply_id" $((depth - 1)))
-            current_content="RE: $parent_content\n\n$current_content"
-        elif [[ -n "$root_id" && "$depth" -gt 0 ]]; then
-            local root_content=$(get_conversation_thread "$root_id" $((depth - 1)))
-            current_content="Thread: $root_content\n\n$current_content"
+        if [[ -n "$root_id" ]]; then
+            local root_content=$(get_event_by_id "$root_id" | jq -r .content)
         fi
+        if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
+            local parent_content=$(get_event_by_id "$reply_id" | jq -r .content)
+        fi
+
     fi
 
-    echo "$current_content"
+    echo "$root_content\n\n$parent_content\n\n$current_content"
 }
 
 ################# MAIN TREATMENT
@@ -176,7 +174,7 @@ if [[ "$application" == UPlanet* ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
         # Get the full conversation thread
-        full_content=$(get_conversation_thread "$event_id" 3)
+        full_content=$(get_conversation_thread "$event_id")
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
