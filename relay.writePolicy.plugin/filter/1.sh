@@ -133,31 +133,6 @@ get_event_by_id() {
 }
 
 # Function to get the full conversation thread with a depth limit :
-#~ {
-  #~ "kind": 1,
-  #~ "content": "quels films du même genre recommander ?",
-  #~ "tags": [
-    #~ [
-      #~ "p",
-      #~ "efbd53fbb890ca140f5b1efe81bd0b2660d07cf9385f51729e71875cb9e24485",
-      #~ "wss://relay.copylaradio.com/",
-      #~ "UMAP_AwdjhpJN_0.00_0.00"
-    #~ ],
-    #~ [
-      #~ "e",
-      #~ "c0898edfc674f95a1ccc3d13ccf7707862a2745c2a81714c2d09b893c9a5d35d",
-      #~ "wss://relay.copylaradio.com/",
-      #~ "root"
-    #~ ],
-    #~ [
-      #~ "e",
-      #~ "eff934b0ed5e922017cd42dae385914c262d2d0eb28a972306da77ec51896d65",
-      #~ "wss://relay.copylaradio.com/",
-      #~ "reply",
-      #~ "efbd53fbb890ca140f5b1efe81bd0b2660d07cf9385f51729e71875cb9e24485"
-    #~ ]
-  #~ ],
-#~ }
 get_conversation_thread() {
     local event_id="$1"
     local current_content=""
@@ -181,20 +156,17 @@ get_conversation_thread() {
             fi
         done <<< "$reply_tags"
 
-        if [[ -n "$root_id" ]]; then
-            local root_content=$(get_event_by_id "$root_id" | jq -r .content)
-        fi
         if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
             local parent_content=$(get_event_by_id "$reply_id" | jq -r .content)
+            [[ -n "$parent_content" ]] && current_content="Re: $parent_content $current_content"
         fi
-
+        if [[ -n "$root_id" ]]; then
+            local root_content=$(get_event_by_id "$root_id" | jq -r .content)
+            [[ -n "$root_content" ]] && current_content="Thread: $root_content $current_content"
+        fi
     fi
 
-    echo "$root_content
-
-    $parent_content
-
-    $current_content"
+    echo "$current_content"
 }
 
 ################# MAIN TREATMENT
