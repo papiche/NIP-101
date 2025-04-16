@@ -108,15 +108,17 @@ A message from the Captain.
 }
 
 # Function to get an event by ID using strfry scan
+# Function to get an event by ID using strfry scan
 get_event_by_id() {
     local event_id="$1"
     # Use strfry scan with a filter for the specific event ID
     ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
 }
 
-# Function to get the full conversation thread
+# Function to get the full conversation thread with a depth limit
 get_conversation_thread() {
     local event_id="$1"
+    local depth="$2"
     local current_content=""
     local current_event=$(get_event_by_id "$event_id")
 
@@ -138,18 +140,19 @@ get_conversation_thread() {
             fi
         done <<< "$reply_tags"
 
-        # If this is a reply to another event, get that conversation
-        if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
-            local parent_content=$(get_conversation_thread "$reply_id")
+        # If this is a reply to another event and depth limit is not reached, get that conversation
+        if [[ -n "$reply_id" && "$reply_id" != "$root_id" && "$depth" -gt 0 ]]; then
+            local parent_content=$(get_conversation_thread "$reply_id" $((depth - 1)))
             current_content="RE: $parent_content\n\n$current_content"
-        elif [[ -n "$root_id" ]]; then
-            local root_content=$(get_conversation_thread "$root_id")
+        elif [[ -n "$root_id" && "$depth" -gt 0 ]]; then
+            local root_content=$(get_conversation_thread "$root_id" $((depth - 1)))
             current_content="Thread: $root_content\n\n$current_content"
         fi
     fi
 
     echo "$current_content"
 }
+
 
 ## UPlanet IA FREE DEMO TIME
 [[ "$application" == "" ]] && application="UPlanet"
@@ -160,7 +163,7 @@ if [[ "$application" == UPlanet* ]]; then
     # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
         # Get the full conversation thread
-        full_content=$(get_conversation_thread "$event_id")
+        full_content=$(get_conversation_thread "$event_id" 3)
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
