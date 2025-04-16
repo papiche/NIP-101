@@ -84,8 +84,12 @@ I noticed that you're using our Astroport Relay without being registered on our 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 Enter Email to Register: $uSPOT/scan
 
-#CopyLaRadio Relay : “♥️BOX” ($IPFSNODEID)
-#UPlanet : ${UPLANETG1PUB:0:8}"
+A message from the Captain.
+
+#CopyLaRadio
+* UPlanet : ${UPLANETG1PUB:0:8}
+* ♥️BOX : $IPFSNODEID
+"
 
             nostpy-cli send_event \
               -privkey "$NPRIV_HEX" \
