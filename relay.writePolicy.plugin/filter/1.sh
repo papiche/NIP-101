@@ -96,7 +96,8 @@ Enter Email to Register: $uSPOT/scan
         fi
         ) &
     else
-        echo "Message limit reached for pubkey $pubkey. Blacklisting."
+        echo "Visitor limit reached for pubkey $pubkey. Removing Messages & Blacklisting."
+        ~/.zen/strfry/strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
         echo "$pubkey" >> "$BLACKLIST_FILE"
     fi
     return 0
