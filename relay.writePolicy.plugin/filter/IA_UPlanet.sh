@@ -124,7 +124,7 @@ fi
 
 #######################################################################
 echo "Generating Ollama answer..."
-ANSWER=$($MY_PATH/question.py "$DESC + MESSAGE : $message_text (reformulate or reply if any question is asked, always using the same language as MESSAGE). Sign as ASTROBOT for UMAP_${LAT}_${LON} :")
+ANSWER=$($MY_PATH/question.py "$DESC + MESSAGE : $message_text (reformulate or reply if any question is asked, always using the same language as MESSAGE). Sign as ASTROBOT :")
 
 if [[ -z "$ANSWER" ]]; then
   echo "Error: Failed to get answer from question.py"
