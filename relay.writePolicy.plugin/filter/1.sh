@@ -29,6 +29,7 @@ tags=$(echo "$event_json" | jq -r '.event.tags')
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 MESSAGE_LIMIT=3
+KNAME=""
 
 # Fonction pour vérifier si une clé est autorisée
 KEY_DIR="$HOME/.zen/game/nostr"
@@ -115,7 +116,6 @@ A message from the Captain.
 }
 
 # Function to get an event by ID using strfry scan
-# Function to get an event by ID using strfry scan
 get_event_by_id() {
     local event_id="$1"
     # Use strfry scan with a filter for the specific event ID
@@ -160,9 +160,21 @@ get_conversation_thread() {
     echo "$current_content"
 }
 
+## CHECK if Nobody, Nostr Player Card or UPlanet key
+check=$(get_key_directory "$pubkey")
+if [[ $check == 1 ]]; then
+    check="nobody"
+else
+    if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
+        check="player"
+    else
+        check="uplanet"
+    fi
+fi
+
 if [[ "$application" == UPlanet* ]]; then
-    # UPlanet NOSTR messages.
-    if [[ -n "$latitude" && -n "$longitude" ]]; then
+    # UPlanet APP NOSTR messages.
+    if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
         # Get the full conversation thread
         full_content=$(get_conversation_thread "$event_id" 3)
         if [[ -z "$full_content" ]]; then
@@ -178,12 +190,12 @@ if [[ "$application" == UPlanet* ]]; then
         exit 0
     fi
 else
-# Simple NOSTR messages.
-    if get_key_directory "$pubkey"; then
+    # Simple NOSTR messages.
+    if [[ "$check" != "nobody" ]]; then
         echo "OK Authorized key : $KNAME"
         exit 0
+    else
+        handle_visitor_message "$pubkey" "$event_id"
+        exit 0
     fi
-
-    handle_visitor_message "$pubkey" "$event_id"
-    exit 0
 fi
