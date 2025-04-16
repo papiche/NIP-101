@@ -107,21 +107,44 @@ A message from the Captain.
     return 0
 }
 
+# Function to get an event by ID using strfry scan
+get_event_by_id() {
+    local event_id="$1"
+    # Use strfry scan with a filter for the specific event ID
+    ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null | jq -r '.content // empty'
+}
+
 ## UPlanet IA FREE DEMO TIME
 [[ "$application" == "" ]] && application="UPlanet"
 [[ "$latitude" == "" ]] && latitude="0.00"
 [[ "$longitude" == "" ]] && longitude="0.00"
 
 if [[ "$application" == UPlanet* ]]; then
-# UPlanet NOSTR messages.
+    # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
+        # Check if this is a reply to another message
+        replied_event_id=$(echo "$tags" | jq -r '.[] | select(.[0] == "e") | .[1] // empty')
+
+        original_content=""
+        if [[ -n "$replied_event_id" ]]; then
+            # Get the original event
+            replied_event=$(get_event_by_id "$replied_event_id")
+            if [[ -n "$replied_event" ]]; then
+                original_content=$(echo "$replied_event" | jq -r '.content')
+                # Prepend the original content to our content
+                content="RE: $original_content
+
+$content"
+            fi
+        fi
+
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
         ######################### UPlanet Message IA Treatment
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$content" "$url" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $content" >> "$HOME/.zen/strfry/uplanet_messages.log"
-        exit 0 # Indiquer que le filtre UPlanet a réussi (clé générée)
+        exit 0
     fi
 else
 # Simple NOSTR messages.
