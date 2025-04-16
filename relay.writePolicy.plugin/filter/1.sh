@@ -111,7 +111,44 @@ A message from the Captain.
 get_event_by_id() {
     local event_id="$1"
     # Use strfry scan with a filter for the specific event ID
-    ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null | jq -r '.content // empty'
+    ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
+}
+
+# Function to get the full conversation thread
+get_conversation_thread() {
+    local event_id="$1"
+    local current_content=""
+    local current_event=$(get_event_by_id "$event_id")
+
+    if [[ -n "$current_event" ]]; then
+        current_content=$(echo "$current_event" | jq -r '.content')
+
+        # Find the event this one is replying to
+        local reply_tags=$(echo "$current_event" | jq -c '.tags[] | select(.[0] == "e")')
+        local root_id=""
+        local reply_id=""
+
+        # Parse tags to find root and reply references (NIP-10)
+        while IFS= read -r tag; do
+            local marker=$(echo "$tag" | jq -r '.[3] // ""')
+            if [[ "$marker" == "root" ]]; then
+                root_id=$(echo "$tag" | jq -r '.[1]')
+            elif [[ "$marker" == "reply" ]]; then
+                reply_id=$(echo "$tag" | jq -r '.[1]')
+            fi
+        done <<< "$reply_tags"
+
+        # If this is a reply to another event, get that conversation
+        if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
+            local parent_content=$(get_conversation_thread "$reply_id")
+            current_content="RE: $parent_content\n\n$current_content"
+        elif [[ -n "$root_id" ]]; then
+            local root_content=$(get_conversation_thread "$root_id")
+            current_content="Thread: $root_content\n\n$current_content"
+        fi
+    fi
+
+    echo "$current_content"
 }
 
 ## UPlanet IA FREE DEMO TIME
@@ -122,28 +159,18 @@ get_event_by_id() {
 if [[ "$application" == UPlanet* ]]; then
     # UPlanet NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" ]]; then
-        # Check if this is a reply to another message
-        replied_event_id=$(echo "$tags" | jq -r '.[] | select(.[0] == "e") | .[1] // empty')
-
-        original_content=""
-        if [[ -n "$replied_event_id" ]]; then
-            # Get the original event
-            replied_event=$(get_event_by_id "$replied_event_id")
-            if [[ -n "$replied_event" ]]; then
-                original_content=$(echo "$replied_event" | jq -r '.content')
-                # Prepend the original content to our content
-                content="RE: $original_content
-
-$content"
-            fi
+        # Get the full conversation thread
+        full_content=$(get_conversation_thread "$event_id")
+        if [[ -z "$full_content" ]]; then
+            full_content="$content"
         fi
 
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
         ######################### UPlanet Message IA Treatment
-        $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$content" "$url" &
+        $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $content" >> "$HOME/.zen/strfry/uplanet_messages.log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         exit 0
     fi
 else
