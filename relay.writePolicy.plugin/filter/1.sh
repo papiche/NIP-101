@@ -132,7 +132,32 @@ get_event_by_id() {
     ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
 }
 
-# Function to get the full conversation thread with a depth limit : CHECKIT
+# Function to get the full conversation thread with a depth limit :
+#~ {
+  #~ "kind": 1,
+  #~ "content": "quels films du même genre recommander ?",
+  #~ "tags": [
+    #~ [
+      #~ "p",
+      #~ "efbd53fbb890ca140f5b1efe81bd0b2660d07cf9385f51729e71875cb9e24485",
+      #~ "wss://relay.copylaradio.com/",
+      #~ "UMAP_AwdjhpJN_0.00_0.00"
+    #~ ],
+    #~ [
+      #~ "e",
+      #~ "c0898edfc674f95a1ccc3d13ccf7707862a2745c2a81714c2d09b893c9a5d35d",
+      #~ "wss://relay.copylaradio.com/",
+      #~ "root"
+    #~ ],
+    #~ [
+      #~ "e",
+      #~ "eff934b0ed5e922017cd42dae385914c262d2d0eb28a972306da77ec51896d65",
+      #~ "wss://relay.copylaradio.com/",
+      #~ "reply",
+      #~ "efbd53fbb890ca140f5b1efe81bd0b2660d07cf9385f51729e71875cb9e24485"
+    #~ ]
+  #~ ],
+#~ }
 get_conversation_thread() {
     local event_id="$1"
     local current_content=""
@@ -165,7 +190,11 @@ get_conversation_thread() {
 
     fi
 
-    echo "$root_content\n\n$parent_content\n\n$current_content"
+    echo "$root_content
+
+    $parent_content
+
+    $current_content"
 }
 
 ################# MAIN TREATMENT
