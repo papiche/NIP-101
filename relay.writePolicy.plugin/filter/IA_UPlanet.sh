@@ -124,7 +124,7 @@ fi
 
 #######################################################################
 echo "Generating Ollama answer..."
-ANSWER=$($MY_PATH/question.py "$DESC + MESSAGE : $message_text (reformulate or reply if any question is asked, always using the same language as MESSAGE). Sign as 'ASTROBOT' :")
+ANSWER=$($MY_PATH/question.py "$DESC + MESSAGE : $message_text (reformulate or reply if any question is asked, always using the same language as MESSAGE). Sign as ASTROBOT_UMAP_$LAT_$LON :")
 
 if [[ -z "$ANSWER" ]]; then
   echo "Error: Failed to get answer from question.py"
@@ -165,7 +165,7 @@ echo "Sending Nostr Event (Kind 1) using nostpy-cli..."
 nostpy-cli send_event \
   -privkey "$NPRIV_HEX" \
   -kind 1 \
-  -content "$ANSWER\n\nUMAP_$LAT_$LON" \
+  -content "$ANSWER" \
   -tags "[['e', '$EVENT'], ['p', '$PUBKEY']]" \
   --relay "$myRELAY"
 
