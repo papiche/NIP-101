@@ -49,8 +49,7 @@ get_key_directory() {
 
 
 ## CHECK if Nobody, Nostr Player Card or UPlanet key
-check=$(get_key_directory "$pubkey")
-if [[ $check == 1 ]]; then
+if ! get_key_directory "$pubkey"; then
     check="nobody"
 else
     if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
@@ -188,6 +187,9 @@ if [[ "$application" == UPlanet* ]]; then
         $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
         ######################### UPlanet Message IA Treatment
+        exit 0
+    else
+        echo "OK Authorized key : $KNAME"
         exit 0
     fi
 else

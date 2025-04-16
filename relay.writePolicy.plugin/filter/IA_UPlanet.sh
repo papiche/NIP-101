@@ -15,14 +15,14 @@ $MY_PATH/ollama.me.sh
 
 # --- Help function ---
 print_help() {
-  echo "Usage: $(basename "$0") [--help] <pubkey> <latitude> <longitude> <content> <url>"
+  echo "Usage: $(basename "$0") [--help] <pubkey> <latitude> <longitude> <content> [url]"
   echo ""
   echo "  <pubkey>     Public key (HEX format)."
   echo "  <event_id>   Event ID (HEX format)."
   echo "  <latitude>   Latitude."
   echo "  <longitude>  Longitude."
   echo "  <content>    Text content of the UPlanet message."
-  echo "  <url>        URL of the image (e.g., IPFS URL)."
+  echo "  [url]        URL of an image (optional)."
   echo ""
   echo "Options:"
   echo "  --help       Display this help message."
@@ -32,7 +32,7 @@ print_help() {
   echo "  response, and prepares to publish it on UPlanet GeoKeys and a NOSTR key."
   echo ""
   echo "Example:"
-  echo "  $(basename "$0") pubkey_hex 48.85 2.35 \"This is a message\" https://ipfs.g1sms.fr/ipfs/_image_hash"
+  echo "  $(basename "$0") pubkey_hex 0.00 0.00 \"What is it\" https://ipfs.copylaradio.com/ipfs//ipfs/QmeUMJvPdyPiteR7iQXCnZy4mvKBnghNkYpMTbrpZfMGPq/pipe.jpeg"
 }
 
 # --- Handle --help option ---
