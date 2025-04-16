@@ -103,6 +103,10 @@ Enter Email to Register: $uSPOT/scan
     return 0
 }
 
+## UPlanet IA FREE DEMO TIME
+[[ "$application" == "" ]] && application="UPlanet"
+[[ "$latitude" == "" ]] && latitude="0.00"
+[[ "$longitude" == "" ]] && longitude="0.00"
 
 if [[ "$application" == UPlanet* ]]; then
 # UPlanet NOSTR messages.
@@ -114,9 +118,6 @@ if [[ "$application" == UPlanet* ]]; then
         echo "$event_id" > "$COUNT_DIR/lastevent"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         exit 0 # Indiquer que le filtre UPlanet a réussi (clé générée)
-    else
-        echo "Latitude ou longitude manquante pour UPlanet" >&2
-        exit 1 # Latitude ou longitude manquante
     fi
 else
 # Simple NOSTR messages.
