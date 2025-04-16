@@ -82,7 +82,7 @@ handle_visitor_message() {
 I noticed that you're using our Astroport Relay without being registered on our Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
-Scan to Register: $uSPOT/scan
+Enter Email to Register: $uSPOT/scan
 
 #CopyLaRadio Relay : “♥️BOX” ($IPFSNODEID)
 #UPlanet : ${UPLANETG1PUB:0:8}"
