@@ -158,11 +158,11 @@ get_conversation_thread() {
 
         if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
             local parent_content=$(get_event_by_id "$reply_id" | jq -r '.content')
-            [[ -n "$parent_content" ]] && current_content="Re: $parent_content $current_content"
+            [[ -n "$parent_content" ]] && current_content="Re: $parent_content \n\n $current_content"
         fi
         if [[ -n "$root_id" ]]; then
             local root_content=$(get_event_by_id "$root_id" | jq -r '.content')
-            [[ -n "$root_content" ]] && current_content="Thread: $root_content $current_content"
+            [[ -n "$root_content" ]] && current_content="Thread: $root_content \n\n $current_content"
         fi
     fi
 
@@ -175,7 +175,7 @@ if [[ "$application" == UPlanet* ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
         # Get the full conversation thread
-        full_content=$(get_conversation_thread "$event_id")
+        full_content="$(get_conversation_thread "$event_id")"
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
