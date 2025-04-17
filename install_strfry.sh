@@ -1,8 +1,18 @@
 #!/bin/bash
-## IPFS BINARY
 ## strfry + strfry.conf
-strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
-strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
+
+## IPFS BINARY SOURCE
+ipfs_strfry() {
+    architecture=$(uname -m)
+    echo "strfry binary ipfs links"
+    strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
+    strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
+    if [ "$architecture" == "x86_64" ]; then
+        echo "ipfs get -o $STRFRY_INSTALL_DIR/strfry $strfry_amd64"
+    elif [ "$architecture" == "aarch64" ]; then
+        echo "ipfs get -o $STRFRY_INSTALL_DIR/strfry $strfry_arm64"
+    fi
+}
 
 # Définition des chemins
 WORKSPACE_DIR="$HOME/.zen/workspace"
@@ -75,6 +85,9 @@ install_strfry() {
 
 ########################################
 ## INSTALL NOSTR RELAY
+
+ipfs_strfry # show ipfs get link
+
 if [[ ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
     install_dependencies
     clone_or_update_repo
@@ -90,4 +103,4 @@ fi
 
 echo "Installation/mise à jour de strfry terminée."
 echo "Strfry est installé dans $STRFRY_INSTALL_DIR"
-echo "Le fichier de configuration se trouve dans $STRFRY_INSTALL_DIR/strfry.conf"
+$WORKSPACE_DIR/setup.sh
