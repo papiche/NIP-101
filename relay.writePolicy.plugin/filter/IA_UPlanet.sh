@@ -15,7 +15,7 @@ $MY_PATH/ollama.me.sh
 
 # --- Help function ---
 print_help() {
-  echo "Usage: $(basename "$0") [--help] <pubkey> <latitude> <longitude> <content> [url]"
+  echo "Usage: $(basename "$0") [--help] <pubkey> <latitude> <longitude> <content> [url] [KNAME]"
   echo ""
   echo "  <pubkey>     Public key (HEX format)."
   echo "  <event_id>   Event ID (HEX format)."
@@ -23,6 +23,7 @@ print_help() {
   echo "  <longitude>  Longitude."
   echo "  <content>    Text content of the UPlanet message."
   echo "  [url]        URL of an image (optional)."
+  echo "  [KNAME]      NOSTR key name (optional)."
   echo ""
   echo "Options:"
   echo "  --help       Display this help message."
@@ -41,26 +42,6 @@ if [[ "$1" == "--help" ]]; then
   exit 0
 fi
 
-# Définition du répertoire de stockage des NOSTR Card
-KEY_DIR="$HOME/.zen/game/nostr"
-
-# Fonction pour vérifier si une clé est autorisée
-get_key_directory() {
-    local pubkey="$1"
-    local key_file
-    local found_dir=""
-
-    while IFS= read -r -d $'\0' key_file; do
-        if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
-            # Extraire le dernier répertoire du chemin
-            KNAME=$(basename "$(dirname "$key_file")")
-            return 0 # Clé autorisée
-        fi
-    done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
-
-    return 1 # Clé non autorisée
-}
-
 # --- Check for correct number of arguments ---
 if [[ $# -lt 6 ]]; then
   echo "Error: Not enough arguments provided."
@@ -74,6 +55,7 @@ LAT="$3"
 LON="$4"
 MESSAGE="$5"
 URL="$6"
+KNAME="$7"
 
 echo "Received parameters:"
 echo "  PUBKEY: $PUBKEY"
@@ -82,17 +64,8 @@ echo "  LAT: $LAT"
 echo "  LON: $LON"
 echo "  MESSAGE: $MESSAGE"
 echo "  URL: $URL"
-echo ""
-
-## DEMO TIME
-#~ # Vérifier si la clé publique est autorisée
-#~ if ! get_key_directory "$PUBKEY"; then
-    #~ echo "Unauthorized pubkey for kind $kind: $pubkey" >&2
-    #~ echo "This NOSTR CARD $PUBKEY is not registered on this Astroport"
-    #~ exit 0
-#~ fi
-
 echo "  KNAME: $KNAME"
+echo ""
 
 ## CHECK if $UMAPNPUB = $PUBKEY Then DO not reply
 UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${LAT}" "${UPLANETNAME}${LON}")
