@@ -157,11 +157,11 @@ get_conversation_thread() {
         done <<< "$reply_tags"
 
         if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
-            local parent_content=$(get_event_by_id "$reply_id" | jq -r .content)
+            local parent_content=$(get_event_by_id "$reply_id" | jq -r '.content')
             [[ -n "$parent_content" ]] && current_content="Re: $parent_content $current_content"
         fi
         if [[ -n "$root_id" ]]; then
-            local root_content=$(get_event_by_id "$root_id" | jq -r .content)
+            local root_content=$(get_event_by_id "$root_id" | jq -r '.content')
             [[ -n "$root_content" ]] && current_content="Thread: $root_content $current_content"
         fi
     fi
