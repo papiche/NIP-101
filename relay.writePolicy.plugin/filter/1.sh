@@ -176,7 +176,7 @@ if [[ "$application" == UPlanet* ]]; then
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
         # Get the full conversation thread
         full_content="$(get_conversation_thread "$event_id")"
-        printf 'full_content=[%s]\n' "$full_content"
+        #~ printf 'full_content=[%s]\n' "$full_content" ## THIS IS EMPTY. WHY ???
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
