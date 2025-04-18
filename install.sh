@@ -6,8 +6,10 @@
 [[ ! -d ~/.zen/Astroport.ONE ]] && echo "MISSING ~/.zen/Astroport.ONE - EXIT" && exit 1
 
 ####################### IPFS links
-strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
-strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
+#~ strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
+strfry_amd64="/ipfs/QmXLi3kMQSPc9JdxswBzFn2rVLjw7MArKcBN2HfRPTjDdW"
+#~ strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
+strfry_arm64="/ipfs/QmTzXxEaeHFkwrNmRAj88QCX1faWQenQnj2RZHFuQ8wMKx"
 
 # Définition des chemins
 WORKSPACE_DIR="$HOME/.zen/workspace"
