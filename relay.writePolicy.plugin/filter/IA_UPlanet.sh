@@ -144,15 +144,20 @@ nostpy-cli send_event \
 #######################################################################
 # ADD TO FOLLOW LIST
 #######################################################################
-EXISTING_EVENT=$(nostpy-cli query --relay "$myRELAY" --kinds "[3]" --authors "$UMAPHEX")
+# Query existing event using strfry scan
+cd $HOME/.zen/strfry
+STRFRY_OUTPUT=$(./strfry scan '{"kinds":[3],"authors":["'$UMAPHEX'"]}' | head -n 1)
+cd -
+# EXISTING_EVENT was from nostpy-cli, now using output from strfry
+EXISTING_EVENT="$STRFRY_OUTPUT"
 
 # Initialize the new tags array
 NEW_TAGS="[]"
 
 # Check if an existing event was found
-if [[ -n "$EXISTING_EVENT" ]] && [[ "$EXISTING_EVENT" != "[]" ]]; then
+if [[ -n "$EXISTING_EVENT" ]]; then # Check if STRFRY_OUTPUT is not empty
     # Extract the existing tags using jq
-    EXISTING_TAGS=$(echo "$EXISTING_EVENT" | jq -r '.[0].tags')
+    EXISTING_TAGS=$(echo "$EXISTING_EVENT" | jq -r '.tags')
 
     # Check if existing tags are null or empty string, if so treat as empty array
     if [[ -z "$EXISTING_TAGS" ]] || [[ "$EXISTING_TAGS" == "null" ]]; then
@@ -167,6 +172,11 @@ else
 fi
 
 # Send the updated kind 3 event
+# NOTE: If strfry's send_event is intended to interact with a relay, keep --relay "$myRELAY"
+#       If strfry is only for local DB management and you need to send to a relay,
+#       you might still need nostpy-cli send_event for relay interaction.
+#       Assuming here that strfry's send_event is used to publish to relays.
+
 nostpy-cli send_event \
     -privkey "$NPRIV_HEX" \
     -kind 3 \
