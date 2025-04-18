@@ -89,11 +89,6 @@ if [[ ! -z $URL ]]; then
     echo "Looking at the image (using ollama + llava)..."
     DESC="IMAGE : $("$MY_PATH/describe_image.py" "$URL" --json | jq -r '.description')"
 fi
-#~ if [[ -z "$DESC" ]]; then
-  #~ echo "Error: Failed to get image description from describe_image.py"
-  #~ exit 1
-#~ fi
-#~ echo "Image description received."
 
 #######################################################################
 echo "Generating Ollama answer..."
@@ -133,7 +128,10 @@ fi
 echo "NSEC converted to HEX."
 
 #######################################################################
-echo "Sending Nostr Event (Kind 1) using nostpy-cli..."
+#######################################################################
+# SEND IA RESPONSE
+#######################################################################
+echo "Sending IA ANSWER"
 
 nostpy-cli send_event \
   -privkey "$NPRIV_HEX" \
@@ -142,13 +140,41 @@ nostpy-cli send_event \
   -tags "[['e', '$EVENT'], ['p', '$PUBKEY']]" \
   --relay "$myRELAY"
 
-## UMAP follow PUBKEY
+#######################################################################
+#######################################################################
+# ADD TO FOLLOW LIST
+#######################################################################
+EXISTING_EVENT=$(nostpy-cli query --relay "$myRELAY" --kinds "[3]" --authors "$UMAPHEX")
+
+# Initialize the new tags array
+NEW_TAGS="[]"
+
+# Check if an existing event was found
+if [[ -n "$EXISTING_EVENT" ]] && [[ "$EXISTING_EVENT" != "[]" ]]; then
+    # Extract the existing tags using jq
+    EXISTING_TAGS=$(echo "$EXISTING_EVENT" | jq -r '.[0].tags')
+
+    # Check if existing tags are null or empty string, if so treat as empty array
+    if [[ -z "$EXISTING_TAGS" ]] || [[ "$EXISTING_TAGS" == "null" ]]; then
+        NEW_TAGS="[['p', '$PUBKEY']]"
+    else
+        # Append the new 'p' tag to the existing tags using jq
+        NEW_TAGS=$(echo "$EXISTING_TAGS" | jq -c '. + [["p", "'"$PUBKEY"'"]]')
+    fi
+else
+    # If no existing event was found, create a new tags array with the new pubkey
+    NEW_TAGS="[['p', '$PUBKEY']]"
+fi
+
+# Send the updated kind 3 event
 nostpy-cli send_event \
     -privkey "$NPRIV_HEX" \
     -kind 3 \
     -content "" \
-    -tags "[['p', '$PUBKEY']]" \
+    -tags "$NEW_TAGS" \
     --relay "$myRELAY"
+
+echo "updated follow list."
 
 #######################################################################
 echo ""
@@ -159,8 +185,5 @@ echo "LON: $LON"
 echo "Message Text: $message_text"
 echo "Image Description: $DESC"
 echo "Ollama Answer: $ANSWER"
-
-echo ""
-echo "Script execution completed."
 
 exit 0
