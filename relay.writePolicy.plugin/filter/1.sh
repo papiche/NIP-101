@@ -18,11 +18,14 @@ latitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "latitude"
 longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitude") | .[1]')
 
 ############################################################
+################################################## TO REMOVE
+############################################################
 ## UPlanet IA FREE DEMO TIME
 [[ "$application" == "" ]] && application="UPlanet"
 [[ "$latitude" == "" ]] && latitude="0.00"
 [[ "$longitude" == "" ]] && longitude="0.00"
 ###################################################### TEMP
+############################################################
 
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
@@ -129,7 +132,7 @@ A message from the Captain.
 get_event_by_id() {
     local event_id="$1"
     # Use strfry scan with a filter for the specific event ID
-    ~/.zen/strfry/strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
+    $HOME/.zen/strfry/strfry --config=$HOME/.zen/strfry/strfry.conf scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
 }
 
 # Function to get the full conversation thread with a depth limit :
@@ -184,7 +187,7 @@ if [[ "$application" == UPlanet* ]]; then
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
-        $MY_PATH/IA_UPlanet.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
         ######################### UPlanet Message IA Treatment
         exit 0
