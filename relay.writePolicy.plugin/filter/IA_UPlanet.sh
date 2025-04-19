@@ -67,6 +67,12 @@ echo "  URL: $URL"
 echo "  KNAME: $KNAME"
 echo ""
 
+## If No URL : Getting URL from message content
+if [ -z "$URL" ]; then
+    # Extraire le premier lien .png ou .jpg de MESSAGE
+    URL=$(echo "$MESSAGE" | grep -oE 'http[s]?://[^ ]+\.(png|jpg)' | head -n 1)
+fi
+
 ## CHECK if $UMAPNPUB = $PUBKEY Then DO not reply
 UMAPNPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${LAT}" "${UPLANETNAME}${LON}")
 UMAPHEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNPUB")
