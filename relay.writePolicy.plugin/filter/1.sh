@@ -131,8 +131,10 @@ A message from the Captain.
 # Function to get an event by ID using strfry scan
 get_event_by_id() {
     local event_id="$1"
+    cd $HOME/.zen/strfry
     # Use strfry scan with a filter for the specific event ID
-    $HOME/.zen/strfry/strfry --config=$HOME/.zen/strfry/strfry.conf scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
+    ./strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
+    cd -
 }
 
 # Function to get the full conversation thread with a depth limit :
@@ -161,15 +163,15 @@ get_conversation_thread() {
 
         if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
             local parent_content=$(get_event_by_id "$reply_id" | jq -r '.content')
-            [[ -n "$parent_content" ]] && current_content="Re: $parent_content \n\n $current_content"
+            [[ -n "$parent_content" ]] && current_content="Re: $parent_content \n---\n $current_content"
         fi
         if [[ -n "$root_id" ]]; then
             local root_content=$(get_event_by_id "$root_id" | jq -r '.content')
-            [[ -n "$root_content" ]] && current_content="Thread: $root_content \n\n $current_content"
+            [[ -n "$root_content" ]] && current_content="Thread: $root_content \n---\n $current_content"
         fi
     fi
 
-    echo "$current_content"
+    echo -e "$current_content"
 }
 
 ################# MAIN TREATMENT
