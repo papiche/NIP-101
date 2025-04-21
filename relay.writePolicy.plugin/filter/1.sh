@@ -122,7 +122,9 @@ A message from the Captain.
         ) &
     else
         echo "Visitor limit reached for pubkey $pubkey. Removing Messages & Blacklisting."
-        ~/.zen/strfry/strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
+        cd ~/.zen/strfry
+        ./strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
+        cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
     fi
     return 0
