@@ -149,12 +149,15 @@ if [[ "$application" == UPlanet* ]]; then
         fi
         ###########################################################
         # Activation du script AI
-        [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] && exit 0 ## AVOID DOUBLE PUBLISHING
+        [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] \
+            && $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+            && exit 0 ## MEMORIZING PREVIOUS ANSWER
+
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
-        echo "# MEMORIZE EVENT for UMAP / PUBKEY"
+        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY
         $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
 
         ######################### UPlanet Message IA Treatment
