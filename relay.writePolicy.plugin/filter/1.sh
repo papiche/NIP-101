@@ -20,7 +20,7 @@ longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitud
 ############################################################
 ################################################## TO REMOVE
 ############################################################
-## UPlanet IA FREE DEMO TIME
+## UPlanet ORIGIN FREE DEMO TIME
 [[ "$application" == "" ]] && application="UPlanet"
 [[ "$latitude" == "" ]] && latitude="0.00"
 [[ "$longitude" == "" ]] && longitude="0.00"
