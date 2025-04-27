@@ -139,51 +139,11 @@ get_event_by_id() {
     cd -
 }
 
-# Function to get the full conversation thread with a depth limit :
-get_conversation_thread() {
-    local event_id="$1"
-    local current_content=""
-    local current_event=$(get_event_by_id "$event_id")
-
-    if [[ -n "$current_event" ]]; then
-        current_content=$(echo "$current_event" | jq -r '.content')
-
-        # Find the event this one is replying to
-        local reply_tags=$(echo "$current_event" | jq -c '.tags[] | select(.[0] == "e")')
-        local root_id=""
-        local reply_id=""
-
-        # Parse tags to find root and reply references (NIP-10)
-        while IFS= read -r tag; do
-            local marker=$(echo "$tag" | jq -r '.[3] // ""')
-            if [[ "$marker" == "root" ]]; then
-                root_id=$(echo "$tag" | jq -r '.[1]')
-            elif [[ "$marker" == "reply" ]]; then
-                reply_id=$(echo "$tag" | jq -r '.[1]')
-            fi
-        done <<< "$reply_tags"
-
-        if [[ -n "$reply_id" && "$reply_id" != "$root_id" ]]; then
-            local parent_content=$(get_event_by_id "$reply_id" | jq -r '.content')
-            [[ -n "$parent_content" ]] && current_content="Re: $parent_content \n---\n$current_content"
-        fi
-        if [[ -n "$root_id" ]]; then
-            local root_content=$(get_event_by_id "$root_id" | jq -r '.content')
-            [[ -n "$root_content" ]] && current_content="Thread: $root_content \n---\n$current_content"
-        fi
-    fi
-
-    echo -e "$current_content"
-}
-
 ################# MAIN TREATMENT
 
 if [[ "$application" == UPlanet* ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
-        # Get the full conversation thread
-        full_content="$(get_conversation_thread "$event_id")"
-        #~ printf 'full_content=[%s]\n' "$full_content" ## THIS IS EMPTY. WHY ???
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
@@ -193,6 +153,10 @@ if [[ "$application" == UPlanet* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
+
+        echo "# MEMORIZE EVENT for UMAP / PUBKEY"
+        $HOME/.zen/Astroport.ONE/IA/short_memory.py "${$event_json}" --lat "${latitude}" --lon "${longitude}"
+
         ######################### UPlanet Message IA Treatment
         exit 0
     else
