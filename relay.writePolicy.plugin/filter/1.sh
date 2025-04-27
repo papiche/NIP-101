@@ -150,7 +150,7 @@ if [[ "$application" == UPlanet* ]]; then
         ###########################################################
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] \
-            && $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+            && $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" \
             && exit 0 ## MEMORIZING PREVIOUS ANSWER
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
