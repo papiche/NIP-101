@@ -155,7 +155,7 @@ if [[ "$application" == UPlanet* ]]; then
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
         echo "# MEMORIZE EVENT for UMAP / PUBKEY"
-        $HOME/.zen/Astroport.ONE/IA/short_memory.py "${$event_json}" --lat "${latitude}" --lon "${longitude}"
+        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
 
         ######################### UPlanet Message IA Treatment
         exit 0
