@@ -49,8 +49,8 @@ get_key_directory() {
 
     return 1 # Clé non autorisée
 }
-
-
+######################################################
+## CLASSIFY MESSAGE INCOMER
 ## CHECK if Nobody, Nostr Player Card or UPlanet key
 if ! get_key_directory "$pubkey"; then
     check="nobody"
@@ -150,8 +150,7 @@ if [[ "$application" == UPlanet* ]]; then
         ###########################################################
         # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] \
-            && $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" \
-            && exit 0 ## MEMORIZING PREVIOUS ANSWER
+            && exit 0 ## NO REPLY TWICE
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
         $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
@@ -163,6 +162,8 @@ if [[ "$application" == UPlanet* ]]; then
         ######################### UPlanet Message IA Treatment
         exit 0
     else
+        ## MEMORIZE UMAP RESPONSE
+        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
         echo "OK Authorized key : $KNAME"
         exit 0
     fi
