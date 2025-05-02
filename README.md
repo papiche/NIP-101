@@ -14,6 +14,11 @@ UPlanet extends Nostr by enabling geographically localized communication. It ach
 
 This allows users and applications to subscribe to messages relevant to specific geographic areas by knowing the corresponding GeoKey `npub` or by filtering events based on location tags within a certain radius.
 
+## “♥️box” Install
+```
+bash <(wget -qO- https://github.com/papiche/NIP-101/raw/refs/heads/main/install_strfry.sh)
+```
+
 ## Motivation
 
 -   **Localized Feeds:** Create Nostr feeds relevant only to specific neighborhoods (UMAP), sectors (SECTOR), or regions (REGION).

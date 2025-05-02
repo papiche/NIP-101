@@ -39,10 +39,15 @@ elif [ "$architecture" == "aarch64" ]; then
     ipfs get -o $STRFRY_INSTALL_DIR/strfry $strfry_arm64
 fi
 
+chmod +x $STRFRY_INSTALL_DIR/strfry
+
 echo "Strfry est installé dans $STRFRY_INSTALL_DIR"
 
 ## SETUP strfry configuration (with name & NIP-101 filter rules)
 $WORKSPACE_DIR/NIP-101/setup.sh
+
+## ADD libsecp256k1 library
+sudo apt install libsecp256k1-1
 
 ## Adding to systemd
 $WORKSPACE_DIR/NIP-101/systemd.setup.sh

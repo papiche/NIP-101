@@ -68,7 +68,7 @@ relay {
         name = "♥️BOX $IPFSNODEID"
 
         # NIP-11: Detailed information about relay, free-form
-        description = "This is an Astroport.ONE instance forging HUMAN/MACHINE Trust over Web3."
+        description = "This is an Astroport.ONE instance forging HUMAN/MACHINE Trust over Web3 on UPlanet:${UPLANETG1PUB:0:8}"
 
         # NIP-11: Administrative nostr pubkey, for contact purposes
         pubkey = "$CAPTAINHEX"
