@@ -77,7 +77,7 @@ relay {
         contact = "$CAPTAINEMAIL"
 
         # NIP-11: URL pointing to an image to be used as an icon for the relay
-        icon = ""
+        icon = "https://ipfs.copylaradio.com/ipfs/QmfBK5h8R4LjS2qMtHKze3nnFrtdm85pCbUw3oPSirik5M/logo.uplanet.png"
 
         # List of supported lists as JSON array, or empty string to use default. Example: "[1,2]"
         nips = ""

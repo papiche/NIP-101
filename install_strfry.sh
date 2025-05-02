@@ -102,7 +102,8 @@ else
 fi
 
 echo "Installation/mise à jour de strfry terminée."
-echo "Strfry est installé dans $STRFRY_INSTALL_DIR"
+echo "Strfry : $STRFRY_INSTALL_DIR/start.sh"
+cp $WORKSPACE_DIR/NIP-101/start_strfry-relay.sh $STRFRY_INSTALL_DIR/start.sh
 echo "TO FINISH INSTALL :"
 echo "1) setup : $WORKSPACE_DIR/NIP-101/setup.sh"
 echo "2) systemd : $WORKSPACE_DIR/NIP-101/systemd-setup.sh"
