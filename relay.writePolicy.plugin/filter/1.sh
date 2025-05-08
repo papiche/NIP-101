@@ -46,7 +46,7 @@ get_key_directory() {
             return 0 # Clé autorisée
         fi
     done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
-
+    KNAME=""
     return 1 # Clé non autorisée
 }
 ######################################################
