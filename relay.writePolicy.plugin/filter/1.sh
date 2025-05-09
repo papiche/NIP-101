@@ -42,6 +42,9 @@ get_key_directory() {
     while IFS= read -r -d $'\0' key_file; do
         if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
             # Extraire le dernier répertoire du chemin
+            source $(dirname "$key_file")/GPS 2>/dev/null ## get NOSTR Card default LAT / LON
+            [[ "$latitude" == "0.00" ]] && latitude="$LAT"
+            [[ "$longitude" == "0.00" ]] && longitude="$LON"
             KNAME=$(basename "$(dirname "$key_file")")
             return 0 # Clé autorisée
         fi
@@ -141,7 +144,7 @@ get_event_by_id() {
 
 ################# MAIN TREATMENT
 
-if [[ "$application" == UPlanet* ]]; then
+if [[ "$check" != "nobody" ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
         if [[ -z "$full_content" ]]; then
@@ -169,13 +172,8 @@ if [[ "$application" == UPlanet* ]]; then
     fi
 else
     # Simple NOSTR messages.
-    if [[ "$check" != "nobody" ]]; then
-        echo "OK Authorized key : $KNAME"
-        exit 0
-    else
-        handle_visitor_message "$pubkey" "$event_id"
-        exit 0
-    fi
+    handle_visitor_message "$pubkey" "$event_id"
+    exit 0
 fi
 
 exit 0
