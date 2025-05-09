@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Terminal</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --terminal-bg: #0a0a12;
+            --terminal-green: #0f0;
+            --terminal-cyan: #0ff;
+            --terminal-purple: #b19cd9;
+            --terminal-red: #f44;
+            --terminal-glow: rgba(0, 255, 0, 0.7);
+            --terminal-border: #333;
+            --text-color: #e0e0e0;
+            --text-shadow: 0 0 8px var(--terminal-glow);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Inconsolata', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            perspective: 1000px;
+        }
+
+        .matrix-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.15;
+        }
+
+        .terminal-container {
+            position: relative;
+            width: 85%;
+            max-width: 800px;
+            height: 70vh;
+            background: var(--terminal-bg);
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.5),
+                        inset 0 0 10px rgba(0, 255, 0, 0.2);
+            overflow: hidden;
+            border: 1px solid var(--terminal-green);
+            transform-style: preserve-3d;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) rotateX(10deg) rotateY(5deg);
+            }
+            50% {
+                transform: translateY(-20px) rotateX(5deg) rotateY(10deg);
+            }
+        }
+
+        .terminal-header {
+            background: linear-gradient(to right, #0a0a0a, #111);
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--terminal-green);
+            font-family: 'Share Tech Mono', monospace;
+            border-bottom: 1px solid var(--terminal-green);
+            box-shadow: 0 2px 15px rgba(0, 255, 0, 0.3);
+        }
+
+        .terminal-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .terminal-button.red {
+            background: #ff5f56;
+        }
+
+        .terminal-button.yellow {
+            background: #ffbd2e;
+        }
+
+        .terminal-button.green {
+            background: #27c93f;
+        }
+
+        .terminal-body {
+            padding: 15px;
+            height: calc(100% - 40px);
+            overflow-y: auto;
+            color: var(--text-color);
+            text-shadow: var(--text-shadow);
+            line-height: 1.6;
+        }
+
+        .typing-text {
+            white-space: pre-wrap;
+            font-size: 1.1rem;
+        }
+
+        .command-line {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .prompt {
+            color: var(--terminal-green);
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 20px;
+            background: var(--terminal-green);
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .command-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: var(--terminal-green);
+            font-family: 'Inconsolata', monospace;
+            font-size: 1.1rem;
+            outline: none;
+            caret-color: var(--terminal-green);
+            text-shadow: var(--text-shadow);
+        }
+
+        .glitch {
+            position: relative;
+        }
+
+        .glitch::before, .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--terminal-bg);
+        }
+
+        .glitch::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--terminal-red);
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim-1 2s infinite linear alternate-reverse;
+        }
+
+        .glitch::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--terminal-cyan);
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim-2 2s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim-1 {
+            0% { clip: rect(54px, 800px, 54px, 0); }
+            20% { clip: rect(27px, 800px, 86px, 0); }
+            40% { clip: rect(14px, 800px, 75px, 0); }
+            60% { clip: rect(39px, 800px, 104px, 0); }
+            80% { clip: rect(18px, 800px, 53px, 0); }
+            100% { clip: rect(73px, 800px, 112px, 0); }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(35px, 800px, 89px, 0); }
+            20% { clip: rect(56px, 800px, 103px, 0); }
+            40% { clip: rect(22px, 800px, 64px, 0); }
+            60% { clip: rect(88px, 800px, 120px, 0); }
+            80% { clip: rect(13px, 800px, 32px, 0); }
+            100% { clip: rect(42px, 800px, 99px, 0); }
+        }
+
+        .ascii-art {
+            color: var(--terminal-purple);
+            line-height: 1.3;
+            margin: 15px 0;
+            white-space: pre;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+        }
+
+        .highlight {
+            color: var(--terminal-cyan);
+        }
+
+        .skill-bar {
+            margin: 8px 0;
+        }
+
+        .skill-name {
+            display: inline-block;
+            width: 120px;
+            color: var(--terminal-green);
+        }
+
+        .skill-level {
+            display: inline-block;
+            height: 15px;
+            background: linear-gradient(to right, var(--terminal-green), var(--terminal-cyan));
+            box-shadow: 0 0 5px var(--terminal-glow);
+            animation: expand 1s ease-out;
+            transform-origin: left;
+        }
+
+        @keyframes expand {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+
+        .contact-item {
+            margin: 8px 0;
+        }
+
+        .contact-item a {
+            color: var(--terminal-purple);
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .contact-item a:hover {
+            color: var(--terminal-cyan);
+            text-shadow: 0 0 10px var(--terminal-cyan);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Matrix rain effect */
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix" class="matrix-background"></canvas>
+
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <div class="terminal-buttons">
+                <div class="terminal-button red"></div>
+                <div class="terminal-button yellow"></div>
+                <div class="terminal-button green"></div>
+            </div>
+            <div class="glitch" data-text="UPlanet Terminal:~">UPlanet Terminal:~</div>
+            <div class="terminal-buttons">
+                <div style="width: 20px;"></div>
+            </div>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+            <div id="typing-text" class="typing-text"></div>
+            <div id="command-line" class="command-line hidden">
+                <span class="prompt">></span>
+                <input type="text" class="command-input" id="command-input" autocomplete="off">
+                <span class="cursor"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Matrix effect
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+        const symbols = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
+        const binary = '01';
+
+        const alphabet = katakana + latin + nums + symbols + binary;
+
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+
+        const rainDrops = [];
+
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0f0';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        // Terminal typing effect
+        const terminalText = document.getElementById('typing-text');
+        const commandLine = document.getElementById('command-line');
+        const commandInput = document.getElementById('command-input');
+
+        const messages = [
+            { text: "Initializing system...", delay: 50 },
+            { text: "Loading profile data...", delay: 50 },
+            { text: "██████████████ 100%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 200 },
+            { text: "> Welcome to CYBER TERMINAL // ACCESS GRANTED", delay: 10, style: "color: #0f0; font-weight: bold" },
+            { text: "\n\n", delay: 100 },
+            { text: ">> SYSTEM PROFILE <<", delay: 10, style: "color: #b19cd9; text-decoration: underline" },
+            { text: "\n", delay: 100 },
+            { text: "> NAME: ", delay: 20 },
+            { text: "ORIGIN", delay: 100, style: "color: #0ff; font-weight: bold" },
+            { text: "", delay: 100, style: "color: #0f0; font-weight: bold" },
+            { text: "\n", delay: 50 },
+            { text: "> TITLE: ", delay: 20 },
+            { text: "CYBER SPACE GEO PORTAL", delay: 50, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> LOCATION: ", delay: 20 },
+            { text: "[EARTH]", delay: 70, style: "color: #f44" },
+            { text: "\n", delay: 50 },
+            { text: "> STATUS: ", delay: 20 },
+            { text: "ACTIVE // SECURITY CLEARANCE: DELTA", delay: 50, style: "color: #0f0" },
+            { text: "\n\n", delay: 100 },
+            { text: ">> ẐEN LEVEL <<", delay: 10, style: "color: #b19cd9; text-decoration: underline" },
+            { text: "\n", delay: 100 },
+            { text: "> NODE: ", delay: 20 },
+            { text: "██████████ 95%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> SWARM: ", delay: 20 },
+            { text: "██████████ 97%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> HEXGATE: ", delay: 20 },
+            { text: "████████▉ 88%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> UMAP: ", delay: 20 },
+            { text: "████████▊ 86%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> SECTOR: ", delay: 20 },
+            { text: "███████▍ 75%", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> REGION: ", delay: 20 },
+            { text: "██████▎ 70%", delay: 30, style: "color: #0ff" },
+            { text: "\n\n", delay: 100 },
+            { text: ">> BLOCKCHAIN HISTORY <<", delay: 10, style: "color: #b19cd9; text-decoration: underline" },
+            { text: "\n", delay: 100 },
+            { text: "> [2023] DECENTRALIZED IDENTITY SYSTEM - UPASSPORT", delay: 30 },
+            { text: "\n", delay: 50 },
+            { text: "> [2022] INTER PLANETARY FILE SYSTEM - UPLANET FORMAT", delay: 30 },
+            { text: "\n", delay: 50 },
+            { text: "> [2021] COLLECTIVE ENCHANTED FOREST EXPERIMENT - 321 DU", delay: 30 },
+            { text: "\n\n", delay: 100 },
+            { text: ">> CONTACT POINTS <<", delay: 10, style: "color: #b19cd9; text-decoration: underline" },
+            { text: "\n", delay: 100 },
+            { text: "> EMAIL: ", delay: 20 },
+            { text: "support@qo-op.com", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> GITHUB: ", delay: 20 },
+            { text: "github.com/papiche", delay: 30, style: "color: #0ff" },
+            { text: "\n", delay: 50 },
+            { text: "> TWITTER: ", delay: 20 },
+            { text: "@AstroportONE", delay: 30, style: "color: #0ff" },
+            { text: "\n\n", delay: 100 },
+            { text: "> Type 'help' for available commands", delay: 30, style: "color: #0f0" },
+            { text: "\n", delay: 50 },
+        ];
+
+        let currentMessageIndex = 0;
+        let currentCharIndex = 0;
+        let isTyping = true;
+
+        function typeNextCharacter() {
+            if (currentMessageIndex >= messages.length) {
+                isTyping = false;
+                commandLine.classList.remove('hidden');
+                commandInput.focus();
+                return;
+            }
+
+            const currentMessage = messages[currentMessageIndex];
+            const textToType = currentMessage.text;
+
+            if (currentCharIndex < textToType.length) {
+                const char = textToType.charAt(currentCharIndex);
+                const span = document.createElement('span');
+                span.textContent = char;
+
+                if (currentMessage.style) {
+                    span.style = currentMessage.style;
+                }
+
+                terminalText.appendChild(span);
+                currentCharIndex++;
+
+                setTimeout(typeNextCharacter, currentMessage.delay);
+            } else {
+                currentMessageIndex++;
+                currentCharIndex = 0;
+                setTimeout(typeNextCharacter, 100);
+            }
+        }
+
+        function processCommand(command) {
+            terminalText.appendChild(document.createElement('br'));
+
+            const prompt = document.createElement('span');
+            prompt.textContent = '> ';
+            prompt.style.color = '#0f0';
+            terminalText.appendChild(prompt);
+
+            const cmdText = document.createElement('span');
+            cmdText.textContent = command;
+            cmdText.style.color = '#e0e0e0';
+            terminalText.appendChild(cmdText);
+
+            terminalText.appendChild(document.createElement('br'));
+
+            const response = document.createElement('div');
+            response.style.marginTop = '10px';
+
+            command = command.toLowerCase().trim();
+
+            if (command === 'help') {
+                response.innerHTML = `Available commands:<br>
+                - <span class="highlight">about</span>: Show detailed profile<br>
+                - <span class="highlight">skills</span>: List technical skills<br>
+                - <span class="highlight">contact</span>: Show contact information<br>
+                - <span class="highlight">clear</span>: Clear the terminal<br>
+                - <span class="highlight">exit</span>: Close terminal (just kidding)`;
+            }
+            else if (command === 'about') {
+                response.innerHTML = `// UPLANET P2P SYSTEM //<br><br>
+                <span class="highlight">UPlanet</span> is a native Web3 information system providing "natural storage" to localized information :<br>
+                - Secure system architecture<br>
+                - Cryptographic protocols<br>
+                - Decentralized applications<br>
+                - Personnal AI-agents<br><br>
+                After 8 years in the field, I've worked on redefining a better & stronger information system, always pushing the boundaries of what's possible in the digital realm.`;
+            }
+            else if (command === 'skills') {
+                response.innerHTML = `>> TECHNICAL PROWESS <<<br><br>
+                <div class="skill-bar"><span class="skill-name">Programming:</span> <span class="skill-level" style="width: 95%"></span></div>
+                <div class="skill-bar"><span class="skill-name">Security:</span> <span class="skill-level" style="width: 90%"></span></div>
+                <div class="skill-bar"><span class="skill-name">Networking:</span> <span class="skill-level" style="width: 85%"></span></div>
+                <div class="skill-bar"><span class="skill-name">AI/ML:</span> <span class="skill-level" style="width: 80%"></span></div>
+                <div class="skill-bar"><span class="skill-name">Blockchain:</span> <span class="skill-level" style="width: 75%"></span></div>`;
+            }
+            else if (command === 'contact') {
+                response.innerHTML = `>> SECURE CONTACT CHANNELS <<<br><br>
+                <div class="contact-item">Email: <a href="mailto:coder_one@null.dev">coder_one@null.dev</a></div>
+                <div class="contact-item">GitHub: <a href="https://github.com/coder-one" target="_blank">github.com/coder-one</a></div>
+                <div class="contact-item">Twitter: <a href="https://twitter.com/coder_one" target="_blank">@coder_one</a></div>
+                <div class="contact-item">PGP: <span style="color: #f44">[Available upon request]</span></div>`;
+            }
+            else if (command === 'clear') {
+                terminalText.innerHTML = '';
+                commandInput.value = '';
+                return;
+            }
+            else if (command === 'exit') {
+                response.innerHTML = `<span style="color: #f44">Access Denied: Terminal cannot be closed from this session.</span>`;
+            }
+            else {
+                response.innerHTML = `<span style="color: #f44">Command not found: ${command}</span><br>
+                Type <span class="highlight">'help'</span> for available commands.`;
+            }
+
+            terminalText.appendChild(response);
+            terminalText.appendChild(document.createElement('br'));
+            commandLine.scrollIntoView();
+        }
+
+        commandInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const command = this.value;
+                this.value = '';
+
+                if (command.trim() !== '') {
+                    processCommand(command);
+                }
+            }
+        });
+
+        // Start animations
+        window.addEventListener('load', function() {
+            draw();
+            typeNextCharacter();
+        });
+
+        window.addEventListener('resize', function() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
