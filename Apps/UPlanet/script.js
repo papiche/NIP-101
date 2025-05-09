@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_RELAYS = [
         { url: 'wss://relay.damus.io', read: true, write: true },
         { url: 'wss://relay.snort.social', read: true, write: true },
-        { url: 'wss://nostr.wine', read: true, write: true }
+        { url: 'wss://relay.copylaradio.com', read: true, write: true }
     ];
 
     // --- DOM ELEMENTS ---
@@ -816,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      if (!isNaN(lat) && !isNaN(lon)) {
                         const marker = L.marker([lat, lon], { icon: umapIcon }).addTo(leafletMap);
                         let popupContent = `<b>UMAP</b><br>Lat: ${umap.LAT}, Lon: ${umap.LON}<br>`;
-                        popupContent += `<a href="nostr.html?hex=${umap.UMAPHEX}" target="_blank">Profil UMAP Nostr</a>`;
+                        popupContent += `<a href="nostr.html?hex=${umap.UMAPHEX}" target="_blank">UMAP Nostr</a>`;
                         if(umap.UMAPROOT) {
                              popupContent += `<br><a href="/ipfs/${umap.UMAPROOT}" target="_blank">IPFS Drive</a>`;
                         }

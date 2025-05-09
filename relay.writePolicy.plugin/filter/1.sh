@@ -18,15 +18,6 @@ latitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "latitude"
 longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitude") | .[1]')
 
 ############################################################
-################################################## TO REMOVE
-############################################################
-## UPlanet ORIGIN FREE DEMO TIME
-[[ "$application" == "" ]] && application="UPlanet"
-[[ "$latitude" == "" ]] && latitude="0.00"
-[[ "$longitude" == "" ]] && longitude="0.00"
-###################################################### TEMP
-############################################################
-
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
@@ -43,8 +34,8 @@ get_key_directory() {
         if [[ "$pubkey" == "$(cat "$key_file")" ]]; then
             # Extraire le dernier répertoire du chemin
             source $(dirname "$key_file")/GPS 2>/dev/null ## get NOSTR Card default LAT / LON
-            [[ "$latitude" == "0.00" ]] && latitude="$LAT"
-            [[ "$longitude" == "0.00" ]] && longitude="$LON"
+            [[ "$latitude" == "" ]] && latitude="$LAT"
+            [[ "$longitude" == "" ]] && longitude="$LON"
             KNAME=$(basename "$(dirname "$key_file")")
             return 0 # Clé autorisée
         fi
@@ -64,6 +55,14 @@ else
         check="uplanet"
     fi
 fi
+
+
+############################################################
+## UPlanet DEFAULT UMAP
+[[ "$latitude" == "" ]] && latitude="0.00"
+[[ "$longitude" == "" ]] && longitude="0.00"
+###################################################### TEMP
+############################################################
 
 # Fonction pour vérifier et gérer le message "Hello NOSTR visitor"
 handle_visitor_message() {
