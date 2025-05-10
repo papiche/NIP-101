@@ -107,11 +107,11 @@ I noticed that you're using our Astroport Relay without being registered on our 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
 
-A message from the Captain.
+Your devoted Captain.
 
 #CopyLaRadio
 * UPlanet : ${UPLANETG1PUB:0:8}
-* ♥️BOX : $IPFSNODEID
+* ♥️BOX : /ipns/$IPFSNODEID
 "
 
             nostpy-cli send_event \
