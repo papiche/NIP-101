@@ -105,7 +105,7 @@ handle_visitor_message() {
 I noticed that you're using our Astroport Relay without being registered on our Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
-Enter Email to Register: $uSPOT/scan
+Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
 
 A message from the Captain.
 
