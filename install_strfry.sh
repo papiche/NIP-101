@@ -16,6 +16,7 @@ ipfs_strfry() {
 
 # Définition des chemins
 WORKSPACE_DIR="$HOME/.zen/workspace"
+NIP101_DIR="$HOME/.zen/workspace/NIP-101"
 STRFRY_SRC_DIR="$WORKSPACE_DIR/strfry"
 STRFRY_INSTALL_DIR="$HOME/.zen/strfry"
 
@@ -85,7 +86,6 @@ install_strfry() {
 
 ########################################
 ## INSTALL NOSTR RELAY
-
 ipfs_strfry # show ipfs get link
 
 if [[ ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
@@ -102,6 +102,12 @@ else
 fi
 
 echo "Installation/mise à jour de strfry terminée."
+if [[ !-d $NIP101_DIR ]]; then
+    echo "CLONING NIP-101 = UPlanet NOSTR Relay ASTROBOT 'Side Chain' "
+    cd $WORKSPACE_DIR
+    git clone https://github.com/papiche/NIP-101.git
+fi
+
 echo "Strfry : $STRFRY_INSTALL_DIR/start.sh"
 cp $WORKSPACE_DIR/NIP-101/start_strfry-relay.sh $STRFRY_INSTALL_DIR/start.sh
 echo "TO FINISH INSTALL :"
