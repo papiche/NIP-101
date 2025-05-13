@@ -54,11 +54,7 @@ UPlanet defines the following initial grid levels:
     -   Example Seed: `"UPlanetV148-2"` (for Lat 48.853, Lon -2.341)
 
 **Key Generation Algorithm:**
-The specific algorithm used by the `keygen` tool mentioned in `IA_UPlanet.sh` is not defined here, but any standard, deterministic method for deriving a secp256k1 keypair from a unique seed string MUST be used (e.g., using the seed as input to a KDF like HKDF with a fixed salt, or directly using a SHA256 hash of the seed as the private key, ensuring it falls within the valid secp256k1 range). The chosen method MUST be consistent across the UPlanet ecosystem.
-
-**Example (Conceptual):**
-`nsec_hex = sha256("UPlanetV148.85-2.34")` (Ensure result is valid private key)
-`pubkey = derive_pubkey(nsec_hex)`
+The specific algorithm used by the `keygen` used in `IA_UPlanet.sh` is "Astroport" tool, providing deterministic method for deriving a secp256k1 keypair from a unique seed string (and other twin keys: IPFS, G1, Bitcoin). The chosen method IS consistent across the UPlanet ecosystem.
 
 ### 2. Event Tags
 
@@ -76,7 +72,7 @@ Events related to UPlanet locations SHOULD include the following tags:
 ### 3. Publishing
 
 -   To post **as** a specific location grid cell (e.g., an automated bot reporting for a UMAP cell), derive the appropriate GeoKey `nsec` using the method in Specification 1 and publish a kind 1 event signed with it. The event SHOULD include the `latitude`, `longitude`, and `application` tags.
--   Regular users posting *about* a location SHOULD publish from their personal key but include the `latitude`, `longitude`, and `application` tags to make the event discoverable by UPlanet clients. They MAY also include `p` tags referencing the relevant GeoKey `npub`s (UMAP, SECTOR, REGION) to notify those "location identities".
+-   Regular users posting *about* ahve a default a location recorded with their personal key provided during Astroport registration. This location is used when geo data is found in event.
 
 ### 4. Subscribing and Filtering
 
@@ -88,14 +84,10 @@ Clients can discover UPlanet content in several ways:
 
 ## Client Implementation Guide
 
--   **Key Generation:** Implement the deterministic key generation logic specified (or provide access to the `keygen` tool). Users might need to generate keys for areas they want to monitor or post from (if acting as a location).
+-   **Key Generation:** Implement the deterministic key generation logic specified (access to the `keygen` tool code).
 -   **Posting:** When posting, determine the relevant coordinates. Include `latitude`, `longitude`, and `application` tags. Optionally derive and include `p` tags for relevant GeoKeys. If posting *as* a location, use the derived GeoKey `nsec` for signing.
 -   **Receiving:** Filter incoming events based on subscribed GeoKeys or tags. Display location information, potentially on a map. Parse `latitude` and `longitude` tags for precise positioning.
 -   **Coordinate Formatting:** Strictly adhere to the specified decimal places for each grid level when deriving keys. Use standard functions for formatting (e.g., `sprintf("%.2f", coord)`). Consistency in truncation or rounding is crucial.
-
-## Relay Implementation Considerations
-
-Relays MAY implement indexing for the `latitude`, `longitude`, and `application` tags to support efficient filtering (`REQ` messages with `#a`, `#latitude`, `#longitude` filters), but this is optional. The core mechanism relies on clients knowing or deriving the GeoKey `npub`s or filtering standard tag queries.
 
 ## Use Cases Illustrated
 
