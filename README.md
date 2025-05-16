@@ -33,11 +33,12 @@ bash <(wget -qO- https://github.com/papiche/NIP-101/raw/refs/heads/main/install_
 
 A Nostr keypair (secp256k1) is deterministically derived from a seed string. The seed is constructed by concatenating:
 
-1.  `UPLANETNAME`: A secret string identifying the application and used as ~/.ipfs/swarm.key to create the private IPFS swarm dedicated to UPlanet Application.
+1.  `UPLANETNAME`: A secret string identifying the application and used as ```~/.ipfs/swarm.key``` and creates the private IPFS swarm dedicated to UPlanet Application.
 2.  `FORMATTED_LATITUDE`: The latitude, formatted as a string to a specific number of decimal places corresponding to the desired grid level.
 3.  `FORMATTED_LONGITUDE`: The longitude, formatted as a string to the same number of decimal places as the latitude, corresponding to the grid level.
 
-**Seed Format:** `"{UPLANETNAME}{FORMATTED_LATITUDE}{FORMATTED_LONGITUDE}"`
+**Seed Format:** `"{UPLANETNAME}_{FORMATTED_LATITUDE}" "{UPLANETNAME}_{FORMATTED_LONGITUDE}"` used as [libsodium](https://doc.libsodium.org/libsodium_users) salt & pepper
+**Key Generation:** Implement the deterministic key generation logic specified ([access to the `keygen` tool code](https://github.com/papiche/Astroport.ONE/blob/master/tools/keygen)).
 
 **Grid Levels & Formatting:**
 
@@ -61,11 +62,11 @@ The specific algorithm used by the `keygen` used in `IA_UPlanet.sh` is "Astropor
 Events related to UPlanet locations SHOULD include the following tags:
 
 -   **Latitude Tag:** `["latitude", "FLOAT_STRING"]`
-    -   Value: The latitude as a string, typically with higher precision (e.g., 6+ decimal places) than the GeoKey grid level. Example: `"48.8534"`
+    -   Value: The latitude as a string, optionnaly with higher precision (e.g., 6+ decimal places) than the GeoKey grid level. Example: `"48.8534"`
 -   **Longitude Tag:** `["longitude", "FLOAT_STRING"]`
-    -   Value: The longitude as a string, typically with higher precision. Example: `"-2.3412"`
--   **Application Tag:** `["application", "UPlanet"]` or `["application", "UPlanet_Component"]`
-    -   Value: Identifies the event as belonging to the UPlanet system. Allows differentiation (e.g., `UPlanet_AIResponder`).
+    -   Value: The longitude as a string, optionnaly with higher precision. Example: `"-2.3412"`
+-   **Application Tag:** `["application", "UPlanet*"]`
+    -   Value: Identifies the event as belonging to the UPlanet system. Allows differentiation (e.g., `UPlanet_AppName`).
 
 **Note:** While GeoKeys provide identity for grid cells, the `latitude` and `longitude` tags specify the precise point of interest *within* or related to that cell. Events published *from* a UMAP GeoKey might contain tags pointing to a very specific coordinate within that 0.01°x0.01° cell.
 
@@ -84,7 +85,6 @@ Clients can discover UPlanet content in several ways:
 
 ## Client Implementation Guide
 
--   **Key Generation:** Implement the deterministic key generation logic specified (access to the `keygen` tool code).
 -   **Posting:** When posting, determine the relevant coordinates. Include `latitude`, `longitude`, and `application` tags. Optionally derive and include `p` tags for relevant GeoKeys. If posting *as* a location, use the derived GeoKey `nsec` for signing.
 -   **Receiving:** Filter incoming events based on subscribed GeoKeys or tags. Display location information, potentially on a map. Parse `latitude` and `longitude` tags for precise positioning.
 -   **Coordinate Formatting:** Strictly adhere to the specified decimal places for each grid level when deriving keys. Use standard functions for formatting (e.g., `sprintf("%.2f", coord)`). Consistency in truncation or rounding is crucial.
@@ -100,7 +100,7 @@ Clients can discover UPlanet content in several ways:
 -   **Location Disclosure:** Publishing with precise `latitude`/`longitude` tags reveals location. Users must be aware of this. Using broader grid keys (SECTOR, REGION) for posting offers less precision.
 -   **Tracking:** Consistent use of GeoKeys or tags could allow tracking of users' movements if they post frequently from different locations using their personal key with geo-tags.
 -   **Namespace Security:** Control over the `UPLANETNAME` string is important. If compromised or changed, it could disrupt the system or lead to impersonation of locations.
--   **Key Management:** Managing potentially many GeoKey `nsec`s (if acting as multiple locations) requires secure storage.
+-   **Key Management:** Managing potentially 654 Millions GeoKey `nsec`s, Astroport storage can choose the closest node.
 
 ## Compatibility
 
