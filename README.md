@@ -33,11 +33,11 @@ bash <(wget -qO- https://github.com/papiche/NIP-101/raw/refs/heads/main/install_
 
 A Nostr keypair (secp256k1) is deterministically derived from a seed string. The seed is constructed by concatenating:
 
-1.  `NAMESPACE`: A constant string identifying the application and version context (e.g., `UPlanetV1`). This prevents collisions with other systems or future versions.
+1.  `UPLANETNAME`: A secret string identifying the application and used as ~/.ipfs/swarm.key to create the private IPFS swarm dedicated to UPlanet Application.
 2.  `FORMATTED_LATITUDE`: The latitude, formatted as a string to a specific number of decimal places corresponding to the desired grid level.
 3.  `FORMATTED_LONGITUDE`: The longitude, formatted as a string to the same number of decimal places as the latitude, corresponding to the grid level.
 
-**Seed Format:** `"{NAMESPACE}{FORMATTED_LATITUDE}{FORMATTED_LONGITUDE}"`
+**Seed Format:** `"{UPLANETNAME}{FORMATTED_LATITUDE}{FORMATTED_LONGITUDE}"`
 
 **Grid Levels & Formatting:**
 
@@ -99,7 +99,7 @@ Clients can discover UPlanet content in several ways:
 
 -   **Location Disclosure:** Publishing with precise `latitude`/`longitude` tags reveals location. Users must be aware of this. Using broader grid keys (SECTOR, REGION) for posting offers less precision.
 -   **Tracking:** Consistent use of GeoKeys or tags could allow tracking of users' movements if they post frequently from different locations using their personal key with geo-tags.
--   **Namespace Security:** Control over the `NAMESPACE` string is important. If compromised or changed, it could disrupt the system or lead to impersonation of locations.
+-   **Namespace Security:** Control over the `UPLANETNAME` string is important. If compromised or changed, it could disrupt the system or lead to impersonation of locations.
 -   **Key Management:** Managing potentially many GeoKey `nsec`s (if acting as multiple locations) requires secure storage.
 
 ## Compatibility
