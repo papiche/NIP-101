@@ -182,21 +182,35 @@ process_queue() {
 
     # Vérifier si UPlanet_IA_Responder.sh est déjà en cours d'exécution
     if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
-        return 0
-    fi
+        # Only queue if content contains #BRO or #BOT
+        if [[ "$full_content" == *"#BRO"* || "$full_content" == *"#BOT"* ]]; then
+            # Compter le nombre de fichiers dans la file d'attente
+            queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
 
-    # Prendre le premier fichier de la file d'attente
-    QUEUE_FILE=$(ls -t $QUEUE_DIR/ | tail -n 1)
-    if [ -n "$QUEUE_FILE" ]; then
-        # Lire les paramètres du fichier
-        source "$QUEUE_DIR/$QUEUE_FILE"
+            # Si la file d'attente n'est pas pleine, ajouter le message
+            if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
+                QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh" ## on écrase le fichier si il existe
+                cat > "$QUEUE_FILE" << EOF
+pubkey="$pubkey"
+event_id="$event_id"
+latitude="$latitude"
+longitude="$longitude"
+full_content="$full_content"
+url="$url"
+KNAME="$KNAME"
+EOF
+            else
+                echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            fi
+        fi
 
-        # Exécuter le sous script avec timeout
-        (
-        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME"
-        # Supprimer le fichier de la file d'attente
-        rm -f "$QUEUE_DIR/$QUEUE_FILE"
-        ) &
+        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY
+        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+
+        exit 0
+    else
+        # Si aucun processus n'est en cours, lancer directement avec timeout
+        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
     fi
 }
 
