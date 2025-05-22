@@ -89,7 +89,7 @@ install_strfry() {
 ipfs_strfry # show ipfs get link
 
 echo "Installation NIP-101"
-if [[ !-d $NIP101_DIR ]]; then
+if [[ ! -d $NIP101_DIR ]]; then
     echo "CLONING NIP-101 = UPlanet NOSTR Relay ASTROBOT 'Side Chain' "
     cd $WORKSPACE_DIR
     git clone https://github.com/papiche/NIP-101.git
