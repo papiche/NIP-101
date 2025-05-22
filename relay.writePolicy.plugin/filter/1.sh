@@ -203,9 +203,10 @@ EOF
                 echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
         fi
-
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY
-        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        if [[ "$content" != *"#mem"* ]]; then
+            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        fi
 
         exit 0
     else
@@ -258,9 +259,11 @@ EOF
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
-
-        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY
-        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        
+        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY if #mem not present
+        if [[ ! "$content" =~ "#mem" ]]; then
+            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        fi
 
         ######################### UPlanet Message IA Treatment
         exit 0
