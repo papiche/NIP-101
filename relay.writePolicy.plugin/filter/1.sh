@@ -26,6 +26,8 @@ MESSAGE_LIMIT=3
 QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
 mkdir -p "$QUEUE_DIR"
 MAX_QUEUE_SIZE=5
+PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
+QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
 
 # Fonction pour vérifier si une clé est autorisée
 KEY_DIR="$HOME/.zen/game/nostr"
@@ -145,8 +147,34 @@ get_event_by_id() {
     cd -
 }
 
+# Fonction pour nettoyer les anciens fichiers de la file d'attente
+cleanup_old_queue_files() {
+    find "$QUEUE_DIR" -type f -mmin +60 -delete 2>/dev/null
+}
+
+# Fonction pour vérifier et tuer les processus bloqués
+check_stuck_processes() {
+    local current_time=$(date +%s)
+    for pid in $(pgrep -f "UPlanet_IA_Responder.sh"); do
+        local process_start=$(ps -p $pid -o lstart= 2>/dev/null)
+        if [ -n "$process_start" ]; then
+            local start_time=$(date -d "$process_start" +%s 2>/dev/null)
+            if [ $? -eq 0 ] && [ $((current_time - start_time)) -gt $PROCESS_TIMEOUT ]; then
+                kill -9 $pid 2>/dev/null
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Killed stuck process $pid" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            fi
+        fi
+    done
+}
+
 # Fonction pour traiter la file d'attente
 process_queue() {
+    # Nettoyer les anciens fichiers
+    cleanup_old_queue_files
+    
+    # Vérifier les processus bloqués
+    check_stuck_processes
+
     # Vérifier s'il y a des fichiers dans la file d'attente
     if [ -z "$(ls -A $QUEUE_DIR/)" ]; then
         return 0
@@ -163,11 +191,12 @@ process_queue() {
         # Lire les paramètres du fichier
         source "$QUEUE_DIR/$QUEUE_FILE"
 
-        # Exécuter le script
-        $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
-
+        # Exécuter le sous script avec timeout
+        (
+        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME"
         # Supprimer le fichier de la file d'attente
-        rm "$QUEUE_DIR/$QUEUE_FILE"
+        rm -f "$QUEUE_DIR/$QUEUE_FILE"
+        ) &
     fi
 }
 
@@ -195,7 +224,7 @@ if [[ "$check" != "nobody" ]]; then
 
             # Si la file d'attente n'est pas pleine, ajouter le message
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
-                QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh"
+                QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh" ## on écrase le fichier si il existe
                 cat > "$QUEUE_FILE" << EOF
 pubkey="$pubkey"
 event_id="$event_id"
@@ -209,8 +238,8 @@ EOF
                 echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
         else
-            # Si aucun processus n'est en cours, lancer directement
-            $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+            # Si aucun processus n'est en cours, lancer directement avec timeout
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
