@@ -220,7 +220,7 @@ process_queue
 
 if [[ "$check" != "nobody" ]]; then
     # UPlanet APP NOSTR messages.
-    if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" ]]; then
+    if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" && "$content" == *"#BRO"* || "$content" == *"#BOT"* ]]; then
         if [[ -z "$full_content" ]]; then
             full_content="$content"
         fi
@@ -270,7 +270,7 @@ EOF
         exit 0
     fi
 else
-    # Simple NOSTR messages.
+    # Visitor NOSTR message reply
     handle_visitor_message "$pubkey" "$event_id"
     exit 0
 fi
