@@ -215,20 +215,21 @@ EOF
 }
 
 ################# MAIN TREATMENT
+if [[ -z "$full_content" ]]; then
+    full_content="$content"
+fi
 # Traiter la file d'attente
 process_queue
 
 if [[ "$check" != "nobody" ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" && "$content" == *"#BRO"* || "$content" == *"#BOT"* ]]; then
-        if [[ -z "$full_content" ]]; then
-            full_content="$content"
-        fi
         ###########################################################
-        # Activation du script AI
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] \
             && exit 0 ## NO REPLY TWICE
 
+        # Ready to process UPlanet_IA_Responder
+        echo "OK Authorized key : $KNAME"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
         # Vérifier si UPlanet_IA_Responder.sh est déjà en cours d'exécution
@@ -252,7 +253,7 @@ EOF
                 echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
         else
-            # Si aucun processus n'est en cours, lancer directement avec timeout
+            # Processing UPlanet_IA_Responder
             timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         fi
 
@@ -266,7 +267,6 @@ EOF
     else
         ## MEMORIZE UMAP RESPONSE
         $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
-        echo "OK Authorized key : $KNAME"
         exit 0
     fi
 else
