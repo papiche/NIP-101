@@ -20,8 +20,8 @@ dbParams {
     # Maximum number of threads/processes that can simultaneously have LMDB transactions open (restart required)
     maxreaders = 256
 
-    # Size of mmap() to use when loading LMDB (default is 10TB, does *not* correspond to disk-space used) (restart required)
-    mapsize = 10995116277760
+    # Size of mmap() to use when loading LMDB (default is 10GB, does *not* correspond to disk-space used) (restart required)
+    mapsize = 10737418240
 
     # Disables read-ahead when accessing the LMDB mapping. Reduces IO activity when DB size is larger than RAM. (restart required)
     noReadAhead = false
