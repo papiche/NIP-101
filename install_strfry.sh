@@ -88,25 +88,28 @@ install_strfry() {
 ## INSTALL NOSTR RELAY
 ipfs_strfry # show ipfs get link
 
+echo "Installation NIP-101"
+if [[ !-d $NIP101_DIR ]]; then
+    echo "CLONING NIP-101 = UPlanet NOSTR Relay ASTROBOT 'Side Chain' "
+    cd $WORKSPACE_DIR
+    git clone https://github.com/papiche/NIP-101.git
+fi
+
 if [[ ! -s "$STRFRY_INSTALL_DIR/strfry" ]]; then
     install_dependencies
     clone_or_update_repo
     compile_strfry
     install_strfry
 else
-    echo "Would You like to update strfry ? ENTER / Ctrl+C : CANCEL"
-    read
-    clone_or_update_repo
-    update_strfry
-    install_strfry
+    echo "Would You like to update strfry ? y : YES / ENTER = NO"
+    read QUOI
+    if [[ $QUOI == "y" ]]; then
+        clone_or_update_repo
+        update_strfry
+        install_strfry
+    fi
 fi
 
-echo "Installation/mise à jour de strfry terminée."
-if [[ !-d $NIP101_DIR ]]; then
-    echo "CLONING NIP-101 = UPlanet NOSTR Relay ASTROBOT 'Side Chain' "
-    cd $WORKSPACE_DIR
-    git clone https://github.com/papiche/NIP-101.git
-fi
 
 echo "Strfry : $STRFRY_INSTALL_DIR/start.sh"
 cp $WORKSPACE_DIR/NIP-101/start_strfry-relay.sh $STRFRY_INSTALL_DIR/start.sh
