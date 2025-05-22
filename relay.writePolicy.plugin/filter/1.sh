@@ -22,6 +22,10 @@ BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 MESSAGE_LIMIT=3
 
+# Variables pour la gestion de la file d'attente
+QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
+MAX_QUEUE_SIZE=5
+
 # Fonction pour vérifier si une clé est autorisée
 KEY_DIR="$HOME/.zen/game/nostr"
 get_key_directory() {
@@ -140,6 +144,32 @@ get_event_by_id() {
     cd -
 }
 
+# Fonction pour traiter la file d'attente
+process_queue() {
+    # Vérifier s'il y a des fichiers dans la file d'attente
+    if [ -z "$(ls -A $QUEUE_DIR/)" ]; then
+        return 0
+    fi
+    
+    # Vérifier si UPlanet_IA_Responder.sh est déjà en cours d'exécution
+    if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
+        return 0
+    fi
+    
+    # Prendre le premier fichier de la file d'attente
+    QUEUE_FILE=$(ls -t $QUEUE_DIR/ | tail -n 1)
+    if [ -n "$QUEUE_FILE" ]; then
+        # Lire les paramètres du fichier
+        source "$QUEUE_DIR/$QUEUE_FILE"
+        
+        # Exécuter le script
+        $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        
+        # Supprimer le fichier de la file d'attente
+        rm "$QUEUE_DIR/$QUEUE_FILE"
+    fi
+}
+
 ################# MAIN TREATMENT
 
 if [[ "$check" != "nobody" ]]; then
@@ -154,7 +184,35 @@ if [[ "$check" != "nobody" ]]; then
             && exit 0 ## NO REPLY TWICE
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/tmp/uplanet_messages.log"
-        $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        
+        # Vérifier si UPlanet_IA_Responder.sh est déjà en cours d'exécution
+        if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
+            # Compter le nombre de fichiers dans la file d'attente
+            queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
+            
+            # Si la file d'attente n'est pas pleine, ajouter le message
+            if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
+                QUEUE_FILE="$QUEUE_DIR/$(date +%s)_${event_id}.sh"
+                cat > "$QUEUE_FILE" << EOF
+pubkey="$pubkey"
+event_id="$event_id"
+latitude="$latitude"
+longitude="$longitude"
+full_content="$full_content"
+url="$url"
+KNAME="$KNAME"
+EOF
+            else
+                echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            fi
+        else
+            # Si aucun processus n'est en cours, lancer directement
+            $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        fi
+        
+        # Tenter de traiter la file d'attente
+        process_queue
+        
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY

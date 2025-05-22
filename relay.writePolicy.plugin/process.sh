@@ -7,7 +7,7 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Définition du fichier de log
-LOG_FILE="$HOME/.zen/strfry/plugin.log"
+LOG_FILE="$HOME/.zen/tmp/strfry.log"
 
 # Assurez-vous que le répertoire pour le fichier de log existe
 mkdir -p "$(dirname "$LOG_FILE")"
