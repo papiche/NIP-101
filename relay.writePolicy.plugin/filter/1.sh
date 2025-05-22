@@ -5,7 +5,6 @@ MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Extraire les informations nécessaires de l'événement JSON passé en argument
 event_json="$1"
-#~ echo "$event_json" >> "$HOME/.zen/strfry/1_messages.log" ## DEBUG
 
 created_at=$(echo "$event_json" | jq -r '.event.created_at')
 event_id=$(echo "$event_json" | jq -r '.event.id')
@@ -154,7 +153,7 @@ if [[ "$check" != "nobody" ]]; then
         [[ "$(cat $COUNT_DIR/lastevent)" == "$event_id" ]] \
             && exit 0 ## NO REPLY TWICE
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/strfry/uplanet_messages.log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/tmp/uplanet_messages.log"
         $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
