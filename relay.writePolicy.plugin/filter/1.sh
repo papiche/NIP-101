@@ -24,6 +24,7 @@ MESSAGE_LIMIT=3
 
 # Variables pour la gestion de la file d'attente
 QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
+mkdir -p "$QUEUE_DIR"
 MAX_QUEUE_SIZE=5
 
 # Fonction pour vérifier si une clé est autorisée
