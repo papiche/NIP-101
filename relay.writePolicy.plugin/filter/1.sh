@@ -115,7 +115,7 @@ Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
 
 Your devoted Astroport Captain.
 
-#CopyLaRadio
+#CopyLaRadio #mem
 * UPlanet : ${UPLANETG1PUB:0:8}
 * ♥️BOX : /ipns/$IPFSNODEID
 "
