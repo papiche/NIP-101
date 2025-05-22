@@ -51,7 +51,7 @@ get_key_directory() {
 }
 ######################################################
 ## CLASSIFY MESSAGE INCOMER
-## CHECK if Nobody, Nostr Player Card or UPlanet key
+## CHECK if Nobody, Nostr Player Card, CAPTAIN or UPlanet Geo key
 if ! get_key_directory "$pubkey"; then
     check="nobody"
 else
