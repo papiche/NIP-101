@@ -268,8 +268,10 @@ EOF
         ######################### UPlanet Message IA Treatment
         exit 0
     else
-        ## MEMORIZE UMAP RESPONSE
-        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        ## MEMORIZE ANY RESPONSE (except #mem tagged messages)
+        if [[ ! "$content" =~ "#mem" ]]; then
+            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+        fi
         exit 0
     fi
 else
