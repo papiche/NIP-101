@@ -29,7 +29,7 @@ MAX_QUEUE_SIZE=5
 PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
 QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
 
-# Fonction pour vérifier si une clé est autorisée
+# Fonction pour vérifier si une clé est autorisée et charger les variables de GPS
 KEY_DIR="$HOME/.zen/game/nostr"
 get_key_directory() {
     local pubkey="$1"
@@ -49,6 +49,7 @@ get_key_directory() {
     KNAME=""
     return 1 # Clé non autorisée
 }
+
 ######################################################
 ## CLASSIFY MESSAGE INCOMER
 ## CHECK if Nobody, Nostr Player Card, CAPTAIN or UPlanet Geo key

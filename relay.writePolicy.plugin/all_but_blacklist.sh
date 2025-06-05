@@ -5,7 +5,12 @@
 #~ Exemple :
 #~ blacklisted_pubkey1
 #~ blacklisted_pubkey2
-#~ "
+#~
+#~ Elle est alimentée par le script ~/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh
+#~ /filter/$kind.sh sont les scripts qui filtrent les événements.
+#~ /filter/1.sh est le script qui filtre les événements de type 1
+#~ etc...
+
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
