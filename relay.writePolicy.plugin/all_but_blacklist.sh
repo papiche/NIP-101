@@ -20,8 +20,10 @@ LOG_FILE="$HOME/.zen/tmp/strfry.log"
 # Assurez-vous que le répertoire pour le fichier de log existe
 mkdir -p "$(dirname "$LOG_FILE")"
 
-# Rediriger stderr et stdout vers le fichier de log
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Fonction de logging qui écrit seulement dans le fichier de log, pas dans stdout
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
 
 # Définition du répertoire de stockage des clés publiques
 KEY_DIR="$HOME/.zen/game/nostr"
@@ -45,32 +47,38 @@ is_key_blacklisted() {
 # Fonction pour traiter un événement de type 'new'
 process_new_event() {
     local event_json="$1"
-    #~ echo "$event_json" >&2
-
+    
     # Extraire les informations nécessaires de l'événement
     local event_id=$(echo "$event_json" | jq -r '.event.id')
     local pubkey=$(echo "$event_json" | jq -r '.event.pubkey')
     local kind=$(echo "$event_json" | jq -r '.event.kind')
     local current_time=$(date +%s)
 
+    log_message "Processing event ID: $event_id, pubkey: $pubkey, kind: $kind"
+
     # Vérifier si la clé publique est blacklistée
     if is_key_blacklisted "$pubkey"; then
+        log_message "Rejecting blacklisted pubkey: $pubkey"
         echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
         return
     fi
 
     # Exécuter le filtre correspondant (si le script existe)
     if [[ -x $MY_PATH/filter/$kind.sh ]]; then
-        $MY_PATH/filter/$kind.sh "$event_json"
-        if [[ $? -ne 0 ]]; then
+        log_message "Running filter for kind $kind"
+        # Rediriger toutes les sorties du filtre vers /dev/null sauf le code de retour
+        $MY_PATH/filter/$kind.sh "$event_json" > /dev/null 2>&1
+        local filter_result=$?
+        if [[ $filter_result -ne 0 ]]; then
             # Si le filtre renvoie un code d'erreur, rejeter l'événement
-            #~ echo "Rejecting event of type: $event_type" >&2
+            log_message "Filter $kind.sh rejected event: $event_id"
             echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
             return
         fi
     fi
 
     # Accepter l'événement
+    log_message "Accepting event: $event_id"
     echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
 }
 

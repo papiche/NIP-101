@@ -105,7 +105,7 @@ handle_visitor_message() {
         source ~/.zen/game/players/.current/secret.nostr ## CAPTAIN SPEAKING
         if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
             NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
-            echo "Notice: Astroport Relay Anonymous Usage"
+            echo "Notice: Astroport Relay Anonymous Usage" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
             RESPN="Hello NOSTR visitor.
 
@@ -126,7 +126,7 @@ Your devoted Astroport Captain.
               -kind 1 \
               -content "$RESPN" \
               -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning']]" \
-              --relay "$myRELAY"
+              --relay "$myRELAY" >> "$HOME/.zen/tmp/nostpy.log" 2>&1
         fi
         ) &
     else
@@ -231,7 +231,7 @@ if [[ "$check" != "nobody" ]]; then
             && exit 0 ## NO REPLY TWICE
 
         # Ready to process UPlanet_IA_Responder
-        echo "OK Authorized key : $KNAME"
+        echo "OK Authorized key : $KNAME" >> "$HOME/.zen/tmp/uplanet_messages.log"
         echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
         # Vérifier si UPlanet_IA_Responder.sh est déjà en cours d'exécution
