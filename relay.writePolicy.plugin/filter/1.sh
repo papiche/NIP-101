@@ -109,7 +109,7 @@ handle_visitor_message() {
 
             RESPN="Hello NOSTR visitor.
 
-I noticed that you're using our Relay without being registered on our Ğ1 Web of Trust.
+I noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
