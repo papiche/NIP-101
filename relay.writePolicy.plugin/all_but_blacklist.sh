@@ -58,7 +58,7 @@ process_new_event() {
 
     # Vérifier si la clé publique est blacklistée
     if is_key_blacklisted "$pubkey"; then
-        log_message "Rejecting blacklisted pubkey: $pubkey"
+        log_message "Rejecting ALL events (kind $kind) from blacklisted pubkey: $pubkey"
         echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
         return
     fi
