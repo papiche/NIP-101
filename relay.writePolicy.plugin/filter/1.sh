@@ -20,14 +20,17 @@ longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitud
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
+WARNING_MESSAGES_DIR="$HOME/.zen/strfry/warning_messages"
 MESSAGE_LIMIT=3
 
 # Variables pour la gestion de la file d'attente
 QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
 mkdir -p "$QUEUE_DIR"
+mkdir -p "$WARNING_MESSAGES_DIR"
 MAX_QUEUE_SIZE=5
 PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
 QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
+WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
 # Fonction pour vérifier si une clé est autorisée et charger les variables de GPS
 KEY_DIR="$HOME/.zen/game/nostr"
@@ -71,10 +74,44 @@ fi
 ###################################################### TEMP
 ############################################################
 
+# Fonction pour nettoyer les messages d'avertissement après 48h
+cleanup_warning_messages() {
+    local current_time=$(date +%s)
+    
+    # Parcourir tous les fichiers de messages d'avertissement
+    for warning_file in "$WARNING_MESSAGES_DIR"/*; do
+        [[ ! -f "$warning_file" ]] && continue
+        
+        local file_time=$(stat -c %Y "$warning_file" 2>/dev/null)
+        [[ -z "$file_time" ]] && continue
+        
+        # Si le fichier a plus de 48h
+        if [ $((current_time - file_time)) -gt $WARNING_MESSAGE_TTL ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up 48h old warning messages from: $(basename "$warning_file")" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            
+            # Lire et supprimer chaque message d'avertissement enregistré
+            while IFS= read -r warning_msg_id; do
+                [[ -n "$warning_msg_id" ]] && {
+                    cd ~/.zen/strfry
+                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/strfry_cleanup.log" 2>&1
+                    cd - 2>&1 >/dev/null
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleted warning message: $warning_msg_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                }
+            done < "$warning_file"
+            
+            # Supprimer le fichier de suivi
+            rm -f "$warning_file"
+        fi
+    done
+}
+
 # Fonction pour vérifier et gérer le message "Hello NOSTR visitor"
 handle_visitor_message() {
     local pubkey="$1"
     local event_id="$2"
+
+    # Nettoyer les anciens messages d'avertissement
+    cleanup_warning_messages
 
     # Créer le répertoire de comptage si inexistant
     mkdir -p "$COUNT_DIR"
@@ -86,6 +123,7 @@ handle_visitor_message() {
     fi
 
     local count_file="$COUNT_DIR/$pubkey"
+    local warning_file="$WARNING_MESSAGES_DIR/$pubkey"
 
     # Initialiser le compteur à 0 si le fichier n'existe pas
     if [[ ! -f "$count_file" ]]; then
@@ -121,12 +159,26 @@ Your devoted Astroport Captain.
 * ♥️BOX : /ipns/$IPFSNODEID
 "
 
-            nostpy-cli send_event \
+            # Envoyer le message d'avertissement et récupérer l'ID du message
+            WARNING_MSG_OUTPUT=$(nostpy-cli send_event \
               -privkey "$NPRIV_HEX" \
               -kind 1 \
               -content "$RESPN" \
               -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning']]" \
-              --relay "$myRELAY" >> "$HOME/.zen/tmp/nostpy.log" 2>&1
+              --relay "$myRELAY" 2>&1)
+            
+            # Extraire l'ID du message d'avertissement de la sortie (si disponible)
+            WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE '"id":"[a-f0-9]{64}"' | sed 's/"id":"\([^"]*\)"/\1/' | head -1)
+            
+            # Enregistrer l'ID du message d'avertissement pour nettoyage ultérieur
+            if [[ -n "$WARNING_MSG_ID" ]]; then
+                echo "$WARNING_MSG_ID" >> "$warning_file"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Warning message sent and tracked: $WARNING_MSG_ID for pubkey: $pubkey" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Warning message sent but ID not captured for pubkey: $pubkey" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            fi
+            
+            echo "$WARNING_MSG_OUTPUT" >> "$HOME/.zen/tmp/nostpy.log"
         fi
         ) &
     else
@@ -135,6 +187,9 @@ Your devoted Astroport Captain.
         ./strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
         cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
+        
+        # Nettoyer aussi le fichier de suivi des messages d'avertissement
+        rm -f "$warning_file"
     fi
     return 0
 }
