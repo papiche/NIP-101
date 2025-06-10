@@ -185,6 +185,17 @@ Your devoted Astroport Captain.
         echo "Visitor limit reached for pubkey $pubkey. Removing Messages & Blacklisting."
         cd ~/.zen/strfry
         ./strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
+        
+        # Supprimer les messages d'avertissement référencés dans le fichier warning
+        if [[ -f "$warning_file" ]]; then
+            while IFS= read -r warning_msg_id; do
+                [[ -n "$warning_msg_id" ]] && {
+                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/strfry_cleanup.log" 2>&1
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleted warning message: $warning_msg_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                }
+            done < "$warning_file"
+        fi
+        
         cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
         
