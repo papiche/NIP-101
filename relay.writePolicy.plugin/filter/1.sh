@@ -77,28 +77,28 @@ fi
 # Fonction pour nettoyer les messages d'avertissement après 48h
 cleanup_warning_messages() {
     local current_time=$(date +%s)
-    
+
     # Parcourir tous les fichiers de messages d'avertissement
     for warning_file in "$WARNING_MESSAGES_DIR"/*; do
         [[ ! -f "$warning_file" ]] && continue
-        
+
         local file_time=$(stat -c %Y "$warning_file" 2>/dev/null)
         [[ -z "$file_time" ]] && continue
-        
+
         # Si le fichier a plus de 48h
         if [ $((current_time - file_time)) -gt $WARNING_MESSAGE_TTL ]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up 48h old warning messages from: $(basename "$warning_file")" >> "$HOME/.zen/tmp/uplanet_messages.log"
-            
+
             # Lire et supprimer chaque message d'avertissement enregistré
             while IFS= read -r warning_msg_id; do
                 [[ -n "$warning_msg_id" ]] && {
                     cd ~/.zen/strfry
-                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/strfry_cleanup.log" 2>&1
+                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
                     cd - 2>&1 >/dev/null
                     echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleted warning message: $warning_msg_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
                 }
             done < "$warning_file"
-            
+
             # Supprimer le fichier de suivi
             rm -f "$warning_file"
         fi
@@ -166,10 +166,10 @@ Your devoted Astroport Captain.
               -content "$RESPN" \
               -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning']]" \
               --relay "$myRELAY" 2>&1)
-            
+
             # Extraire l'ID du message d'avertissement de la sortie (si disponible)
             WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE '"id":"[a-f0-9]{64}"' | sed 's/"id":"\([^"]*\)"/\1/' | head -1)
-            
+
             # Enregistrer l'ID du message d'avertissement pour nettoyage ultérieur
             if [[ -n "$WARNING_MSG_ID" ]]; then
                 echo "$WARNING_MSG_ID" >> "$warning_file"
@@ -177,28 +177,29 @@ Your devoted Astroport Captain.
             else
                 echo "$(date '+%Y-%m-%d %H:%M:%S') - Warning message sent but ID not captured for pubkey: $pubkey" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
-            
-            echo "$WARNING_MSG_OUTPUT" >> "$HOME/.zen/tmp/nostpy.log"
+
+            echo "$WARNING_MSG_OUTPUT" >> "$HOME/.zen/tmp/uplanet_messages.log"
         fi
         ) &
+
     else
         echo "Visitor limit reached for pubkey $pubkey. Removing Messages & Blacklisting."
         cd ~/.zen/strfry
         ./strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
-        
+
         # Supprimer les messages d'avertissement référencés dans le fichier warning
         if [[ -f "$warning_file" ]]; then
             while IFS= read -r warning_msg_id; do
                 [[ -n "$warning_msg_id" ]] && {
-                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/strfry_cleanup.log" 2>&1
+                    ./strfry delete --filter "{\"ids\":[\"$warning_msg_id\"]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
                     echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleted warning message: $warning_msg_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
                 }
             done < "$warning_file"
         fi
-        
+
         cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
-        
+
         # Nettoyer aussi le fichier de suivi des messages d'avertissement
         rm -f "$warning_file"
     fi
@@ -238,7 +239,7 @@ check_stuck_processes() {
 process_queue() {
     # Nettoyer les anciens fichiers
     cleanup_old_queue_files
-    
+
     # Vérifier les processus bloqués
     check_stuck_processes
 
@@ -326,7 +327,7 @@ EOF
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
-        
+
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY if #mem not present
         if [[ ! "$content" =~ "#mem" ]]; then
             $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
