@@ -14,11 +14,6 @@ UPlanet extends Nostr by enabling geographically localized communication. It ach
 
 This allows users and applications to subscribe to messages relevant to specific geographic areas by knowing the corresponding GeoKey `npub` or by filtering events based on location tags within a certain radius.
 
-## “♥️box” Install
-```
-bash <(wget -qO- https://github.com/papiche/NIP-101/raw/refs/heads/main/install_strfry.sh)
-```
-
 ## Motivation
 
 -   **Localized Feeds:** Create Nostr feeds relevant only to specific neighborhoods (UMAP), sectors (SECTOR), or regions (REGION).
@@ -26,6 +21,88 @@ bash <(wget -qO- https://github.com/papiche/NIP-101/raw/refs/heads/main/install_
 -   **Mapping Integration:** Provide a layer of Nostr events that can be easily displayed on maps.
 -   **Decentralized Location-Based Services:** Enable discovery and interaction based on proximity without relying on centralized servers.
 -   **Application-Specific Context:** The `application` tag allows UPlanet messages to be distinguished from general Nostr traffic.
+
+## UPlanet's Unified Identity & Storage Model
+
+This NIP describes how UPlanet integrates Nostr identities with IPFS storage, building upon the geographic key derivation.
+
+### Authentication via NIP-42
+
+UPassport services (`54321.py`) leverage Nostr for user authentication for privileged operations such as file uploads, deletions, and synchronization. This is achieved by:
+
+1.  **Client-side Authentication Event:** When a user attempts a privileged action, their UPlanet web interface (or client) interacts with a Nostr extension ([NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md)) or directly with their `nsec` to sign an event of `kind: 22242` ([NIP-42: Authentication](https://github.com/nostr-protocol/nips/blob/master/42.md)). This event asserts the user's public key (`pubkey`) and typically includes a `relay` tag indicating the relay it was sent to, and a `challenge` tag.
+2.  **Server-side Verification:** The UPlanet UPassport backend (`54321.py`) connects to a local Nostr relay (e.g., `ws://127.0.0.1:7777`). Upon receiving an authenticated request from a user (`npub`), the backend queries the relay for recent (e.g., last 24 hours) `kind: 22242` events authored by that `npub`. If a valid, recent event is found, the user's identity is authenticated. This mechanism ensures the user is indeed the owner of the `npub` without the server ever holding the private key.
+
+### Twin-Key Mechanism and IPFS Drive Ownership
+
+UPlanet's core innovation lies in its "Twin-Key" mechanism, which inextricably links a user's Nostr identity to their personal IPFS drive and other digital assets (G1, Bitcoin keys, as described in Specification 1: GeoKey Derivation).
+
+-   **Deterministic Drive Association:** Each UPlanet user is associated with a unique IPFS drive located in their home directory (e.g., `~/.zen/game/nostr/<user_email>/APP`). The `manifest.json` file within this drive explicitly records the `owner_hex_pubkey`.
+-   **Ownership Enforcement:**
+    -   When a user attempts to modify their IPFS drive (uploading, deleting files), the UPlanet backend verifies that their authenticated Nostr `npub` (converted to `hex_pubkey`) matches the `owner_hex_pubkey` declared in the target drive's `manifest.json`.
+    -   If the `npub` matches, the operation proceeds, and the IPFS drive is regenerated, yielding a new CID.
+    -   If the `npub` does not match (i.e., it's a "foreign drive"), write operations are strictly disallowed. However, users can "sync" files from a foreign drive to their *own* authenticated drive, effectively copying public content.
+-   **Structured IPFS Content:** Unlike general blob storage, UPlanet organizes files into a hierarchical structure within the IPFS drive (`Images/`, `Music/`, `Videos/`, `Documents/`), and generates a human-readable web interface (`_index.html`) for exploration. This provides a user-friendly "drive" experience rather than just raw blob access.
+
+### Comparison to Generic Blob Storage (e.g., Blossom)
+
+While sharing the fundamental use of Nostr for authentication, UPlanet differentiates itself from more generic Nostr-based blob storage specifications like [Blossom](https://github.com/hzrd149/blossom) (BUDs) in its scope and approach:
+
+-   **Blossom:** Focuses on a low-level HTTP API for storing and retrieving arbitrary "blobs" addressed by SHA256 hashes on media servers. It is a fundamental building block for content distribution on Nostr.
+-   **UPlanet:** Operates at a higher application layer. It is a structured "Personal IPFS Drive" system that *uses* IPFS for storage and *uses* Nostr for identity and authentication. Its "Twin-Key" mechanism (NIP-101 GeoKeys and other associated keys) provides a holistic, unified identity across geographic data, IPFS content, and potential other blockchain assets. It provides a complete user experience with a pre-built web interface and specific features like incremental updates and structured content organization.
+
+### Dedicated Nostr Relay with Strfry and Custom Filters
+
+UPlanet leverages a dedicated `strfry` Nostr relay, configured with custom write policies to integrate seamlessly with the UPlanet ecosystem, enabling authenticated actions and AI-driven responses.
+
+#### 1. Strfry Compilation and Installation (`install_strfry.sh`)
+
+The `install_strfry.sh` script automates the setup of the `strfry` Nostr relay:
+
+*   **Dependency Installation:** It ensures all necessary system dependencies (e.g., `git`, `g++`, `make`, `libssl-dev`, `liblmdb-dev`) are installed on Debian/Ubuntu-based systems.
+*   **Source Management:** The script clones the `strfry` repository from GitHub into `~/.zen/workspace/strfry` or updates it if already present.
+*   **Compilation:** It compiles `strfry` from source, ensuring the latest features and optimizations.
+*   **Installation:** The compiled `strfry` binary and its default `strfry.conf` are copied to `~/.zen/strfry/`, with the configuration adapted for broader network access (`bind = "0.0.0.0"`). This setup allows `strfry` to be a local relay dedicated to the UPlanet instance.
+
+#### 2. Systemd Installation and Setup (`setup.sh`)
+
+After `strfry` is compiled, the `setup.sh` script configures the `strfry` relay and prepares it for Systemd management:
+
+*   **Configuration Generation:** It dynamically generates the `strfry.conf` file in `~/.zen/strfry/strfry.conf` based on variables from the UPlanet environment (e.g., `UPLANETG1PUB`, `IPFSNODEID`, `CAPTAINHEX`, `CAPTAINEMAIL`).
+*   **Relay Information:** The `strfry.conf` includes NIP-11 metadata such as the relay's `name` (e.g., "♥️BOX `IPFSNODEID`"), `description` (highlighting its role in UPlanet), `pubkey` (the UPlanet Captain's public key for administration), and an `icon` URL.
+*   **Write Policy Plugin:** Crucially, it sets the `writePolicy.plugin` parameter in `strfry.conf` to point to `"$HOME/.zen/workspace/NIP-101/relay.writePolicy.plugin/all_but_blacklist.sh"`. This delegates the event acceptance/rejection logic to a custom script, enabling UPlanet's specific filtering rules.
+
+#### 3. Specific Filters and AI Integration
+
+UPlanet's relay implements several layers of filtering to manage events and trigger AI responses:
+
+*   **`relay.writePolicy.plugin/all_but_blacklist.sh` (Main Write Policy):**
+    *   This is the primary script executed by `strfry` for every incoming event.
+    *   Its core function is to implement a "whitelist by default, with blacklist exceptions" policy: it accepts all events unless the `pubkey` of the event's author is found in `~/.zen/strfry/blacklist.txt`.
+    *   For `kind 1` (text) events, it dynamically calls `filter/1.sh` to apply more specific UPlanet-related logic.
+    *   Events from blacklisted public keys are immediately rejected.
+
+*   **`relay.writePolicy.plugin/filter/1.sh` (Kind 1 Event Filter):**
+    *   This script specifically handles `kind 1` Nostr events, which are primarily text notes.
+    *   **Visitor Management:** For `pubkey`s not registered as UPlanet "players," it implements a "Hello NOSTR visitor" mechanism. New visitors receive a warning message from the UPlanet Captain's key, explaining the system and limiting the number of messages they can send before being blacklisted. This encourages users to join the UPlanet Web of Trust.
+    *   **Memory Management:** It uses `short_memory.py` to store conversation history for Nostr players, allowing the AI to maintain context.
+    *   **AI Triggering:** It acts as an orchestrator for the `UPlanet_IA_Responder.sh` script. If the `UPlanet_IA_Responder.sh` is already running, it queues incoming messages (especially those with `#BRO` or `#BOT` tags) to prevent overwhelming the AI. If the AI is not active, it directly invokes `UPlanet_IA_Responder.sh` with a timeout.
+
+*   **`Astroport.ONE/IA/UPlanet_IA_Responder.sh` (AI Backend):**
+    *   This is the core AI logic script, responsible for generating responses based on incoming `kind 1` messages, typically triggered by `filter/1.sh`.
+    *   **Tag-Based Actions:** It parses specific hashtags within the message content to trigger various AI functionalities:
+        *   `#search`: Integrates with a search engine (e.g., Perplexica) to retrieve information.
+        *   `#image`: Commands an image generation AI (e.g., ComfyUI) to create images based on the prompt.
+        *   `#video`: Utilizes text-to-video models (e.g., ComfyUI) to generate short video clips.
+        *   `#music`: Triggers music generation.
+        *   `#youtube`: Downloads YouTube videos (or extracts audio with `#mp3` tag) via `process_youtube.sh`.
+        *   `#pierre` / `#amelie`: Converts text to speech using specific voice models (e.g., Orpheus TTS).
+        *   `#mem`: Displays the current conversation history.
+        *   `#reset`: Clears the user's conversation memory.
+    *   **Ollama Integration:** For general questions without specific tags, it uses Ollama with a context-aware `question.py` script to generate conversational AI responses, leveraging the stored memory.
+    *   **Response Publishing:** AI-generated responses are signed by the UPlanet Captain's key (or the `KNAME`'s key if specified and available) and published back to the Nostr relay as `kind 1` events, specifically tagging the original event and public key to maintain thread context (`e` and `p` tags).
+
+This integrated system allows UPlanet to provide a dynamic, interactive experience where user actions and queries on Nostr can trigger complex AI operations and content generation, all while maintaining the integrity and ownership model of the IPFS drives.
 
 ## Specification
 
