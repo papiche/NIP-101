@@ -175,7 +175,11 @@ handle_visitor_message() {
         if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
             NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
             echo "Notice: Astroport Relay Anonymous Usage" >> "$HOME/.zen/tmp/uplanet_messages.log"
-
+            if [[ "$UPLANETNAME" == "EnfinLibre" ]]; then
+                ORIGIN="ORIGIN"
+            else
+                ORIGIN=${UPLANETG1PUB:0:8}
+            fi
             RESPN="Hello NOSTR visitor.
 
 I noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
@@ -186,8 +190,8 @@ Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
 Your devoted Astroport Captain.
 
 #CopyLaRadio #mem
-* UPlanet : ${UPLANETG1PUB:0:8}
-* ♥️BOX : /ipns/$IPFSNODEID
+* ♥️BOX [$myRELAY]
+* UPlanet [$ORIGIN]
 "
 
             # Envoyer le message d'avertissement et récupérer l'ID du message
