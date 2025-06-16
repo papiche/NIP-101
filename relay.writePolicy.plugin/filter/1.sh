@@ -58,6 +58,13 @@ get_key_directory() {
 ## CHECK if Nobody, Nostr Player Card, CAPTAIN or UPlanet Geo key
 if ! get_key_directory "$pubkey"; then
     check="nobody"
+    AMISOFAMIS_FILE="${HOME}/.zen/strfry/amisOfAmis.txt"
+    if [[ -f "$AMISOFAMIS_FILE" && "$pubkey" != "" ]]; then
+        if grep -q "^$pubkey$" "$AMISOFAMIS_FILE"; then
+            check="uplanet"
+            echo "Pubkey $pubkey is in amisOfAmis.txt, setting check to uplanet" >> "$HOME/.zen/tmp/uplanet_messages.log"
+        fi
+    fi
 else
     if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
         check="player"
@@ -252,7 +259,7 @@ check_stuck_processes() {
             local start_time=$(date -d "$process_start" +%s 2>/dev/null)
             if [ $? -eq 0 ] && [ $((current_time - start_time)) -gt $PROCESS_TIMEOUT ]; then
                 kill -9 $pid 2>/dev/null
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - Killed stuck process $pid" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Killed stuck UPlanet_IA_Responder.sh process $pid" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
         fi
     done
