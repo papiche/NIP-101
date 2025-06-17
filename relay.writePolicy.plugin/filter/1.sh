@@ -191,13 +191,15 @@ handle_visitor_message() {
 I noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
-Take a Place on #UPlanet : $myIPFS/ipns/copylaradio.com
+
+Get a #MULTIPASS : #nostr with #ẐEN #twinwallet <=> #ipfs #uDRIVE #bitcoin #monero #crypto #uWORLD ...
+Take a place on #UPlanet : $myIPFS/ipns/copylaradio.com
 
 Your devoted Astroport Captain.
 
 #CopyLaRadio #mem
-* ♥️BOX [$myRELAY]
-* UPlanet [$ORIGIN]
+#♥️BOX [$myRELAY]
+#UPlanet$ORIGIN
 "
 
             # Envoyer le message d'avertissement et récupérer l'ID du message
