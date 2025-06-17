@@ -97,13 +97,13 @@ cleanup_warning_messages() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
         cd "$HOME/.zen/strfry" || { echo "Failed to cd to strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
-        local messages_to_delete_json=$(./strfry scan \
+        local messages_48h_json=$(./strfry scan \
             '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"'}' \
             2>/dev/null)
 
         local message_ids=()
-        if echo "$messages_to_delete_json" | jq -e '.[].id' >/dev/null 2>&1; then
-            message_ids=($(echo "$messages_to_delete_json" | jq -r '.[] | select(.content | contains("Hello NOSTR visitor")) | .id'))
+        if echo "$messages_48h_json" | jq -e '.id' >/dev/null 2>&1; then
+            message_ids=($(echo "$messages_48h_json" | jq -r 'select(.content | contains("Hello NOSTR visitor")) | .id'))
         fi
         cd - >/dev/null
 
