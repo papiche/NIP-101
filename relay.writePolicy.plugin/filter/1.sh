@@ -23,7 +23,7 @@ COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 WARNING_MESSAGES_DIR="$HOME/.zen/strfry/warning_messages"
 MESSAGE_LIMIT=3
 
-# Variables pour la gestion de la file d'attente
+# Variables pour la gestion de la file d'attente des traitements #BRO or #BOT
 QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
 mkdir -p "$QUEUE_DIR"
 mkdir -p "$WARNING_MESSAGES_DIR"
@@ -81,7 +81,7 @@ fi
 ###################################################### TEMP
 ############################################################
 
-# Fonction pour nettoyer les messages d'avertissement après 48h
+# Fonction pour nettoyer les messages d'avertissement du Captain ayant plus de 48h
 cleanup_warning_messages() {
     local current_time=$(date +%s)
     local cutoff_time=$((current_time - WARNING_MESSAGE_TTL))
@@ -97,14 +97,13 @@ cleanup_warning_messages() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
         cd "$HOME/.zen/strfry" || { echo "Failed to cd to strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
-
         local messages_to_delete_json=$(./strfry scan \
-            '{"authors":["'"$CAPTAIN_PUBKEY"'"], "content":"Hello NOSTR visitor", "until":'"$cutoff_time"'}' \
+            '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"'}' \
             2>/dev/null)
 
         local message_ids=()
         if echo "$messages_to_delete_json" | jq -e '.[].id' >/dev/null 2>&1; then
-            message_ids=($(echo "$messages_to_delete_json" | jq -r '.[].id'))
+            message_ids=($(echo "$messages_to_delete_json" | jq -r '.[] | select(.content | contains("Hello NOSTR visitor")) | .id'))
         fi
         cd - >/dev/null
 
@@ -117,7 +116,7 @@ cleanup_warning_messages() {
 
             echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
-            cd "$HOME/.zen/strfry" || { echo "Failed to cd to strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
+            cd "$HOME/.zen/strfry" || { echo "Failed to find ~/.zen/strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
             ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
             cd - >/dev/null
         else
@@ -224,9 +223,6 @@ Your devoted Astroport Captain.
         echo "Visitor limit reached for pubkey $pubkey. Removing Messages & Blacklisting."
         cd ~/.zen/strfry
         ./strfry delete --filter "{\"authors\":[\"$pubkey\"]}"
-
-        # The individual warning messages for this pubkey will be handled by the global cleanup.
-        # This section is removed as it's no longer necessary to read IDs from the warning file for deletion.
         cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
 

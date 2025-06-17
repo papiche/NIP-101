@@ -18,18 +18,18 @@ db = "./strfry-db/"
 
 dbParams {
     # Maximum number of threads/processes that can simultaneously have LMDB transactions open (restart required)
-    maxreaders = 256
+    maxreaders = 512
 
     # Size of mmap() to use when loading LMDB (default is 10GB, does *not* correspond to disk-space used) (restart required)
     mapsize = 10737418240
 
     # Disables read-ahead when accessing the LMDB mapping. Reduces IO activity when DB size is larger than RAM. (restart required)
-    noReadAhead = false
+    noReadAhead = true
 }
 
 events {
     # Maximum size of normalised JSON, in bytes
-    maxEventSize = 65536
+    maxEventSize = 131072
 
     # Events newer than this will be rejected
     rejectEventsNewerThanSeconds = 900
@@ -44,10 +44,10 @@ events {
     ephemeralEventsLifetimeSeconds = 300
 
     # Maximum number of tags allowed
-    maxNumTags = 2000
+    maxNumTags = 200
 
     # Maximum size for tag values, in bytes
-    maxTagValSize = 1024
+    maxTagValSize = 512
 }
 
 relay {
@@ -58,7 +58,7 @@ relay {
     port = 7777
 
     # Set OS-limit on maximum number of open files/sockets (if 0, don't attempt to set) (restart required)
-    nofiles = 1000000
+    nofiles = 100000
 
     # HTTP header that contains the client's real IP, before reverse proxying (ie x-real-ip) (MUST be all lower-case)
     realIpHeader = ""
@@ -84,7 +84,7 @@ relay {
     }
 
     # Maximum accepted incoming websocket frame size (should be larger than max event) (restart required)
-    maxWebsocketPayloadSize = 131072
+    maxWebsocketPayloadSize = 262144
 
     # Maximum number of filters allowed in a REQ
     maxReqFilterSize = 200
@@ -102,7 +102,7 @@ relay {
     maxFilterLimit = 500
 
     # Maximum number of subscriptions (concurrent REQs) a connection can have open at any time
-    maxSubsPerConnection = 20
+    maxSubsPerConnection = 10
 
     writePolicy {
         # If non-empty, path to an executable script that implements the writePolicy plugin logic
@@ -131,7 +131,7 @@ relay {
         dbScanPerf = false
 
         # Log reason for invalid event rejection? Can be disabled to silence excessive logging
-        invalidEvents = true
+        invalidEvents = false
     }
 
     numThreads {
