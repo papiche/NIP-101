@@ -336,6 +336,7 @@ if [[ "$check" != "nobody" ]]; then
 
             # Si la file d'attente n'est pas pleine, ajouter le message
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
+                echo "QUEUE_FILE: $QUEUE_FILE" >> "$HOME/.zen/tmp/uplanet_messages.log"
                 QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh" ## on écrase le fichier si il existe
                 cat > "$QUEUE_FILE" << EOF
 pubkey="$pubkey"
@@ -351,13 +352,15 @@ EOF
             fi
         else
             # Processing UPlanet_IA_Responder
-            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+            echo "PROCESSING UPlanet_IA_Responder.sh" "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" >> "$HOME/.zen/tmp/IA.log"
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY if #mem not present
         if [[ ! "$content" =~ "#mem" ]]; then
+            echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" >> "$HOME/.zen/tmp/uplanet_messages.log"
             $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
         fi
 
@@ -366,6 +369,7 @@ EOF
     else
         ## MEMORIZE ANY RESPONSE (except #mem tagged messages)
         if [[ ! "$content" =~ "#mem" ]]; then
+            echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" >> "$HOME/.zen/tmp/uplanet_messages.log"
             $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
         fi
         exit 0
