@@ -98,7 +98,7 @@ cleanup_warning_messages() {
 
         cd "$HOME/.zen/strfry" || { echo "Failed to cd to strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
         local messages_48h_json=$(./strfry scan \
-            '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"'}' \
+            '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"', "kinds":[1]}' \
             2>/dev/null)
 
         local message_ids=()
