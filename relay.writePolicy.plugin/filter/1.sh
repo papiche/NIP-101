@@ -192,8 +192,8 @@ I noticed that you're using our Relay without being registered on our #Ğ1 Web o
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 
-Get a #MULTIPASS : #nostr with #ẐEN #twinwallet <=> #ipfs #uDRIVE #bitcoin #monero #crypto #uWORLD ...
-Take a place on #UPlanet : $myIPFS/ipns/copylaradio.com
+Take place on #UPlanet : $myIPFS/ipns/copylaradio.com
+Get your #MULTIPASS
 
 Your devoted Astroport Captain.
 

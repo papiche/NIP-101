@@ -53,6 +53,14 @@ reacted_event_kind=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == 
 case "$content" in
     "+"|"👍"|"❤️"|"♥️")
         reaction_type="LIKE"
+
+        # Search if reacted_author_pubkey is part of UPlanet
+        ~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh $reacted_author_pubkey
+        if [[ $? -eq 0 ]]; then
+            log_like "REACTION: $reaction_type from ${pubkey:0:8}... to event ${reacted_event_id:0:8}... is part of UPlanet"
+        else
+            log_like "REACTION: $reaction_type from ${pubkey:0:8}... to event ${reacted_event_id:0:8}... is not part of UPlanet"
+        fi
         ;;
     "-"|"👎"|"💔")
         reaction_type="DISLIKE"
