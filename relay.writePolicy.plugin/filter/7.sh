@@ -100,7 +100,7 @@ case "$content" in
             if [[ -n "$PLAYER_DIR" && -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
                 # Send 0.1 G1 to the G1PUBNOSTR using PAYforSURE.sh
                 AMOUNT="0.1"
-                COMMENT="Nostr Like Reward for event ${reacted_event_id:0:8}..."
+                COMMENT="_like_${reacted_event_id}_from_${pubkey}"
                 
                 log_like "PAYMENT: Attempting to send $AMOUNT G1 to $G1PUBNOSTR using ${PLAYER_DIR}/.secret.dunikey"
                 
