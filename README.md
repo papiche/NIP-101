@@ -369,3 +369,10 @@ This NIP is compatible with existing Nostr concepts:
 -   NIP-01: Basic protocol flow description
 -   NIP-10: Conventions for use of `e` and `p` tags in text events
 -   *(Implied)*: secp256k1, SHA256
+
+## Documentation en Français
+
+Pour une documentation complète en français incluant les services et avantages pour les locataires et sociétaires CopyLaRadio, consultez :
+
+- **[Guide d'Entrée et d'Utilisation UPlanet](UPlanet/UPlanet_Enter_Help.md)** : Guide complet pour les nouveaux utilisateurs
+- **[README.fr.md](README.fr.md)** : Version française de cette documentation technique
