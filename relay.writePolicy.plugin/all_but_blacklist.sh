@@ -65,7 +65,7 @@ process_new_event() {
 
     # Exécuter le filtre correspondant (si le script existe)
     if [[ -x $MY_PATH/filter/$kind.sh ]]; then
-        log_message "Running filter for kind $kind"
+        # log_message "Running filter for kind $kind"
         # Rediriger toutes les sorties du filtre ~/.zen/tmp/strfry.log 
         $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log
         local filter_result=$?
