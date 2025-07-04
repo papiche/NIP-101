@@ -85,7 +85,7 @@ UPlanet's relay implements several layers of filtering to manage events and trig
 *   **`relay.writePolicy.plugin/filter/1.sh` (Kind 1 Event Filter):**
     *   This script specifically handles `kind 1` Nostr events, which are primarily text notes.
     *   **Visitor Management:** For `pubkey`s not registered as UPlanet "players," it implements a "Hello NOSTR visitor" mechanism. New visitors receive a warning message from the UPlanet Captain's key, explaining the system and limiting the number of messages they can send before being blacklisted. This encourages users to join the UPlanet Web of Trust.
-    *   **Memory Management:** It uses `short_memory.py` to store conversation history for Nostr players, allowing the AI to maintain context.
+    *   **Memory Management:** It uses `short_memory.py` to store conversation history for Nostr players, but only when messages contain the `#rec` tag. This allows users to control what gets stored in their AI memory, providing privacy and storage efficiency.
     *   **AI Triggering:** It acts as an orchestrator for the `UPlanet_IA_Responder.sh` script. If the `UPlanet_IA_Responder.sh` is already running, it queues incoming messages (especially those with `#BRO` or `#BOT` tags) to prevent overwhelming the AI. If the AI is not active, it directly invokes `UPlanet_IA_Responder.sh` with a timeout.
 
 *   **`Astroport.ONE/IA/UPlanet_IA_Responder.sh` (AI Backend):**
@@ -98,11 +98,189 @@ UPlanet's relay implements several layers of filtering to manage events and trig
         *   `#youtube`: Downloads YouTube videos (or extracts audio with `#mp3` tag) via `process_youtube.sh`.
         *   `#pierre` / `#amelie`: Converts text to speech using specific voice models (e.g., Orpheus TTS).
         *   `#mem`: Displays the current conversation history.
+        *   `#rec`: Records the message in AI memory (both user and UMAP memory). This tag is required for any message to be stored in the conversation history.
         *   `#reset`: Clears the user's conversation memory.
-    *   **Ollama Integration:** For general questions without specific tags, it uses Ollama with a context-aware `question.py` script to generate conversational AI responses, leveraging the stored memory.
+    *   **Ollama Integration:** For general questions without specific tags, it uses Ollama with a context-aware `question.py` script to generate conversational AI responses, leveraging the stored memory (only messages tagged with `#rec` are available for context). The `question.py` script loads conversation history from either UMAP memory (based on latitude/longitude) or user memory (based on pubkey) and includes it as context in the AI prompt.
     *   **Response Publishing:** AI-generated responses are signed by the UPlanet Captain's key (or the `KNAME`'s key if specified and available) and published back to the Nostr relay as `kind 1` events, specifically tagging the original event and public key to maintain thread context (`e` and `p` tags).
 
 This integrated system allows UPlanet to provide a dynamic, interactive experience where user actions and queries on Nostr can trigger complex AI operations and content generation, all while maintaining the integrity and ownership model of the IPFS drives.
+
+### Memory Control Tags
+
+UPlanet implements a privacy-conscious memory system where users have explicit control over what gets stored in their AI conversation history:
+
+-   **`#rec` (Record):** This tag is **required** for any message to be stored in the AI memory. Messages without this tag are processed normally but not recorded for future context. This provides users with granular control over their privacy and storage usage.
+
+-   **`#mem` (Memory):** Displays the current conversation history without recording the current message. This allows users to review their stored conversations without adding new entries.
+
+-   **`#reset` (Reset):** Clears the user's conversation memory, providing a fresh start for AI interactions.
+
+**Example Usage:**
+```
+# Message will be processed but NOT stored in memory
+"Hello, how are you?"
+
+# Message will be processed AND stored in memory for future context
+"Hello, how are you? #rec"
+
+# Message will display current memory without recording this message
+"Show me our conversation history #mem"
+
+# Message will clear all stored memory
+"Clear our conversation #reset"
+```
+
+This approach ensures that users maintain full control over their digital footprint while still benefiting from contextual AI interactions when desired.
+
+### Memory Usage in AI Responses
+
+The `UPlanet_IA_Responder.sh` script utilizes the stored memory in several ways to provide contextual AI responses:
+
+#### 1. Memory Display (`#mem` tag)
+When a user includes the `#mem` tag, the script:
+- Loads the user's conversation history from `~/.zen/strfry/uplanet_memory/pubkey/{pubkey}.json`
+- Formats the last 30 messages with timestamps and cleaned content (removing #BOT/#BRO tags)
+- Returns a human-readable conversation history without recording the current message
+
+#### 2. Memory Reset (`#reset` tag)
+When a user includes the `#reset` tag, the script:
+- Deletes the user's memory file completely
+- Returns a welcome message explaining available AI features
+- Provides a fresh start for AI interactions
+
+#### 3. Contextual AI Responses (Default behavior)
+For general questions without specific tags, the script:
+- Calls `question.py` with the user's `pubkey` parameter
+- `question.py` loads conversation history from the user's memory file
+- Constructs a context-aware prompt including previous messages
+- Sends the enhanced prompt to Ollama for AI response generation
+- Logs both the prompt and response to `~/.zen/tmp/IA.log`
+
+#### 4. Memory Structure and Access
+The memory system provides two types of context:
+
+**User Memory (`pubkey/{pubkey}.json`):**
+```json
+{
+  "pubkey": "user_public_key",
+  "messages": [
+    {
+      "timestamp": "2024-01-01T12:00:00Z",
+      "event_id": "event_hash",
+      "latitude": "48.8534",
+      "longitude": "-2.3412",
+      "content": "User message content"
+    }
+  ]
+}
+```
+
+**UMAP Memory (`{latitude}_{longitude}.json`):**
+```json
+{
+  "latitude": "48.8534",
+  "longitude": "-2.3412",
+  "messages": [
+    {
+      "timestamp": "2024-01-01T12:00:00Z",
+      "event_id": "event_hash",
+      "pubkey": "user_public_key",
+      "content": "Message content at this location"
+    }
+  ]
+}
+```
+
+#### 5. Context Integration in AI Prompts
+The `question.py` script enhances AI responses by:
+- Loading relevant conversation history (up to 50 messages)
+- Formatting previous messages as context
+- Including location information when available
+- Constructing a comprehensive prompt for Ollama
+- Maintaining conversation continuity across sessions
+
+This memory system enables the AI to provide personalized, context-aware responses while respecting user privacy through explicit consent via the `#rec` tag.
+
+### Zen Economy and Reaction-Based Payments
+
+UPlanet implements a unique economic system where social interactions (reactions/likes) trigger automatic micro-payments in the Ğ1 currency, creating a circular economy within the ecosystem.
+
+#### 1. Reaction Processing (`filter/7.sh`)
+
+The `filter/7.sh` script handles Nostr events of kind:7 (reactions/likes) and implements the Zen economy:
+
+**Reaction Types:**
+- **Positive Reactions:** `+`, `👍`, `❤️`, `♥️` (empty content is treated as positive)
+- **Negative Reactions:** `-`, `👎`, `💔`
+- **Custom Reactions:** Any other emoji or content
+
+**Processing Flow:**
+1. **Authorization Check:** Verifies the reaction sender is an authorized UPlanet player or in `amisOfAmis.txt`
+2. **UPlanet Member Detection:** Uses `search_for_this_hex_in_uplanet.sh` to check if the reacted-to author is part of UPlanet
+3. **Automatic Payment:** If both conditions are met, triggers a 0.1 Ğ1 payment from the reactor to the content creator
+
+**Payment Implementation:**
+```bash
+# Extract G1PUBNOSTR for the reacted-to author
+G1PUBNOSTR=$(~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh $reacted_author_pubkey)
+
+# Send 0.1 Ğ1 payment if both users are UPlanet members
+if [[ -n "$G1PUBNOSTR" && -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
+    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${PLAYER_DIR}/.secret.dunikey" "0.1" "$G1PUBNOSTR" "_like_${reacted_event_id}_from_${pubkey}"
+fi
+```
+
+#### 2. Economic Ecosystem (`ZEN.ECONOMY.sh`)
+
+The `ZEN.ECONOMY.sh` script manages the broader economic system:
+
+**Actors and Balances:**
+- **UPlanet:** Cooperative "central bank" managing the ecosystem
+- **Node:** Physical server (PC Gamer or RPi5) hosting the relay
+- **Captain:** Node manager and administrator
+
+**Weekly Costs:**
+- **NOSTR Card:** 1 Ẑen/week (users with Nostr cards)
+- **ZEN Card:** 4 Ẑen/week (users with ZEN cards)
+- **PAF (Participation Aux Frais):** 14 Ẑen/week (operational costs)
+
+**Payment Logic:**
+```bash
+# Daily PAF calculation
+DAILYPAF=$(echo "$PAF / 7" | bc -l)  # 2 Ẑen/day
+
+# Captain pays PAF if sufficient balance, otherwise UPlanet pays
+if [[ $CAPTAINZEN > $DAILYPAF ]]; then
+    # Captain pays Node (economy positive)
+    PAYforSURE.sh "$CAPTAIN_DUNIKEY" "$DAILYG1" "$NODEG1PUB" "PAF"
+else
+    # UPlanet pays Node (economy negative)
+    PAYforSURE.sh "$UPLANET_DUNIKEY" "$DAILYG1" "$NODEG1PUB" "PAF"
+fi
+```
+
+#### 3. Economic Incentives
+
+**Content Creation Incentives:**
+- **Micro-payments:** Each positive reaction generates 0.1 Ğ1 for content creators
+- **Quality Content:** Encourages valuable contributions to the ecosystem
+- **Community Building:** Rewards engagement and interaction
+
+**Infrastructure Support:**
+- **Node Sustainability:** PAF ensures relay servers remain operational
+- **Captain Compensation:** Captains are incentivized to maintain quality infrastructure
+- **UPlanet Stability:** Cooperative model distributes costs across the ecosystem
+
+**Economic Flow:**
+```
+User A posts content → User B likes content → 0.1 Ğ1 payment to User A
+                                                    ↓
+Node provides relay service → Captain pays PAF → Node receives operational funding
+                                                    ↓
+UPlanet cooperative → Manages ecosystem → Distributes costs and benefits
+```
+
+This economic model creates a self-sustaining ecosystem where social interactions directly fund infrastructure and reward content creators, fostering a circular economy within the UPlanet network.
 
 ## Specification
 
