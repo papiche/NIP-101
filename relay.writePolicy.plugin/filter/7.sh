@@ -71,7 +71,6 @@ fi
 
 # Rejeter l'événement si l'émetteur n'est pas autorisé
 if [[ "$AUTHORIZED" == "false" ]]; then
-    log_like "REJECTED: Unauthorized pubkey ${pubkey:0:8}... sending reaction - not in authorized players or amisOfAmis.txt"
     exit 1
 fi
 
@@ -115,8 +114,6 @@ case "$content" in
             else
                 log_like "PAYMENT: Cannot send payment - player directory not found or missing .secret.dunikey for ${pubkey:0:8}..."
             fi
-        else
-            log_like "REACTION: $reaction_type from ${pubkey:0:8}... to event ${reacted_event_id:0:8}... is not part of UPlanet"
         fi
         ;;
     "-"|"👎"|"💔")
@@ -127,17 +124,10 @@ case "$content" in
         ;;
 esac
 
-# Logger l'information de la réaction
-log_like "REACTION: $reaction_type | From: ${pubkey:0:8}... | To Event: ${reacted_event_id:0:8}... | To Author: ${reacted_author_pubkey:0:8}... | Event Kind: $reacted_event_kind | Reaction ID: $event_id"
-
 # Vérifier que les tags obligatoires sont présents
 if [[ -z "$reacted_event_id" ]]; then
-    log_like "ERROR: Missing 'e' tag in reaction event $event_id - REJECTING"
     exit 1  # Rejeter l'événement s'il n'y a pas de tag 'e'
 fi
-
-# Logger les détails complets pour debug si nécessaire
-log_like "DETAILS: Event ID: $event_id | Pubkey: $pubkey | Content: '$content' | Created: $created_at"
 
 echo ">>> (7) REACTION: $reaction_type from ${pubkey:0:8}... to event ${reacted_event_id:0:8}..."
 
