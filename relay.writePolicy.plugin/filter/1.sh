@@ -243,6 +243,61 @@ get_event_by_id() {
     cd -
 }
 
+# Function to check if user has access to memory slots 1-12
+check_memory_slot_access() {
+    local user_id="$1"
+    local slot="$2"
+    
+    # Slot 0 is always accessible
+    if [[ "$slot" == "0" ]]; then
+        return 0
+    fi
+    
+    # For slots 1-12, check if user is in ~/.zen/game/players/
+    if [[ "$slot" -ge 1 && "$slot" -le 12 ]]; then
+        if [[ -d "$HOME/.zen/game/players/$user_id" ]]; then
+            return 0  # User has access
+        else
+            return 1  # User doesn't have access
+        fi
+    fi
+    
+    return 0  # Default allow for other cases
+}
+
+# Function to send memory access denied message
+send_memory_access_denied() {
+    local pubkey="$1"
+    local event_id="$2"
+    local slot="$3"
+    
+    (
+    source $HOME/.zen/Astroport.ONE/tools/my.sh
+    source ~/.zen/game/players/.current/secret.nostr ## CAPTAIN SPEAKING
+    if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
+        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
+        
+        DENIED_MSG="⚠️ Accès refusé aux slots de mémoire 1-12.
+
+Pour utiliser les slots de mémoire 1-12, vous devez être sociétaire CopyLaRadio et posséder une ZenCard.
+
+Le slot 0 reste accessible pour tous les utilisateurs autorisés.
+
+Pour devenir sociétaire : $myIPFS/ipns/copylaradio.com
+
+Votre Astroport Captain.
+#CopyLaRadio #mem"
+
+        nostpy-cli send_event \
+          -privkey "$NPRIV_HEX" \
+          -kind 1 \
+          -content "$DENIED_MSG" \
+          -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'MemoryAccessDenied']]" \
+          --relay "$myRELAY" 2>/dev/null
+    fi
+    ) &
+}
+
 # Fonction pour nettoyer les anciens fichiers de la file d'attente
 cleanup_old_queue_files() {
     find "$QUEUE_DIR" -type f -mmin +60 -delete 2>/dev/null
@@ -301,13 +356,42 @@ EOF
         fi
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present
         if [[ "$content" == *"#rec"* ]]; then
-            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+            # Detect slot tag (#1 to #12)
+            slot=0
+            for i in {1..12}; do
+                if [[ "$content" =~ \#${i}\b ]]; then
+                    slot=$i
+                    break
+                fi
+            done
+            # Use KNAME (nostr email) if available, else fallback to pubkey
+            user_id="$KNAME"
+            if [[ -z "$user_id" ]]; then
+                user_id="$pubkey"
+            fi
+            
+            # Check memory slot access
+            if check_memory_slot_access "$user_id" "$slot"; then
+                $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" "$slot" "$user_id"
+            else
+                echo "Memory access denied for user: $user_id, slot: $slot" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                send_memory_access_denied "$pubkey" "$event_id" "$slot"
+            fi
         fi
 
         exit 0
     else
         # Si aucun processus n'est en cours, lancer directement avec timeout
-        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        # Détection du tag #secret
+        is_secret=false
+        if [[ "$content" =~ \#secret ]]; then
+            is_secret=true
+        fi
+        if [[ "$is_secret" == true ]]; then
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "--secret" &
+        else
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" &
+        fi
     fi
 }
 
@@ -315,6 +399,14 @@ EOF
 if [[ -z "$full_content" ]]; then
     full_content="$content"
 fi
+
+# Détection du tag #secret pour le retour final
+is_secret_message=false
+if [[ "$content" =~ \#secret ]]; then
+    is_secret_message=true
+    echo "SECRET message detected, will return 1 to reject event from relay" >> "$HOME/.zen/tmp/uplanet_messages.log"
+fi
+
 # Traiter la file d'attente
 process_queue
 
@@ -353,24 +445,73 @@ EOF
         else
             # Processing UPlanet_IA_Responder
             echo "PROCESSING UPlanet_IA_Responder.sh" "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" >> "$HOME/.zen/tmp/IA.log"
-            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
+            if [[ "$is_secret_message" == true ]]; then
+                timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "--secret" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
+            else
+                timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
+            fi
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
         # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present
         if [[ "$content" == *"#rec"* ]]; then
-            echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" >> "$HOME/.zen/tmp/uplanet_messages.log"
-            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+            # Detect slot tag (#1 to #12)
+            slot=0
+            for i in {1..12}; do
+                if [[ "$content" =~ \#${i}\b ]]; then
+                    slot=$i
+                    break
+                fi
+            done
+            # Use KNAME (nostr email) if available, else fallback to pubkey
+            user_id="$KNAME"
+            if [[ -z "$user_id" ]]; then
+                user_id="$pubkey"
+            fi
+            
+            # Check memory slot access
+            if check_memory_slot_access "$user_id" "$slot"; then
+                echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" "$slot" "$user_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" "$slot" "$user_id"
+            else
+                echo "Memory access denied for user: $user_id, slot: $slot" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                send_memory_access_denied "$pubkey" "$event_id" "$slot"
+            fi
         fi
 
         ######################### UPlanet Message IA Treatment
-        exit 0
+        if [[ "$is_secret_message" == true ]]; then
+            echo "SECRET message processed, returning 1 to reject from relay" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            exit 1
+        else
+            exit 0
+        fi
     else
         ## MEMORIZE ANY RESPONSE only if #rec is present
         if [[ "$content" == *"#rec"* ]]; then
-            echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" >> "$HOME/.zen/tmp/uplanet_messages.log"
-            $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude"
+            # Detect slot tag (#1 to #12)
+            slot=0
+            for i in {1..12}; do
+                if [[ "$content" =~ \#${i}\b ]]; then
+                    slot=$i
+                    break
+                fi
+            done
+            # Use KNAME (nostr email) if available, else fallback to pubkey
+            user_id="$KNAME"
+            if [[ -z "$user_id" ]]; then
+                user_id="$pubkey"
+            fi
+            
+            # Check memory slot access
+            if check_memory_slot_access "$user_id" "$slot"; then
+                echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" "$slot" "$user_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" "$slot" "$user_id"
+            else
+                echo "Memory access denied for user: $user_id, slot: $slot" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                send_memory_access_denied "$pubkey" "$event_id" "$slot"
+            fi
         fi
         exit 0
     fi
