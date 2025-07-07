@@ -354,8 +354,8 @@ EOF
                 echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
             fi
         fi
-        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present
-        if [[ "$content" == *"#rec"* ]]; then
+        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present (but not #rec2)
+        if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
             # Detect slot tag (#1 to #12)
             slot=0
             for i in {1..12}; do
@@ -454,8 +454,8 @@ EOF
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
 
-        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present
-        if [[ "$content" == *"#rec"* ]]; then
+        # MEMORIZE EVENT in UMAP / PUBKEY MEMORY only if #rec is present (but not #rec2)
+        if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
             # Detect slot tag (#1 to #12)
             slot=0
             for i in {1..12}; do
@@ -488,8 +488,8 @@ EOF
             exit 0
         fi
     else
-        ## MEMORIZE ANY RESPONSE only if #rec is present
-        if [[ "$content" == *"#rec"* ]]; then
+        ## MEMORIZE ANY RESPONSE only if #rec is present (but not #rec2)
+        if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
             # Detect slot tag (#1 to #12)
             slot=0
             for i in {1..12}; do
@@ -503,7 +503,6 @@ EOF
             if [[ -z "$user_id" ]]; then
                 user_id="$pubkey"
             fi
-            
             # Check memory slot access
             if check_memory_slot_access "$user_id" "$slot"; then
                 echo "SHORT_MEMORY: $event_json" "$latitude" "$longitude" "$slot" "$user_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
