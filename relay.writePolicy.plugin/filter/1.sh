@@ -45,7 +45,7 @@ get_key_directory() {
             source $(dirname "$key_file")/GPS 2>/dev/null ## get NOSTR Card default LAT / LON
             [[ "$latitude" == "" ]] && latitude="$LAT"
             [[ "$longitude" == "" ]] && longitude="$LON"
-            KNAME=$(basename "$(dirname "$key_file")")
+            KNAME=$(basename "$(dirname "$key_file")") # GLOBAL VARIABLE containing the email of the player
             return 0 # Clé autorisée
         fi
     done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
@@ -96,7 +96,7 @@ cleanup_warning_messages() {
     if [[ -n "$CAPTAIN_PUBKEY" ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
-        cd "$HOME/.zen/strfry" || { echo "Failed to cd to strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
+        cd "$HOME/.zen/strfry"
         local messages_48h_json=$(./strfry scan \
             '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"', "kinds":[1]}' \
             2>/dev/null)
@@ -116,7 +116,7 @@ cleanup_warning_messages() {
 
             echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string" >> "$HOME/.zen/tmp/uplanet_messages.log"
 
-            cd "$HOME/.zen/strfry" || { echo "Failed to find ~/.zen/strfry directory." >> "$HOME/.zen/tmp/uplanet_messages.log"; return 1; }
+            cd "$HOME/.zen/strfry"
             ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
             cd - >/dev/null
         else
@@ -240,7 +240,7 @@ get_event_by_id() {
     cd $HOME/.zen/strfry
     # Use strfry scan with a filter for the specific event ID
     ./strfry scan '{"ids":["'"$event_id"'"]}' 2>/dev/null
-    cd -
+    cd - >/dev/null
 }
 
 # Function to check if user has access to memory slots 1-12
@@ -279,14 +279,14 @@ send_memory_access_denied() {
         
         DENIED_MSG="⚠️ Accès refusé aux slots de mémoire 1-12.
 
-Pour utiliser les slots de mémoire 1-12, vous devez être sociétaire CopyLaRadio et posséder une ZenCard.
+Pour utiliser les slots de mémoire 1-12, vous devez être sociétaire CopyLaRadio ou posséder une ZenCard.
 
 Le slot 0 reste accessible pour tous les utilisateurs autorisés.
 
-Pour devenir sociétaire : $myIPFS/ipns/copylaradio.com
+Pour devenir sociétaire : https://opencollective.com/uplanet-zero
 
 Votre Astroport Captain.
-#CopyLaRadio #mem"
+#CopyLaRadio #UPlanet"
 
         nostpy-cli send_event \
           -privkey "$NPRIV_HEX" \
