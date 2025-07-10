@@ -88,8 +88,8 @@ cleanup_warning_messages() {
 
     # Source CAPTAIN's pubkey
     local CAPTAIN_PUBKEY=""
-    if [[ -f "$HOME/.zen/game/players/.current/secret.nostr" ]]; then
-        source "$HOME/.zen/game/players/.current/secret.nostr"
+    if [[ -f "$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr" ]]; then
+        source "$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr"
         CAPTAIN_PUBKEY="$HEX"
     fi
 
@@ -177,7 +177,7 @@ handle_visitor_message() {
         (
         #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
         source $HOME/.zen/Astroport.ONE/tools/my.sh
-        source ~/.zen/game/players/.current/secret.nostr ## CAPTAIN SPEAKING
+        source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
         if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
             NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
             echo "Notice: Astroport Relay Anonymous Usage" >> "$HOME/.zen/tmp/uplanet_messages.log"
@@ -273,7 +273,7 @@ send_memory_access_denied() {
     
     (
     source $HOME/.zen/Astroport.ONE/tools/my.sh
-    source ~/.zen/game/players/.current/secret.nostr ## CAPTAIN SPEAKING
+    source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
     if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
         NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
         
