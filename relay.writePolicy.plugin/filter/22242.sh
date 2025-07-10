@@ -22,7 +22,7 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Define log file for kind 22242 events
-LOG_FILE="$HOME/.zen/tmp/nostr_22242.log"
+LOG_FILE="$HOME/.zen/tmp/nostr.auth.22242.log"
 
 # Ensure the log directory exists
 mkdir -p "$(dirname "$LOG_FILE")"

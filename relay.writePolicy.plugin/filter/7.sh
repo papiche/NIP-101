@@ -26,7 +26,7 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
 # Définition du fichier de log spécifique aux likes
-LOG_FILE="$HOME/.zen/tmp/nostr_likes.log"
+LOG_FILE="$HOME/.zen/tmp/nostr_likes.7.log"
 
 # Assurez-vous que le répertoire pour le fichier de log existe
 mkdir -p "$(dirname "$LOG_FILE")"
