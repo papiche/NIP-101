@@ -186,14 +186,15 @@ handle_visitor_message() {
             else
                 ORIGIN=${UPLANETG1PUB:0:8}
             fi
+            nprofile=$($HOME/.sen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$pubkey" 2>/dev/null)
             RESPN="Hello NOSTR visitor.
 
-I noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
+$nprofile, we noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 
 Take place on #UPlanet : $myIPFS/ipns/copylaradio.com
-Get your #MULTIPASS
+Get a #MULTIPASS
 
 Your devoted Astroport Captain.
 
