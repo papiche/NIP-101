@@ -16,6 +16,14 @@ url=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "url") | .[1]')
 latitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "latitude") | .[1]')
 longitude=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "longitude") | .[1]')
 
+# Initialize full_content with content if not already set
+if [[ -z "$full_content" ]]; then
+    full_content="$content"
+fi
+
+# Source my.sh once at the beginning to get all necessary variables
+source $HOME/.zen/Astroport.ONE/tools/my.sh 2>/dev/null
+
 ############################################################
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
@@ -176,7 +184,6 @@ handle_visitor_message() {
     if [[ "$next_count" -le "$MESSAGE_LIMIT" ]]; then
         (
         #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
-        source $HOME/.zen/Astroport.ONE/tools/my.sh
         source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
         if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
             NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
@@ -273,7 +280,6 @@ send_memory_access_denied() {
     local slot="$3"
     
     (
-    source $HOME/.zen/Astroport.ONE/tools/my.sh
     source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
     if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
         NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
@@ -397,10 +403,6 @@ EOF
 }
 
 ################# MAIN TREATMENT
-if [[ -z "$full_content" ]]; then
-    full_content="$content"
-fi
-
 # Détection du tag #secret pour le retour final
 is_secret_message=false
 if [[ "$content" =~ \#secret ]]; then
@@ -429,8 +431,8 @@ if [[ "$check" != "nobody" ]]; then
 
             # Si la file d'attente n'est pas pleine, ajouter le message
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
-                echo "QUEUE_FILE: $QUEUE_FILE" >> "$HOME/.zen/tmp/uplanet_messages.log"
                 QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh" ## on écrase le fichier si il existe
+                echo "QUEUE_FILE: $QUEUE_FILE" >> "$HOME/.zen/tmp/uplanet_messages.log"
                 cat > "$QUEUE_FILE" << EOF
 pubkey="$pubkey"
 event_id="$event_id"
