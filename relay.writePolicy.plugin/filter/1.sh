@@ -186,7 +186,7 @@ handle_visitor_message() {
             else
                 ORIGIN=${UPLANETG1PUB:0:8}
             fi
-            nprofile=$($HOME/.sen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$pubkey" 2>/dev/null)
+            nprofile=$($HOME/.zen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$pubkey" 2>/dev/null)
             RESPN="Hello NOSTR visitor.
 
 $nprofile, we noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
