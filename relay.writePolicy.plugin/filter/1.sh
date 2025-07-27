@@ -1,22 +1,21 @@
 #!/bin/bash
-# filter/1.sh
+# filter/1.sh (OPTIMIZED)
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
-# Extraire les informations nécessaires de l'événement JSON passé en argument en une seule fois
-event_json="$1"
+# Source common functions
+source "$MY_PATH/common.sh"
 
-# Optimisation: extraire toutes les valeurs en un seul appel jq
-eval $(echo "$event_json" | jq -r '
-    "created_at=" + (.event.created_at | tostring) + ";" +
-    "event_id=" + .event.id + ";" +
-    "content=" + (.event.content | @sh) + ";" +
-    "pubkey=" + .event.pubkey + ";" +
-    "application=" + ((.event.tags[] | select(.[0] == "application") | .[1]) // "null") + ";" +
-    "url=" + ((.event.tags[] | select(.[0] == "url") | .[1]) // "null") + ";" +
-    "latitude=" + ((.event.tags[] | select(.[0] == "latitude") | .[1]) // "") + ";" +
-    "longitude=" + ((.event.tags[] | select(.[0] == "longitude") | .[1]) // "")
-')
+# Extract event data using optimized common function
+event_json="$1"
+extract_event_data "$event_json"
+
+# Extract UPlanet-specific tags
+extract_tags "$event_json" "application" "url" "latitude" "longitude"
+application="$application"
+url="$url"
+latitude="$latitude"
+longitude="$longitude"
 
 # Initialize full_content with content if not already set
 [[ -z "$full_content" ]] && full_content="$content"
@@ -39,22 +38,33 @@ PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
 QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
 WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
-# Fonction optimisée pour vérifier si une clé est autorisée et charger les variables de GPS
-KEY_DIR="$HOME/.zen/game/nostr"
-get_key_directory() {
+# Logging functions using common utilities
+log_uplanet() {
+    log_with_timestamp "$HOME/.zen/tmp/uplanet_messages.log" "$1"
+}
+
+log_ia() {
+    log_with_timestamp "$HOME/.zen/tmp/IA.log" "$1"
+}
+
+# Ensure log directories exist
+ensure_log_dir "$HOME/.zen/tmp/uplanet_messages.log"
+ensure_log_dir "$HOME/.zen/tmp/IA.log"
+
+# Optimized function to get key directory with GPS handling
+get_key_directory_with_gps() {
     local pubkey="$1"
     
-    # Optimisation: utiliser cat/grep au lieu de find
-    if cat "$KEY_DIR"/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
-        # Trouver le répertoire spécifique
-        local key_dir=$(grep -l "^$pubkey$" "$KEY_DIR"/*/HEX 2>/dev/null | head -1 | xargs dirname)
-        if [[ -n "$key_dir" ]]; then
-            source "$key_dir/GPS" 2>/dev/null ## get NOSTR Card default LAT / LON
-            [[ "$latitude" == "" ]] && latitude="$LAT"
-            [[ "$longitude" == "" ]] && longitude="$LON"
-            KNAME=$(basename "$key_dir") # GLOBAL VARIABLE containing the email of the player
-            return 0 # Clé autorisée
-        fi
+    # Use common function to get email
+    local email=$(get_key_email "$pubkey")
+    if [[ -n "$email" ]]; then
+        # Load GPS data from the specific directory
+        local key_dir="$KEY_DIR/$email"
+        source "$key_dir/GPS" 2>/dev/null ## get NOSTR Card default LAT / LON
+        [[ "$latitude" == "" ]] && latitude="$LAT"
+        [[ "$longitude" == "" ]] && longitude="$LON"
+        KNAME="$email" # GLOBAL VARIABLE containing the email of the player
+        return 0 # Clé autorisée
     fi
     KNAME=""
     return 1 # Clé non autorisée
@@ -63,14 +73,11 @@ get_key_directory() {
 ######################################################
 ## CLASSIFY MESSAGE INCOMER
 ## CHECK if Nobody, Nostr Player Card, CAPTAIN or UPlanet Geo key
-if ! get_key_directory "$pubkey"; then
+if ! get_key_directory_with_gps "$pubkey"; then
     check="nobody"
-    AMISOFAMIS_FILE="${HOME}/.zen/strfry/amisOfAmis.txt"
-    if [[ -f "$AMISOFAMIS_FILE" && "$pubkey" != "" ]]; then
-        if grep -q "^$pubkey$" "$AMISOFAMIS_FILE"; then
-            check="uplanet"
-            echo "Pubkey $pubkey is in amisOfAmis.txt, setting check to uplanet" >> "$HOME/.zen/tmp/uplanet_messages.log"
-        fi
+    if check_amis_of_amis "$pubkey"; then
+        check="uplanet"
+        log_uplanet "Pubkey $pubkey is in amisOfAmis.txt, setting check to uplanet"
     fi
 else
     if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
@@ -85,20 +92,21 @@ fi
 [[ "$latitude" == "" ]] && latitude="0.00"
 [[ "$longitude" == "" ]] && longitude="0.00"
 
-# Détection précoce du tag #secret pour optimiser les traitements
+# Optimized early tag detection
 is_secret_message=false
 is_rec_message=false
 memory_slot=0
 
+# Early detection optimizations
 if [[ "$content" == *"#secret"* ]]; then
     is_secret_message=true
-    echo "SECRET message detected, will return 1 to reject event from relay" >> "$HOME/.zen/tmp/uplanet_messages.log"
+    log_uplanet "SECRET message detected, will return 1 to reject event from relay"
 fi
 
-# Optimisation: détecter #rec et le slot en une seule fois
+# Detect #rec and slot in one pass
 if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
     is_rec_message=true
-    # Detect slot tag (#1 to #12) plus efficacement
+    # Detect slot tag (#1 to #12) efficiently
     for i in {1..12}; do
         if [[ "$content" =~ \#${i}\b ]]; then
             memory_slot=$i
@@ -107,22 +115,22 @@ if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
     done
 fi
 
-# Fonction consolidée pour la mémoire
+# Consolidated memory handling function
 handle_memory_storage() {
     local user_id="$KNAME"
     [[ -z "$user_id" ]] && user_id="$pubkey"
     
     # Check memory slot access
     if check_memory_slot_access "$user_id" "$memory_slot"; then
-        echo "SHORT_MEMORY: $event_json $latitude $longitude $memory_slot $user_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+        log_uplanet "SHORT_MEMORY: $event_json $latitude $longitude $memory_slot $user_id"
         $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" "$memory_slot" "$user_id"
     else
-        echo "Memory access denied for user: $user_id, slot: $memory_slot" >> "$HOME/.zen/tmp/uplanet_messages.log"
+        log_uplanet "Memory access denied for user: $user_id, slot: $memory_slot"
         send_memory_access_denied "$pubkey" "$event_id" "$memory_slot"
     fi
 }
 
-# Fonction pour nettoyer les messages d'avertissement du Captain ayant plus de 48h
+# Optimized cleanup function with better logging
 cleanup_warning_messages() {
     local current_time=$(date +%s)
     local cutoff_time=$((current_time - WARNING_MESSAGE_TTL))
@@ -135,7 +143,7 @@ cleanup_warning_messages() {
     fi
 
     if [[ -n "$CAPTAIN_PUBKEY" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))" >> "$HOME/.zen/tmp/uplanet_messages.log"
+        log_uplanet "Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))"
 
         cd "$HOME/.zen/strfry"
         local messages_48h_json=$(./strfry scan \
@@ -155,16 +163,16 @@ cleanup_warning_messages() {
             done
             ids_string=${ids_string%,} # Remove trailing comma
 
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            log_uplanet "Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string"
 
             cd "$HOME/.zen/strfry"
             ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
             cd - >/dev/null
         else
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - No old 'Hello NOSTR visitor' messages from Captain found to delete." >> "$HOME/.zen/tmp/uplanet_messages.log"
+            log_uplanet "No old 'Hello NOSTR visitor' messages from Captain found to delete."
         fi
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - Warning: CAPTAIN_PUBKEY not found/set. Skipping global warning message cleanup." >> "$HOME/.zen/tmp/uplanet_messages.log"
+        log_uplanet "Warning: CAPTAIN_PUBKEY not found/set. Skipping global warning message cleanup."
     fi
 
     # Cleanup of individual warning tracking files (if older than TTL)
@@ -175,13 +183,13 @@ cleanup_warning_messages() {
         [[ -z "$file_time" ]] && continue
 
         if [ $((current_time - file_time)) -gt $WARNING_MESSAGE_TTL ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleaning up 48h old warning tracking file for pubkey: $(basename "$warning_file")" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            log_uplanet "Cleaning up 48h old warning tracking file for pubkey: $(basename "$warning_file")"
             rm -f "$warning_file"
         fi
     done
 }
 
-# Fonction pour vérifier et gérer le message "Hello NOSTR visitor"
+# Optimized visitor message handling
 handle_visitor_message() {
     local pubkey="$1"
     local event_id="$2"
@@ -192,7 +200,7 @@ handle_visitor_message() {
     # Créer le répertoire de comptage si inexistant
     mkdir -p "$COUNT_DIR"
 
-    # Vérifier si la clé publique est déjà blacklistée (should be done before calling 1.sh)
+    # Vérifier si la clé publique est déjà blacklistée
     if grep -q "^$pubkey$" "$BLACKLIST_FILE" 2>/dev/null; then
         echo "Pubkey $pubkey is blacklisted, skipping visitor message."
         return 0
@@ -212,11 +220,10 @@ handle_visitor_message() {
 
     if [[ "$next_count" -le "$MESSAGE_LIMIT" ]]; then
         (
-        #~ echo "Creating UPlanet️ ♥️BOX Captain NOSTR response..." sub process
         source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
         if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
             NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
-            echo "Notice: Astroport Relay Anonymous Usage" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            log_uplanet "Notice: Astroport Relay Anonymous Usage"
             
             local ORIGIN="ORIGIN"
             [[ "$UPLANETNAME" != "EnfinLibre" ]] && ORIGIN=${UPLANETG1PUB:0:8}
@@ -238,7 +245,7 @@ Your devoted Astroport Captain.
 #UPlanet:$ORIGIN:
 "
 
-            # Envoyer le message d'avertissement et récupérer l'ID du message
+            # Envoyer le message d'avertissement
             WARNING_MSG_OUTPUT=$(nostpy-cli send_event \
               -privkey "$NPRIV_HEX" \
               -kind 1 \
@@ -246,13 +253,13 @@ Your devoted Astroport Captain.
               -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning']]" \
               --relay "$myRELAY" 2>&1)
 
-            # Extraire l'ID du message d'avertissement de la sortie (si disponible)
+            # Extraire l'ID du message d'avertissement
             WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE '"id":"[a-f0-9]{64}"' | sed 's/"id":"\([^"]*\)"/\1/' | head -1)
 
             # Update the warning file timestamp
             touch "$warning_file"
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - Warning message sent (ID: $WARNING_MSG_ID) and tracked for pubkey: $pubkey" >> "$HOME/.zen/tmp/uplanet_messages.log"
-            echo "$WARNING_MSG_OUTPUT" >> "$HOME/.zen/tmp/uplanet_messages.log"
+            log_uplanet "Warning message sent (ID: $WARNING_MSG_ID) and tracked for pubkey: $pubkey"
+            log_uplanet "$WARNING_MSG_OUTPUT"
         fi
         ) &
     else
@@ -266,55 +273,7 @@ Your devoted Astroport Captain.
     return 0
 }
 
-# Function to check if user has access to memory slots 1-12
-check_memory_slot_access() {
-    local user_id="$1"
-    local slot="$2"
-    
-    # Slot 0 is always accessible
-    [[ "$slot" == "0" ]] && return 0
-    
-    # For slots 1-12, check if user is in ~/.zen/game/players/
-    if [[ "$slot" -ge 1 && "$slot" -le 12 ]]; then
-        [[ -d "$HOME/.zen/game/players/$user_id" ]] && return 0 || return 1
-    fi
-    
-    return 0  # Default allow for other cases
-}
-
-# Function to send memory access denied message
-send_memory_access_denied() {
-    local pubkey="$1"
-    local event_id="$2"
-    local slot="$3"
-    
-    (
-    source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
-    if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
-        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
-        
-        DENIED_MSG="⚠️ Accès refusé aux slots de mémoire 1-12.
-
-Pour utiliser les slots de mémoire 1-12, vous devez être sociétaire CopyLaRadio ou posséder une ZenCard.
-
-Le slot 0 reste accessible à tous les utilisateurs MULTIPASS.
-
-Pour devenir sociétaire : https://opencollective.com/uplanet-zero
-
-Votre dévoué Capitaine Astroport.
-#CopyLaRadio #UPlanet"
-
-        nostpy-cli send_event \
-          -privkey "$NPRIV_HEX" \
-          -kind 1 \
-          -content "$DENIED_MSG" \
-          -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'MemoryAccessDenied']]" \
-          --relay "$myRELAY" 2>/dev/null
-    fi
-    ) &
-}
-
-# Fonctions optimisées pour la gestion de la file d'attente
+# Optimized queue management functions
 cleanup_old_queue_files() {
     find "$QUEUE_DIR" -type f -mmin +60 -delete 2>/dev/null
 }
@@ -327,16 +286,16 @@ check_stuck_processes() {
             local start_time=$(date -d "$process_start" +%s 2>/dev/null)
             if [ $? -eq 0 ] && [ $((current_time - start_time)) -gt $PROCESS_TIMEOUT ]; then
                 kill -9 $pid 2>/dev/null
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - Killed stuck UPlanet_IA_Responder.sh process $pid" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                log_uplanet "Killed stuck UPlanet_IA_Responder.sh process $pid"
             fi
         fi
     done
 }
 
-# Fonction pour créer un fichier de queue
+# Optimized queue file creation
 create_queue_file() {
     QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh"
-                cat > "$QUEUE_FILE" << EOF
+    cat > "$QUEUE_FILE" << EOF
 pubkey="$pubkey"
 event_id="$event_id"
 latitude="$latitude"
@@ -347,7 +306,7 @@ KNAME="$KNAME"
 EOF
 }
 
-# Fonction principale pour traiter la file d'attente - simplifiée
+# Streamlined queue processing
 process_queue() {
     cleanup_old_queue_files
     check_stuck_processes
@@ -362,7 +321,7 @@ process_queue() {
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
                 create_queue_file
             else
-                echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                log_uplanet "Queue is full, message dropped: $event_id"
             fi
         fi
         
@@ -384,23 +343,23 @@ process_queue
 if [[ "$check" != "nobody" ]]; then
     # UPlanet APP NOSTR messages.
     if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" && ("$content" == *"#BRO"* || "$content" == *"#BOT"*) ]]; then
-        # Vérification anti-doublon optimisée
+        # Optimized anti-duplicate check
         [[ -f "$COUNT_DIR/lastevent" && "$(cat "$COUNT_DIR/lastevent")" == "$event_id" ]] && exit 0
 
-        echo "OK Authorized key : $KNAME" >> "$HOME/.zen/tmp/uplanet_messages.log"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content" >> "$HOME/.zen/tmp/uplanet_messages.log"
+        log_uplanet "OK Authorized key : $KNAME"
+        log_uplanet "UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content"
 
         # Check if process is running
         if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
             local queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
                 create_queue_file
-                echo "QUEUE_FILE: $QUEUE_FILE" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                log_uplanet "QUEUE_FILE: $QUEUE_FILE"
             else
-                echo "Queue is full, message dropped: $event_id" >> "$HOME/.zen/tmp/uplanet_messages.log"
+                log_uplanet "Queue is full, message dropped: $event_id"
             fi
         else
-            echo "PROCESSING UPlanet_IA_Responder.sh $pubkey $event_id $latitude $longitude $full_content $url $KNAME" >> "$HOME/.zen/tmp/IA.log"
+            log_ia "PROCESSING UPlanet_IA_Responder.sh $pubkey $event_id $latitude $longitude $full_content $url $KNAME"
             local secret_flag=""
             [[ "$is_secret_message" == true ]] && secret_flag="--secret"
             
