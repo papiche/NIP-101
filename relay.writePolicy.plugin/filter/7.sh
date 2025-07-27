@@ -42,31 +42,54 @@ case "$content" in
         if [[ $? -eq 0 && -n "$G1PUBNOSTR" ]]; then
             log_like "REACTION: $reaction_type from ${pubkey:0:8}... to event ${reacted_event_id:0:8}... is part of UPlanet (G1PUBNOSTR: ${G1PUBNOSTR:0:8}...)"
 
-            # Find the player directory using optimized approach
+            # Only LOCAL users can send payments (amisOfAmis can only RECEIVE payments)
             if [[ "$SOURCE" == "local" && "$EMAIL" != "amisOfAmis" ]]; then
-                PLAYER_DIR="$KEY_DIR/$EMAIL"
+                PAYMENT_WALLET=""
+                PAYMENT_METHOD=""
                 
-                # Check if player has a secret.dunikey
-                if [[ -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
-                    # Send 0.1 G1 payment
+                if [[ "$EMAIL" == "CAPTAIN" ]]; then
+                    # CAPTAIN uses the wallet in ~/.zen/game/nostr/$CAPTAINEMAIL
+                    CAPTAIN_WALLET_DIR="$KEY_DIR/$CAPTAINEMAIL"
+                    if [[ -s "${CAPTAIN_WALLET_DIR}/.secret.dunikey" ]]; then
+                        PAYMENT_WALLET="${CAPTAIN_WALLET_DIR}/.secret.dunikey"
+                        PAYMENT_METHOD="captain_wallet ($CAPTAINEMAIL)"
+                        log_like "PAYMENT: CAPTAIN using wallet from $CAPTAINEMAIL"
+                    else
+                        log_like "PAYMENT: Cannot send payment - missing .secret.dunikey for CAPTAIN in $CAPTAINEMAIL"
+                    fi
+                else
+                    # Regular local user uses their own wallet
+                    PLAYER_DIR="$KEY_DIR/$EMAIL"
+                    if [[ -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
+                        PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
+                        PAYMENT_METHOD="own_wallet ($EMAIL)"
+                    else
+                        log_like "PAYMENT: Cannot send payment - missing .secret.dunikey for ${EMAIL}"
+                    fi
+                fi
+                
+                # Execute payment if wallet is available
+                if [[ -n "$PAYMENT_WALLET" ]]; then
                     AMOUNT="0.1"
                     COMMENT="_like_${reacted_event_id}_from_${pubkey}"
                     
-                    log_like "PAYMENT: Attempting to send $AMOUNT G1 to $G1PUBNOSTR using ${PLAYER_DIR}/.secret.dunikey"
+                    log_like "PAYMENT: Attempting to send $AMOUNT G1 to $G1PUBNOSTR using $PAYMENT_METHOD"
                     
-                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${PLAYER_DIR}/.secret.dunikey" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT"
+                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT"
                     PAYMENT_RESULT=$?
                     
                     if [[ $PAYMENT_RESULT -eq 0 ]]; then
-                        log_like "PAYMENT: Successfully sent $AMOUNT G1 to $G1PUBNOSTR for LIKE reaction"
+                        log_like "PAYMENT: Successfully sent $AMOUNT G1 to $G1PUBNOSTR for LIKE reaction via $PAYMENT_METHOD"
                     else
-                        log_like "PAYMENT: Failed to send $AMOUNT G1 to $G1PUBNOSTR (exit code: $PAYMENT_RESULT)"
+                        log_like "PAYMENT: Failed to send $AMOUNT G1 to $G1PUBNOSTR (exit code: $PAYMENT_RESULT) via $PAYMENT_METHOD"
                     fi
-                else
-                    log_like "PAYMENT: Cannot send payment - missing .secret.dunikey for ${EMAIL}"
                 fi
             else
-                log_like "PAYMENT: Cannot send payment - player not in local keys or is amisOfAmis"
+                if [[ "$EMAIL" == "amisOfAmis" ]]; then
+                    log_like "PAYMENT: amisOfAmis users can only RECEIVE payments, not send them"
+                else
+                    log_like "PAYMENT: Only local users can send payments (SOURCE: $SOURCE, EMAIL: $EMAIL)"
+                fi
             fi
         fi
         ;;
