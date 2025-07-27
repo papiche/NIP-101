@@ -34,7 +34,7 @@ fi
 
 # Determine reaction type and handle payment logic
 case "$content" in
-    ""|"+"|"👍"|"❤️"|"♥️")
+    ""|"+"|"👍"|"❤️"|"♥️"|"♥")
         reaction_type="LIKE"
 
         # Search if reacted_author_pubkey is part of UPlanet
