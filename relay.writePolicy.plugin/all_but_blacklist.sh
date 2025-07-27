@@ -31,15 +31,47 @@ KEY_DIR="$HOME/.zen/game/nostr"
 # Fichier contenant la blacklist
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 
+# Fonction pour vérifier si une pubkey a un compte MULTIPASS et la retirer de la blacklist
+check_multipass_and_remove_from_blacklist() {
+    local pubkey="$1"
+    
+    # Vérifier si la pubkey existe dans un fichier HEX sous ~/.zen/game/nostr/*/HEX
+    if cat "$KEY_DIR"/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
+        log_message "Found pubkey $pubkey in MULTIPASS account, removing from blacklist"
+        
+        # Créer un fichier temporaire sans la pubkey
+        local temp_file=$(mktemp)
+        if [[ -f "$BLACKLIST_FILE" ]]; then
+            grep -v "^$pubkey$" "$BLACKLIST_FILE" > "$temp_file"
+            mv "$temp_file" "$BLACKLIST_FILE"
+            log_message "Removed pubkey $pubkey from blacklist due to MULTIPASS account"
+        else
+            rm -f "$temp_file"
+        fi
+        
+        return 0 # Pubkey removed from blacklist
+    fi
+    
+    return 1 # Pubkey not found in MULTIPASS accounts
+}
+
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
     local pubkey="$1"
-    local BLACKLIST=($(cat "$BLACKLIST_FILE"))
-    for blacklisted_key in "${BLACKLIST[@]}"; do
-        if [[ "$pubkey" == "$blacklisted_key" ]]; then
-            return 0 # Clé blacklistée
-        fi
-    done
+    
+    # Vérifier d'abord si la pubkey a un compte MULTIPASS
+    check_multipass_and_remove_from_blacklist "$pubkey"
+    
+    # Vérifier si le fichier blacklist existe
+    if [[ ! -f "$BLACKLIST_FILE" ]]; then
+        return 1 # Pas de blacklist, clé non blacklistée
+    fi
+    
+    # Vérification rapide avec grep
+    if grep -q "^$pubkey$" "$BLACKLIST_FILE"; then
+        return 0 # Clé blacklistée
+    fi
+    
     return 1 # Clé non blacklistée
 }
 
