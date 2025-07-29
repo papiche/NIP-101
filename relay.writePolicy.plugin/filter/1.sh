@@ -254,7 +254,7 @@ Your devoted Astroport Captain.
               --relay "$myRELAY" 2>&1)
 
             # Extraire l'ID du message d'avertissement
-            WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE '"id":"[a-f0-9]{64}"' | sed 's/"id":"\([^"]*\)"/\1/' | head -1)
+            WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE "'id': '[a-f0-9]{64}'" | cut -d"'" -f4 | head -n 1)
 
             # Update the warning file timestamp
             touch "$warning_file"
