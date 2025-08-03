@@ -71,7 +71,7 @@ case "$content" in
                 # Execute payment if wallet is available
                 if [[ -n "$PAYMENT_WALLET" ]]; then
                     AMOUNT="0.1"
-                    COMMENT="_like_${reacted_event_id}_from_${pubkey}"
+                    COMMENT="UPLANET:${UPLANETG1PUB:0:8}:$EMAIL:LIKE:${reacted_event_id}"
                     
                     log_like "PAYMENT: Attempting to send $AMOUNT G1 to $G1PUBNOSTR using $PAYMENT_METHOD"
                     
