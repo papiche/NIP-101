@@ -35,19 +35,20 @@ BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 check_multipass_and_remove_from_blacklist() {
     local pubkey="$1"
     
+    # Vérifier d'abord si la pubkey est réellement dans la blacklist
+    if [[ ! -f "$BLACKLIST_FILE" ]] || ! grep -q "^$pubkey$" "$BLACKLIST_FILE"; then
+        return 1 # Pubkey not in blacklist, nothing to remove
+    fi
+    
     # Vérifier si la pubkey existe dans un fichier HEX sous ~/.zen/game/nostr/*/HEX
     if cat "$KEY_DIR"/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
         log_message "Found pubkey $pubkey in MULTIPASS account, removing from blacklist"
         
         # Créer un fichier temporaire sans la pubkey
         local temp_file=$(mktemp)
-        if [[ -f "$BLACKLIST_FILE" ]]; then
-            grep -v "^$pubkey$" "$BLACKLIST_FILE" > "$temp_file"
-            mv "$temp_file" "$BLACKLIST_FILE"
-            log_message "Removed pubkey $pubkey from blacklist due to MULTIPASS account"
-        else
-            rm -f "$temp_file"
-        fi
+        grep -v "^$pubkey$" "$BLACKLIST_FILE" > "$temp_file"
+        mv "$temp_file" "$BLACKLIST_FILE"
+        log_message "Removed pubkey $pubkey from blacklist due to MULTIPASS account"
         
         return 0 # Pubkey removed from blacklist
     fi
