@@ -9,7 +9,7 @@ MY_PATH="`( cd \"$MY_PATH\" && pwd )`"
 source "$MY_PATH/common.sh"
 
 # Define log file and ensure directory exists
-LOG_FILE="$HOME/.zen/tmp/nostr_likes.7.log"
+LOG_FILE="$HOME/.zen/tmp/nostr_likes.log"
 ensure_log_dir "$LOG_FILE"
 
 # Logging function for likes

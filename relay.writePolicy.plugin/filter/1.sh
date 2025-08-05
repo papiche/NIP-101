@@ -37,7 +37,7 @@ WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
 # Logging functions using common utilities
 log_uplanet() {
-    log_with_timestamp "$HOME/.zen/tmp/nostr_kind1_messages.log" "$1"
+    log_with_timestamp "$HOME/.zen/tmp/uplanet_messages.log" "$1"
 }
 
 log_ia() {
@@ -45,7 +45,7 @@ log_ia() {
 }
 
 # Ensure log directories exist
-ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
+ensure_log_dir "$HOME/.zen/tmp/uplanet_messages.log"
 ensure_log_dir "$HOME/.zen/tmp/IA.log"
 
 # Optimized function to get key directory with GPS handling
