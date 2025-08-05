@@ -191,12 +191,13 @@ cleanup_warning_messages() {
 handle_visitor_message() {
     local pubkey="$1"
     local event_id="$2"
+    local visitor_content="$3"
 
     # Nettoyer les anciens messages d'avertissement
     cleanup_warning_messages &
 
     # Créer le répertoire de comptage si inexistant
-    mkdir -p "$COUNT_DIR"
+    mkdir -p "$COUNT_DIR" 2>/dev/null
 
     # Vérifier si la clé publique est déjà blacklistée
     if grep -q "^$pubkey$" "$BLACKLIST_FILE" 2>/dev/null; then
@@ -258,6 +259,43 @@ Your devoted Astroport Captain.
             touch "$warning_file"
             log_uplanet "Warning message sent (ID: $WARNING_MSG_ID) and tracked for pubkey: $pubkey"
             log_uplanet "$WARNING_MSG_OUTPUT"
+            
+            # Send automatic BRO response after visitor warning (only for first message)
+            if [[ -n "$WARNING_MSG_ID" && "$next_count" == "1" ]]; then
+                log_uplanet "Sending automatic BRO response for visitor: $pubkey"
+                
+                # Generate intelligent BRO response using AstroBot personas
+                if [[ -n "$visitor_content" ]]; then
+                    # Use AstroBot persona selector for personalized response
+                    BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
+                      "$pubkey" \
+                      "$visitor_content" \
+                      2>/dev/null | tail -n 1)
+                else
+                    # Fallback for empty content
+                    BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
+                      "$pubkey" \
+                      "Hello" \
+                      2>/dev/null | tail -n 1)
+                fi
+                
+                # Fallback if AI response fails
+                if [[ -z "$BRO_RESPONSE_CONTENT" || "$BRO_RESPONSE_CONTENT" == *"ERROR"* ]]; then
+                    BRO_RESPONSE_CONTENT="Hello visitor! I'm AstroBot, UPlanet AI assistant. I noticed you're new here. Would you like to learn more about our community? Feel free to ask me anything about #UPlanet, #CopyLaRadio, or how to get started!"
+                fi
+                
+                # Send BRO response as CAPTAIN
+                BRO_MSG_OUTPUT=$(nostpy-cli send_event \
+                  -privkey "$NPRIV_HEX" \
+                  -kind 1 \
+                  -content "$BRO_RESPONSE_CONTENT" \
+                  -tags "[['e', '$WARNING_MSG_ID'], ['p', '$pubkey'], ['t', 'BRO'], ['t', 'VisitorWelcome']]" \
+                  --relay "$myRELAY" 2>&1)
+                
+                BRO_MSG_ID=$(echo "$BRO_MSG_OUTPUT" | grep -oE "'id': '[a-f0-9]{64}'" | cut -d"'" -f4 | head -n 1)
+                log_uplanet "BRO response sent (ID: $BRO_MSG_ID) for visitor: $pubkey"
+                log_uplanet "$BRO_MSG_OUTPUT"
+            fi
         fi
         ) &
     else
@@ -376,7 +414,7 @@ if [[ "$check" != "nobody" ]]; then
     fi
 else
     # Visitor NOSTR message reply
-    handle_visitor_message "$pubkey" "$event_id"
+    handle_visitor_message "$pubkey" "$event_id" "$content"
     exit 0
 fi
 
