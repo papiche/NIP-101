@@ -11,6 +11,8 @@ import sys
 import subprocess
 import requests
 import re
+import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 class AstroBotVisitorResponder:
@@ -19,6 +21,9 @@ class AstroBotVisitorResponder:
         self.astrobot_path = os.path.join(self.base_path, "workspace", "OC2UPlanet", "AstroBot")
         self.workspace_path = os.path.join(self.astrobot_path, "workspace")
         self.banks_config_file = os.path.join(self.workspace_path, "memory_banks_config.json")
+        
+        # Configuration du logging
+        self._setup_logging()
         
         # Relais NOSTR publics pour récupérer les profils
         self.nostr_relays = [
@@ -30,17 +35,39 @@ class AstroBotVisitorResponder:
         
         # Charger la configuration des personas
         self.banks_config = self._load_banks_config()
+        self.logger.info("AstroBotVisitorResponder initialized")
+    
+    def _setup_logging(self):
+        """Configure le système de logging"""
+        # Créer le répertoire tmp s'il n'existe pas
+        tmp_dir = os.path.join(self.base_path, "tmp")
+        os.makedirs(tmp_dir, exist_ok=True)
+        
+        # Configuration du logger
+        log_file = os.path.join(tmp_dir, "IA.log")
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file, encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        self.logger = logging.getLogger('AstroBotVisitorResponder')
         
     def _load_banks_config(self) -> Dict:
         """Charge la configuration des personas d'AstroBot"""
         if os.path.exists(self.banks_config_file):
             try:
                 with open(self.banks_config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    config = json.load(f)
+                    self.logger.info(f"Configuration loaded from {self.banks_config_file}")
+                    return config
             except Exception as e:
-                print(f"Erreur lors du chargement de la config: {e}", file=sys.stderr)
+                self.logger.error(f"Error loading config from {self.banks_config_file}: {e}")
         
         # Configuration par défaut si le fichier n'existe pas
+        self.logger.info("Using default configuration")
         return {
             "banks": {
                 "0": {
@@ -84,6 +111,7 @@ class AstroBotVisitorResponder:
     
     def get_nostr_profile(self, pubkey: str) -> Optional[Dict]:
         """Récupère le profil NOSTR d'un utilisateur depuis les relais publics"""
+        self.logger.info(f"Fetching NOSTR profile for pubkey: {pubkey[:10]}...")
         try:
             profile_data = {}
             
@@ -93,9 +121,10 @@ class AstroBotVisitorResponder:
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     profile_data = json.loads(result.stdout)
+                    self.logger.info("Profile retrieved using nostr-tools")
                     return profile_data
-            except:
-                pass
+            except Exception as e:
+                self.logger.debug(f"nostr-tools failed: {e}")
             
             # Fallback: essayer avec curl et une API NOSTR
             try:
@@ -104,26 +133,30 @@ class AstroBotVisitorResponder:
                 if response.status_code == 200:
                     data = response.json()
                     if 'profile' in data:
+                        self.logger.info("Profile retrieved using nostr.band API")
                         return data['profile']
-            except:
-                pass
+            except Exception as e:
+                self.logger.debug(f"nostr.band API failed: {e}")
             
             # Fallback: essayer avec une autre API
             try:
                 api_url = f"https://api.snort.social/v1/profile/{pubkey}"
                 response = requests.get(api_url, timeout=10)
                 if response.status_code == 200:
+                    self.logger.info("Profile retrieved using snort.social API")
                     return response.json()
-            except:
-                pass
+            except Exception as e:
+                self.logger.debug(f"snort.social API failed: {e}")
             
+            self.logger.warning("No profile data retrieved from any source")
             return profile_data
         except Exception as e:
-            print(f"Erreur lors de la récupération du profil: {e}", file=sys.stderr)
+            self.logger.error(f"Error retrieving profile: {e}")
             return None
     
     def extract_themes_from_profile(self, profile: Dict, message: str) -> List[str]:
         """Extrait les thèmes pertinents du profil et du message"""
+        self.logger.info("Extracting themes from profile and message")
         themes = set()
         
         # Extraire les thèmes du profil
@@ -165,13 +198,19 @@ class AstroBotVisitorResponder:
         if any(word in message_lower for word in ['bonjour', 'salut', 'hello', 'hi']):
             themes.add('accueil')  # Thème d'accueil pour les messages simples
         
-        return list(themes)
+        themes_list = list(themes)
+        self.logger.info(f"Extracted themes: {themes_list}")
+        return themes_list
     
     def select_best_persona(self, themes: List[str]) -> Tuple[str, Dict]:
         """Sélectionne le meilleur persona basé sur les thèmes"""
+        self.logger.info(f"Selecting best persona for themes: {themes}")
+        
         if not themes or themes == ['accueil']:
             # Par défaut, utiliser le persona Holistique qui est le plus accueillant
-            return "3", self.banks_config['banks']['3']
+            selected_persona = "3"
+            self.logger.info(f"Using default persona: {selected_persona} (Holistique)")
+            return selected_persona, self.banks_config['banks']['3']
         
         # Calculer le score de correspondance pour chaque persona
         bank_scores = {}
@@ -200,10 +239,16 @@ class AstroBotVisitorResponder:
         
         if not bank_scores:
             # Aucune correspondance, utiliser le persona Holistique
-            return "3", self.banks_config['banks']['3']
+            selected_persona = "3"
+            self.logger.info(f"No matching personas found, using default: {selected_persona} (Holistique)")
+            return selected_persona, self.banks_config['banks']['3']
         
         # Sélectionner le persona avec le meilleur score
         best_slot = max(bank_scores.keys(), key=lambda x: bank_scores[x]['score'])
+        best_score = bank_scores[best_slot]['score']
+        matching_themes = bank_scores[best_slot]['matching_themes']
+        
+        self.logger.info(f"Selected persona {best_slot} with score {best_score:.2f}, matching themes: {matching_themes}")
         return best_slot, bank_scores[best_slot]['bank']
     
     def generate_persona_prompt(self, persona: Dict, visitor_message: str, visitor_themes: List[str]) -> str:
@@ -212,6 +257,8 @@ class AstroBotVisitorResponder:
         persona_description = persona.get('description', '')
         tone = persona.get('corpus', {}).get('tone', 'amical et professionnel')
         vocabulary = persona.get('corpus', {}).get('vocabulary', [])
+        
+        self.logger.info(f"Generating prompt for persona: {persona_name}")
         
         # Créer le prompt
         prompt = f"""Tu es {persona_name}, un assistant IA d'Astroport Captain.
@@ -235,14 +282,18 @@ Génère une réponse accueillante et personnalisée qui:
 
 Réponse:"""
         
+        self.logger.debug(f"Generated prompt length: {len(prompt)} characters")
         return prompt
     
     def generate_response(self, pubkey: str, visitor_message: str) -> str:
         """Génère une réponse personnalisée pour le visiteur"""
+        self.logger.info(f"Generating response for pubkey: {pubkey[:10]}..., message: {visitor_message[:50]}...")
+        
         try:
             # S'assurer qu'Ollama est actif
             ollama_script = os.path.join(self.base_path, "Astroport.ONE", "IA", "ollama.me.sh")
             if os.path.exists(ollama_script):
+                self.logger.info("Starting Ollama service")
                 subprocess.run([ollama_script], capture_output=True, timeout=10)
             
             # Récupérer le profil NOSTR
@@ -260,6 +311,7 @@ Réponse:"""
             # Utiliser question.py pour générer la réponse
             question_script = os.path.join(self.base_path, "Astroport.ONE", "IA", "question.py")
             if os.path.exists(question_script):
+                self.logger.info("Using question.py to generate AI response")
                 cmd = [
                     sys.executable, question_script,
                     prompt,
@@ -273,17 +325,26 @@ Réponse:"""
                     lines = response.split('\n')
                     for line in reversed(lines):
                         if line.strip() and not line.startswith('DEBUG') and not line.startswith('INFO') and not line.startswith('Failed'):
+                            self.logger.info("AI response generated successfully")
                             return line.strip()
+                else:
+                    self.logger.warning(f"question.py failed with return code {result.returncode}")
+                    if result.stderr:
+                        self.logger.error(f"question.py stderr: {result.stderr}")
+            else:
+                self.logger.warning(f"question.py script not found at {question_script}")
             
             # Fallback si question.py échoue
+            self.logger.info("Using fallback response generation")
             return self._generate_fallback_response(selected_persona, visitor_message)
             
         except Exception as e:
-            print(f"Erreur lors de la génération de la réponse: {e}", file=sys.stderr)
+            self.logger.error(f"Error generating response: {e}")
             return self._generate_fallback_response(self.banks_config['banks']['3'], visitor_message)
     
     def _generate_fallback_response(self, persona: Dict, visitor_message: str) -> str:
         """Génère une réponse de fallback si l'IA échoue"""
+        self.logger.info("Generating fallback response")
         persona_name = persona.get('name', 'AstroBot')
         tone = persona.get('corpus', {}).get('tone', 'amical et professionnel')
         
@@ -305,6 +366,9 @@ def main():
     
     pubkey = sys.argv[1]
     message = sys.argv[2]
+    
+    # Log the start of the process
+    print(f"Starting AstroBot visitor response generation for pubkey: {pubkey[:10]}...")
     
     responder = AstroBotVisitorResponder()
     response = responder.generate_response(pubkey, message)
