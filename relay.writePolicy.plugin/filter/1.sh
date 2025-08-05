@@ -20,9 +20,6 @@ longitude="$longitude"
 # Initialize full_content with content if not already set
 [[ -z "$full_content" ]] && full_content="$content"
 
-# Source my.sh once at the beginning to get all necessary variables
-source $HOME/.zen/Astroport.ONE/tools/my.sh 2>/dev/null
-
 ############################################################
 # Variables pour la gestion du message "Hello NOSTR visitor"
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
@@ -40,7 +37,7 @@ WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
 # Logging functions using common utilities
 log_uplanet() {
-    log_with_timestamp "$HOME/.zen/tmp/uplanet_messages.log" "$1"
+    log_with_timestamp "$HOME/.zen/tmp/nostr_kind1_messages.log" "$1"
 }
 
 log_ia() {
@@ -48,7 +45,7 @@ log_ia() {
 }
 
 # Ensure log directories exist
-ensure_log_dir "$HOME/.zen/tmp/uplanet_messages.log"
+ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
 ensure_log_dir "$HOME/.zen/tmp/IA.log"
 
 # Optimized function to get key directory with GPS handling
@@ -60,6 +57,7 @@ get_key_directory_with_gps() {
     if [[ -n "$email" ]]; then
         # Load GPS data from the specific directory
         local key_dir="$KEY_DIR/$email"
+        LAT=""; LON=""; ## reset old global values
         source "$key_dir/GPS" 2>/dev/null ## get NOSTR Card default LAT / LON
         [[ "$latitude" == "" ]] && latitude="$LAT"
         [[ "$longitude" == "" ]] && longitude="$LON"
@@ -166,7 +164,7 @@ cleanup_warning_messages() {
             log_uplanet "Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string"
 
             cd "$HOME/.zen/strfry"
-            ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/uplanet_messages.log" 2>&1
+            ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/nostr_kind1_messages.log" 2>&1
             cd - >/dev/null
         else
             log_uplanet "No old 'Hello NOSTR visitor' messages from Captain found to delete."
