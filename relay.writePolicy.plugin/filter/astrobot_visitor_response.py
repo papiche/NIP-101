@@ -49,8 +49,7 @@ class AstroBotVisitorResponder:
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file, encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)
+                logging.FileHandler(log_file, encoding='utf-8')
             ]
         )
         self.logger = logging.getLogger('AstroBotVisitorResponder')
@@ -321,12 +320,9 @@ Réponse:"""
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 if result.returncode == 0:
                     response = result.stdout.strip()
-                    # Extraire la dernière ligne qui contient la réponse
-                    lines = response.split('\n')
-                    for line in reversed(lines):
-                        if line.strip() and not line.startswith('DEBUG') and not line.startswith('INFO') and not line.startswith('Failed'):
-                            self.logger.info("AI response generated successfully")
-                            return line.strip()
+                    if response:
+                        self.logger.info("AI response generated successfully")
+                        return response
                 else:
                     self.logger.warning(f"question.py failed with return code {result.returncode}")
                     if result.stderr:
@@ -367,12 +363,10 @@ def main():
     pubkey = sys.argv[1]
     message = sys.argv[2]
     
-    # Log the start of the process
-    print(f"Starting AstroBot visitor response generation for pubkey: {pubkey[:10]}...")
-    
     responder = AstroBotVisitorResponder()
     response = responder.generate_response(pubkey, message)
     
+    # Output only the response to stdout (no debug messages)
     print(response)
 
 if __name__ == "__main__":

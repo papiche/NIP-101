@@ -37,7 +37,7 @@ WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
 # Logging functions using common utilities
 log_uplanet() {
-    log_with_timestamp "$HOME/.zen/tmp/uplanet_messages.log" "$1"
+    log_with_timestamp "$HOME/.zen/tmp/nostr_kind1_messages.log" "$1"
 }
 
 log_ia() {
@@ -45,7 +45,7 @@ log_ia() {
 }
 
 # Ensure log directories exist
-ensure_log_dir "$HOME/.zen/tmp/uplanet_messages.log"
+ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
 ensure_log_dir "$HOME/.zen/tmp/IA.log"
 
 # Optimized function to get key directory with GPS handling
@@ -270,13 +270,13 @@ Your devoted Astroport Captain.
                     BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
                       "$pubkey" \
                       "$visitor_content" \
-                      2>/dev/null | tail -n 1)
+                      2>/dev/null)
                 else
                     # Fallback for empty content
                     BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
                       "$pubkey" \
                       "Hello" \
-                      2>/dev/null | tail -n 1)
+                      2>/dev/null)
                 fi
                 
                 # Fallback if AI response fails
