@@ -31,6 +31,9 @@ KEY_DIR="$HOME/.zen/game/nostr"
 # Fichier contenant la blacklist
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 
+# Fichier contenant les amis des amis
+AMIS_OF_AMIS_FILE="$HOME/.zen/strfry/amisOfAmis.txt"
+
 # Fonction pour vérifier si une pubkey a un compte MULTIPASS et la retirer de la blacklist
 check_multipass_and_remove_from_blacklist() {
     local pubkey="$1"
@@ -56,12 +59,40 @@ check_multipass_and_remove_from_blacklist() {
     return 1 # Pubkey not found in MULTIPASS accounts
 }
 
+# Fonction pour vérifier si une pubkey est dans amisOfAmis et la retirer de la blacklist
+check_amis_of_amis_and_remove_from_blacklist() {
+    local pubkey="$1"
+    
+    # Vérifier d'abord si la pubkey est réellement dans la blacklist
+    if [[ ! -f "$BLACKLIST_FILE" ]] || ! grep -q "^$pubkey$" "$BLACKLIST_FILE"; then
+        return 1 # Pubkey not in blacklist, nothing to remove
+    fi
+    
+    # Vérifier si la pubkey existe dans le fichier amisOfAmis.txt
+    if [[ -f "$AMIS_OF_AMIS_FILE" ]] && grep -q "^$pubkey$" "$AMIS_OF_AMIS_FILE"; then
+        log_message "Found pubkey $pubkey in amisOfAmis.txt, removing from blacklist"
+        
+        # Créer un fichier temporaire sans la pubkey
+        local temp_file=$(mktemp)
+        grep -v "^$pubkey$" "$BLACKLIST_FILE" > "$temp_file"
+        mv "$temp_file" "$BLACKLIST_FILE"
+        log_message "Removed pubkey $pubkey from blacklist due to amisOfAmis.txt"
+        
+        return 0 # Pubkey removed from blacklist
+    fi
+    
+    return 1 # Pubkey not found in amisOfAmis.txt
+}
+
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
     local pubkey="$1"
     
     # Vérifier d'abord si la pubkey a un compte MULTIPASS
     check_multipass_and_remove_from_blacklist "$pubkey"
+    
+    # Vérifier ensuite si la pubkey est dans amisOfAmis.txt
+    check_amis_of_amis_and_remove_from_blacklist "$pubkey"
     
     # Vérifier si le fichier blacklist existe
     if [[ ! -f "$BLACKLIST_FILE" ]]; then
