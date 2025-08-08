@@ -289,7 +289,7 @@ Your devoted Astroport Captain.
                   -privkey "$NPRIV_HEX" \
                   -kind 1 \
                   -content "$BRO_RESPONSE_CONTENT" \
-                  -tags "[['e', '$WARNING_MSG_ID'], ['p', '$pubkey'], ['t', 'BRO'], ['t', 'VisitorWelcome']]" \
+                  -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'BRO'], ['t', 'VisitorWelcome']]" \
                   --relay "$myRELAY" 2>&1)
                 
                 BRO_MSG_ID=$(echo "$BRO_MSG_OUTPUT" | grep -oE "'id': '[a-f0-9]{64}'" | cut -d"'" -f4 | head -n 1)
