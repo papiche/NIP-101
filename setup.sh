@@ -8,6 +8,77 @@
 
 source ~/.zen/Astroport.ONE/tools/my.sh
 
+# Parse command line arguments
+DRYRUN=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --DRYRUN)
+            DRYRUN=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--DRYRUN]"
+            exit 1
+            ;;
+    esac
+done
+
+# Function to collect relay peers from Astroport constellation
+collect_relay_peers() {
+    local peers=()
+    local swarm_dir="$HOME/.zen/tmp/swarm"
+    
+    if [[ ! -d "$swarm_dir" ]]; then
+        echo "Warning: Swarm directory not found: $swarm_dir" >&2
+        return 1
+    fi
+    
+    echo "Scanning Astroport constellation for relay peers..." >&2
+    
+    # Find all 12345.json files in swarm directory
+    while IFS= read -r -d '' file; do
+        if [[ -f "$file" ]]; then
+            # Extract myRELAY value from JSON
+            local relay_url=$(grep -o '"myRELAY"[[:space:]]*:[[:space:]]*"[^"]*"' "$file" | cut -d'"' -f4)
+            
+            if [[ -n "$relay_url" && "$relay_url" != "ws://127.0.0.1:7777" ]]; then
+                # Convert localhost URLs to actual IP addresses for external access
+                if [[ "$relay_url" =~ ws://127\.0\.0\.1:7777 ]]; then
+                    # Get the IP from the same file
+                    local ip=$(grep -o '"myIP"[[:space:]]*:[[:space:]]*"[^"]*"' "$file" | cut -d'"' -f4)
+                    if [[ -n "$ip" && "$ip" != "127.0.0.1" ]]; then
+                        relay_url="ws://${ip}:7777"
+                    fi
+                fi
+                
+                # Add to peers list if not already present
+                if [[ ! " ${peers[@]} " =~ " ${relay_url} " ]]; then
+                    peers+=("$relay_url")
+                    echo "  Found peer: $relay_url" >&2
+                fi
+            fi
+        fi
+    done < <(find "$swarm_dir" -name "12345.json" -print0)
+    
+    # Return peers as space-separated string (to stdout)
+    printf '%s' "${peers[*]}"
+}
+
+# Collect relay peers from constellation
+RELAY_PEERS=$(collect_relay_peers)
+if [[ -n "$RELAY_PEERS" ]]; then
+    echo "Relay peers found: $RELAY_PEERS"
+else
+    echo "No relay peers found in constellation"
+fi
+
+if [[ "$DRYRUN" == "true" ]]; then
+    echo "DRY RUN MODE - Configuration files will not be created"
+    echo "Relay peers that would be configured: $RELAY_PEERS"
+    exit 0
+fi
+
 cat <<EOF > ~/.zen/strfry/strfry.conf
 ##
 ## Default strfry config
@@ -157,3 +228,55 @@ relay {
     }
 }
 EOF
+
+# Create router configuration for inter-relay synchronization if peers are found
+if [[ -n "$RELAY_PEERS" ]]; then
+    echo "Creating strfry router configuration for constellation synchronization..."
+    
+    # Convert space-separated peers to array format for config
+    peers_array=($RELAY_PEERS)
+    urls_config=""
+    for peer in "${peers_array[@]}"; do
+        if [[ -n "$urls_config" ]]; then
+            urls_config="${urls_config}\n                \"$peer\""
+        else
+            urls_config="                \"$peer\""
+        fi
+    done
+    
+    cat <<EOF > ~/.zen/strfry/strfry-router.conf
+# Astroport constellation inter-relay synchronization configuration
+# This file configures strfry router for bidirectional event streaming with constellation peers
+
+connectionTimeout = 30
+
+streams {
+    # Bi-directional streaming within Astroport constellation
+    constellation {
+        dir = "both"
+        
+        # Filter to focus on UPlanet-related events and avoid spam
+        filter = { 
+            "kinds": [0, 1, 3, 22242],  # Profiles, text notes, contacts, auth events
+            "limit": 1000
+        }
+        
+        urls = [
+$urls_config
+        ]
+    }
+}
+EOF
+
+    echo "Router configuration created: ~/.zen/strfry/strfry-router.conf"
+    echo "To start constellation synchronization, run: strfry router ~/.zen/strfry/strfry-router.conf"
+else
+    echo "No constellation peers found - router configuration not created"
+fi
+
+echo "Strfry configuration completed successfully!"
+echo "Main config: ~/.zen/strfry/strfry.conf"
+if [[ -n "$RELAY_PEERS" ]]; then
+    echo "Router config: ~/.zen/strfry/strfry-router.conf"
+    echo "Constellation peers: $RELAY_PEERS"
+fi
