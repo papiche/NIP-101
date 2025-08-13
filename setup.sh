@@ -8,6 +8,19 @@
 
 source ~/.zen/Astroport.ONE/tools/my.sh
 
+# Import only the discover_constellation_peers function from backfill_constellation.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/backfill_constellation.sh" ]]; then
+    # Extract only the discover_constellation_peers function
+    DISCOVER_FUNCTION=$(sed -n '/^# Function to discover constellation peers from IPNS swarm$/,/^}$/p' "$SCRIPT_DIR/backfill_constellation.sh")
+    
+    # Define the function in this script
+    eval "$DISCOVER_FUNCTION"
+else
+    echo "Error: backfill_constellation.sh not found in $SCRIPT_DIR"
+    exit 1
+fi
+
 # Parse command line arguments
 DRYRUN=false
 while [[ $# -gt 0 ]]; do
@@ -24,42 +37,45 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Function to collect relay peers from Astroport constellation
+# Function to collect relay peers from Astroport constellation using backfill functions
 collect_relay_peers() {
-    local peers=()
-    local swarm_dir="$HOME/.zen/tmp/swarm"
+    echo "Scanning Astroport constellation for relay peers..." >&2
     
-    if [[ ! -d "$swarm_dir" ]]; then
-        echo "Warning: Swarm directory not found: $swarm_dir" >&2
+    # Use the robust discover_constellation_peers function from backfill_constellation.sh
+    local discovered_peers=$(discover_constellation_peers 2>/dev/null)
+    
+    if [[ -z "$discovered_peers" ]]; then
+        echo "Warning: No constellation peers discovered" >&2
         return 1
     fi
     
-    echo "Scanning Astroport constellation for relay peers..." >&2
-    
-    # Find all 12345.json files in swarm directory
-    while IFS= read -r -d '' file; do
-        if [[ -f "$file" ]]; then
-            # Extract myRELAY value from JSON
-            local relay_url=$(grep -o '"myRELAY"[[:space:]]*:[[:space:]]*"[^"]*"' "$file" | cut -d'"' -f4)
+    # Convert the discovered peers format to simple URLs for setup
+    local peers=()
+    while IFS= read -r peer; do
+        if [[ "$peer" =~ ^routable:(.+)$ ]]; then
+            # Routable relay - extract the URL
+            local url="${BASH_REMATCH[1]}"
+            peers+=("$url")
+            echo "  Found routable peer: $url" >&2
+        elif [[ "$peer" =~ ^localhost:([^:]+):(.+)$ ]]; then
+            # Localhost relay with P2P tunnel - convert to external IP if available
+            local ipfsnodeid="${BASH_REMATCH[1]}"
+            local x_strfry_script="${BASH_REMATCH[2]}"
             
-            if [[ -n "$relay_url" && "$relay_url" != "ws://127.0.0.1:7777" ]]; then
-                # Convert localhost URLs to actual IP addresses for external access
-                if [[ "$relay_url" =~ ws://127\.0\.0\.1:7777 ]]; then
-                    # Get the IP from the same file
-                    local ip=$(grep -o '"myIP"[[:space:]]*:[[:space:]]*"[^"]*"' "$file" | cut -d'"' -f4)
-                    if [[ -n "$ip" && "$ip" != "127.0.0.1" ]]; then
-                        relay_url="ws://${ip}:7777"
-                    fi
-                fi
-                
-                # Add to peers list if not already present
-                if [[ ! " ${peers[@]} " =~ " ${relay_url} " ]]; then
-                    peers+=("$relay_url")
-                    echo "  Found peer: $relay_url" >&2
+            # Try to get external IP from the 12345.json file
+            local json_file="$HOME/.zen/tmp/swarm/$ipfsnodeid/12345.json"
+            if [[ -f "$json_file" ]]; then
+                local external_ip=$(jq -r '.myIP // empty' "$json_file" 2>/dev/null)
+                if [[ -n "$external_ip" && "$external_ip" != "127.0.0.1" ]]; then
+                    local url="ws://${external_ip}:7777"
+                    peers+=("$url")
+                    echo "  Found localhost peer with external IP: $url" >&2
+                else
+                    echo "  Found localhost peer (no external IP): $ipfsnodeid" >&2
                 fi
             fi
         fi
-    done < <(find "$swarm_dir" -name "12345.json" -print0)
+    done <<< "$discovered_peers"
     
     # Return peers as space-separated string (to stdout)
     printf '%s' "${peers[*]}"
@@ -229,54 +245,21 @@ relay {
 }
 EOF
 
-# Create router configuration for inter-relay synchronization if peers are found
+# Display constellation peers information for backfill
 if [[ -n "$RELAY_PEERS" ]]; then
-    echo "Creating strfry router configuration for constellation synchronization..."
-    
-    # Convert space-separated peers to array format for config
-    peers_array=($RELAY_PEERS)
-    urls_config=""
-    for peer in "${peers_array[@]}"; do
-        if [[ -n "$urls_config" ]]; then
-            urls_config="${urls_config}\n                \"$peer\""
-        else
-            urls_config="                \"$peer\""
-        fi
-    done
-    
-    cat <<EOF > ~/.zen/strfry/strfry-router.conf
-# Astroport constellation inter-relay synchronization configuration
-# This file configures strfry router for bidirectional event streaming with constellation peers
-
-connectionTimeout = 30
-
-streams {
-    # Bi-directional streaming within Astroport constellation
-    constellation {
-        dir = "both"
-        
-        # Filter to focus on UPlanet-related events and avoid spam
-        filter = { 
-            "kinds": [0, 1, 3, 22242],  # Profiles, text notes, contacts, auth events
-            "limit": 1000
-        }
-        
-        urls = [
-$urls_config
-        ]
-    }
-}
-EOF
-
-    echo "Router configuration created: ~/.zen/strfry/strfry-router.conf"
-    echo "To start constellation synchronization, run: strfry router ~/.zen/strfry/strfry-router.conf"
+    echo "Constellation peers discovered for backfill:"
+    echo "$RELAY_PEERS" | tr ' ' '\n' | sed 's/^/  - /'
+    echo ""
+    echo "These peers will be used by backfill_constellation.sh for historical event retrieval"
+    echo "The backfill system runs automatically after 12:00 via _12345.sh"
 else
-    echo "No constellation peers found - router configuration not created"
+    echo "No constellation peers found - backfill will not be possible"
 fi
 
 echo "Strfry configuration completed successfully!"
 echo "Main config: ~/.zen/strfry/strfry.conf"
 if [[ -n "$RELAY_PEERS" ]]; then
-    echo "Router config: ~/.zen/strfry/strfry-router.conf"
     echo "Constellation peers: $RELAY_PEERS"
 fi
+echo ""
+echo "The constellation backfill system is now configured and will run automatically via _12345.sh"

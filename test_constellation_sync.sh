@@ -36,81 +36,80 @@ else
     exit 1
 fi
 
-# Check router configuration
-ROUTER_CONFIG="$HOME/.zen/strfry/strfry-router.conf"
-if [[ -f "$ROUTER_CONFIG" ]]; then
-    echo "✅ Router configuration found: $ROUTER_CONFIG"
+# Check backfill script
+BACKFILL_SCRIPT="$HOME/.zen/workspace/NIP-101/backfill_constellation.sh"
+if [[ -f "$BACKFILL_SCRIPT" ]]; then
+    echo "✅ Backfill script found: $BACKFILL_SCRIPT"
     
-    # Check constellation peers
-    PEERS=$(grep -o '"[^"]*"' "$ROUTER_CONFIG" | grep -v "constellation" | grep -v "both" | grep -v "0, 1, 3, 22242" | grep -v "1000")
-    if [[ -n "$PEERS" ]]; then
-        echo "   ✅ Constellation peers configured:"
-        echo "$PEERS" | sed 's/^/      /'
+    if [[ -x "$BACKFILL_SCRIPT" ]]; then
+        echo "   ✅ Backfill script is executable"
     else
-        echo "   ⚠️  No constellation peers found"
-    fi
-    
-    # Check direction
-    if grep -q "dir = \"both\"" "$ROUTER_CONFIG"; then
-        echo "   ✅ Bidirectional synchronization enabled"
-    else
-        echo "   ⚠️  Bidirectional synchronization not configured"
+        echo "   ⚠️  Backfill script is not executable"
     fi
 else
-    echo "❌ Router configuration not found: $ROUTER_CONFIG"
-    echo "   Run setup.sh to create the configuration"
+    echo "❌ Backfill script not found: $BACKFILL_SCRIPT"
     exit 1
 fi
 
-# Check if constellation sync is running
-PID_FILE="$HOME/.zen/strfry/constellation-sync.pid"
-if [[ -f "$PID_FILE" ]]; then
-    PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "✅ Constellation synchronization is running (PID: $PID)"
-        
-        # Check process details
-        PROCESS_INFO=$(ps -p "$PID" -o pid,ppid,cmd --no-headers 2>/dev/null)
-        if [[ -n "$PROCESS_INFO" ]]; then
-            echo "   Process info: $PROCESS_INFO"
-        fi
+# Check if constellation trigger is configured
+TRIGGER_SCRIPT="$HOME/.zen/workspace/NIP-101/constellation_sync_trigger.sh"
+if [[ -f "$TRIGGER_SCRIPT" ]]; then
+    echo "✅ Constellation trigger script found: $TRIGGER_SCRIPT"
+    
+    if [[ -x "$TRIGGER_SCRIPT" ]]; then
+        echo "   ✅ Trigger script is executable"
     else
-        echo "⚠️  PID file exists but process is not running"
-        echo "   Consider removing stale PID file: $PID_FILE"
+        echo "   ⚠️  Trigger script is not executable"
     fi
 else
-    echo "ℹ️  Constellation synchronization is not running"
-    echo "   To start: ./start_constellation_sync.sh"
+    echo "ℹ️  Constellation trigger script not found: $TRIGGER_SCRIPT"
 fi
 
-# Check logs
-LOG_FILE="$HOME/.zen/strfry/constellation-sync.log"
-if [[ -f "$LOG_FILE" ]]; then
-    echo "✅ Log file exists: $LOG_FILE"
-    LOG_SIZE=$(du -h "$LOG_FILE" | cut -f1)
+# Check backfill logs
+BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
+if [[ -f "$BACKFILL_LOG" ]]; then
+    echo "✅ Backfill log file exists: $BACKFILL_LOG"
+    LOG_SIZE=$(du -h "$BACKFILL_LOG" | cut -f1)
     echo "   Log size: $LOG_SIZE"
     
     # Show last few log lines
     echo "   Last log entries:"
-    tail -5 "$LOG_FILE" | sed 's/^/      /'
+    tail -5 "$BACKFILL_LOG" | sed 's/^/      /'
 else
-    echo "ℹ️  No log file yet (will be created when sync starts)"
+    echo "ℹ️  No backfill log file yet (will be created when backfill runs)"
+fi
+
+# Check trigger logs
+TRIGGER_LOG="$HOME/.zen/strfry/constellation-trigger.log"
+if [[ -f "$TRIGGER_LOG" ]]; then
+    echo "✅ Trigger log file exists: $TRIGGER_LOG"
+    LOG_SIZE=$(du -h "$TRIGGER_LOG" | cut -f1)
+    echo "   Log size: $LOG_SIZE"
+    
+    # Show last few log lines
+    echo "   Last log entries:"
+    tail -5 "$TRIGGER_LOG" | sed 's/^/      /'
+else
+    echo "ℹ️  No trigger log file yet (will be created when trigger runs)"
 fi
 
 echo ""
 echo "🔧 Configuration Summary:"
 echo "========================="
 echo "Main config: $MAIN_CONFIG"
-echo "Router config: $ROUTER_CONFIG"
-echo "Start script: ./start_constellation_sync.sh"
-echo "Stop script: ./stop_constellation_sync.sh"
+echo "Backfill script: $BACKFILL_SCRIPT"
+echo "Trigger script: $TRIGGER_SCRIPT"
 echo "Test script: ./test_constellation_sync.sh"
 
-if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+# Check last sync status
+LAST_SYNC_FILE="$HOME/.zen/strfry/last_constellation_sync"
+if [[ -f "$LAST_SYNC_FILE" ]]; then
+    LAST_SYNC=$(cat "$LAST_SYNC_FILE")
     echo ""
-    echo "🚀 Constellation synchronization is ACTIVE and running!"
+    echo "📅 Last constellation backfill: $LAST_SYNC"
+    echo "🚀 Constellation backfill system is CONFIGURED and ready!"
 else
     echo ""
-    echo "⏸️  Constellation synchronization is INACTIVE"
-    echo "   Run ./start_constellation_sync.sh to start synchronization"
+    echo "⏸️  No constellation backfill has been executed yet"
+    echo "   The system will run automatically after 12:00 via _12345.sh"
 fi

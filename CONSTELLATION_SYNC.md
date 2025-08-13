@@ -21,13 +21,13 @@
 
 ## 🎯 Vue d'ensemble
 
-Le **Système de Synchronisation de Constellation Astroport** est une solution avancée qui permet aux relays Nostr de la constellation de se synchroniser automatiquement, créant un réseau distribué où tous les messages sont répliqués entre tous les participants.
+Le **Système de Synchronisation de Constellation Astroport** est une solution avancée qui permet aux relays Nostr de la constellation de récupérer automatiquement les événements historiques depuis les autres relays, créant un réseau distribué où tous les messages sont accessibles sur tous les participants.
 
 ### 🌟 **NIP-101 : Plus qu'une synchronisation - Un écosystème complet**
 
 Le dépôt [NIP-101](https://github.com/papiche/NIP-101) fournit **l'infrastructure complète** pour un relay Nostr intelligent et sécurisé dans l'écosystème Astroport.ONE :
 
-1. **🔄 Synchronisation de constellation** : Réplication automatique des événements entre relays
+1. **🔄 Backfill de constellation** : Récupération automatique des événements historiques depuis les autres relays
 2. **🛡️ Politique de filtrage avancée** : Gestion intelligente des événements entrants
 3. **🤖 Intégration IA** : Réponses automatiques et gestion de la mémoire conversationnelle
 4. **💰 Économie Zen** : Système de micro-paiements basé sur les réactions
@@ -53,11 +53,11 @@ Ce système est **spécifiquement conçu** pour l'écosystème Astroport.ONE et 
 
 ### 🌟 Avantages clés
 
-- **🔄 Synchronisation bidirectionnelle** automatique entre tous les relays
-- **🎯 Filtrage intelligent** des événements UPlanet pertinents
+- **🔄 Backfill automatique** des événements historiques depuis tous les relays
+- **🎯 Filtrage intelligent** des événements UPlanet pertinents (exclusion des messages IA)
 - **🌐 Découverte automatique** des pairs via IPNS
-- **📊 Monitoring en temps réel** avec statistiques détaillées
-- **🚀 Performance optimisée** avec gestion intelligente des connexions
+- **📊 Monitoring détaillé** avec statistiques et logs complets
+- **🚀 Performance optimisée** avec connexions WebSocket et tunnels P2P
 - **🔒 Sécurité intégrée** avec authentification et filtrage
 
 ## 🏗️ Architecture
@@ -65,17 +65,23 @@ Ce système est **spécifiquement conçu** pour l'écosystème Astroport.ONE et 
 ```mermaid
 graph TB
     subgraph "🌍 Constellation Astroport"
-        A[Relay A<br/>strfry + router]
-        B[Relay B<br/>strfry + router]
-        C[Relay C<br/>strfry + router]
-        D[Relay D<br/>strfry + router]
+        A[Relay A<br/>strfry + backfill]
+        B[Relay B<br/>strfry + backfill]
+        C[Relay C<br/>strfry + backfill]
+        D[Relay D<br/>strfry + backfill]
     end
     
-    subgraph "🔗 Synchronisation"
-        A <-->|bidirectionnel| B
-        B <-->|bidirectionnel| C
-        C <-->|bidirectionnel| D
-        A <-->|bidirectionnel| D
+    subgraph "🔗 Backfill WebSocket"
+        A -->|WebSocket REQ| B
+        B -->|WebSocket REQ| C
+        C -->|WebSocket REQ| D
+        A -->|WebSocket REQ| D
+    end
+    
+    subgraph "🌐 Tunnels P2P"
+        A -.->|P2P Tunnel| B
+        B -.->|P2P Tunnel| C
+        C -.->|P2P Tunnel| D
     end
     
     subgraph "📡 Découverte IPNS"
@@ -105,7 +111,7 @@ graph TB
 | Composant | Description | Fichier | Rôle dans Astroport.ONE |
 |-----------|-------------|---------|-------------------------|
 | **strfry relay** | Relay Nostr principal | `~/.zen/strfry/strfry.conf` | Service principal installé par `install_strfry.sh` |
-| **strfry router** | Synchronisation inter-relay | `~/.zen/strfry/strfry-router.conf` | Configuration générée par `setup.sh` |
+| **backfill_constellation.sh** | Récupération événements historiques | `~/.zen/workspace/NIP-101/backfill_constellation.sh` | Script principal de backfill via WebSocket |
 | **Peer Discovery** | Découverte automatique des pairs | `~/.zen/tmp/swarm/*/12345.json` | Scanné par `_12345.sh` pour découvrir le réseau |
 | **HEX Monitor** | Surveillance des membres constellation | `~/.zen/game/nostr/*/HEX` | Membres directs de la constellation |
 | **Network Extender** | Extension du réseau via amisOfAmis | `~/.zen/tmp/swarm/*/amisOfAmis.txt` | Réseau étendu découvert via le swarm |
@@ -126,10 +132,10 @@ graph TB
 
 ## ⚡ Fonctionnalités
 
-### 🔄 Synchronisation automatique
-- **Bidirectionnelle** : Événements synchronisés dans les deux sens
-- **En temps réel** : Mise à jour instantanée entre tous les relays
-- **Intelligente** : Filtrage automatique des types d'événements pertinents
+### 🔄 Backfill automatique
+- **Historique** : Récupération des événements des dernières 24h
+- **Quotidien** : Exécution automatique après 12h00 via `_12345.sh`
+- **Intelligent** : Filtrage automatique des types d'événements pertinents et exclusion des messages IA
 
 ### 🛡️ **Système de filtrage intelligent**
 - **Politique d'écriture** : `all_but_blacklist.sh` gère l'acceptation/rejet global
@@ -159,9 +165,9 @@ graph TB
 ### 🌐 Découverte de pairs
 - **Scan IPNS** : Découverte automatique via le swarm IPNS
 - **Détection locale** : Support des relays localhost avec tunnels P2P
-- **Mise à jour dynamique** : Configuration automatique des nouveaux pairs
-- **Gestion des visiteurs** : Système d'avertissement et limitation pour les nouveaux utilisateurs
-- **Blacklist dynamique** : Suppression automatique des clés MULTIPASS et amisOfAmis
+- **Mise à jour dynamique** : Découverte automatique des nouveaux pairs
+- **Filtrage des messages IA** : Exclusion automatique des messages "Hello NOSTR visitor."
+- **Support WebSocket** : Connexions directes et via tunnels P2P
 
 ### 📊 Monitoring avancé
 - **Statistiques en temps réel** : Nombre d'événements, taille de base
@@ -261,26 +267,16 @@ port = 7777
 db = "strfry-db"
 ```
 
-#### Configuration du router (`strfry-router.conf`)
+#### Configuration du relay principal (`strfry.conf`)
 ```toml
-# Configuration de synchronisation
-connectionTimeout = 30
+# Configuration du relay principal
+bind = "0.0.0.0"
+port = 7777
+db = "strfry-db"
 
-streams {
-    constellation {
-        dir = "both"  # Bidirectionnel
-        
-        filter = { 
-            "kinds": [0, 1, 3, 22242],
-            "limit": 10000
-        }
-        
-        urls = [
-            "wss://relay.copylaradio.com",
-            "ws://192.168.1.24:7777"
-        ]
-    }
-}
+# Politique d'écriture personnalisée
+writePolicy = "plugin"
+writePolicyPlugin = "all_but_blacklist.sh"
 ```
 
 ## 🔄 Intégration avec _12345.sh
@@ -347,24 +343,25 @@ tail -f ~/.zen/strfry/constellation-backfill.log
 
 #### **Mode manuel (pour tests ou maintenance)**
 ```bash
-# Démarrer la synchronisation manuellement
-./start_constellation_sync.sh
+# Exécuter le backfill manuellement
+./backfill_constellation.sh --days 1 --verbose
 
 # Vérifier le statut
-./test_constellation_sync.sh
+./backfill_constellation.sh --DRYRUN --verbose
 
 # Monitorer les logs
-tail -f ~/.zen/strfry/constellation-sync.log
+tail -f ~/.zen/strfry/constellation-backfill.log
 ```
 
-### ⏹️ Arrêter la synchronisation
+### ⏹️ Gestion du processus
 
 ```bash
-# Arrêter proprement
-./stop_constellation_sync.sh
+# Vérifier le statut du trigger
+ls -la ~/.zen/strfry/constellation-sync.lock
+cat ~/.zen/strfry/last_constellation_sync
 
-# Vérifier l'arrêt
-ps aux | grep "strfry router"
+# Vérifier les processus en cours
+ps aux | grep "backfill_constellation"
 ```
 
 ### 🔄 Backfill et synchronisation historique
@@ -383,12 +380,13 @@ ps aux | grep "strfry router"
 ./constellation_sync_trigger.sh
 ```
 
-### ⏰ Rythme de synchronisation
+### ⏰ Rythme de backfill
 
 - **Automatique** : Tous les jours après 12h00 via `_12345.sh`
 - **Période** : Depuis le midi de la veille (24h de messages)
 - **Déclenchement** : Intégré dans le cycle de vie du swarm IPFS
-- **Gestion** : Une seule synchronisation par jour pour éviter les doublons
+- **Gestion** : Une seule exécution par jour pour éviter les doublons
+- **Filtrage** : Exclusion automatique des messages "Hello NOSTR visitor."
 
 ### 📊 Statistiques et monitoring
 
@@ -502,16 +500,16 @@ Found 23 HEX pubkeys:
 
 ### ❌ Problèmes courants
 
-#### 1. Router ne démarre pas
+#### 1. Backfill ne fonctionne pas
 ```bash
 # Vérifier le binaire strfry
 ls -la ~/.zen/strfry/strfry
 
 # Vérifier la configuration
-./test_constellation_sync.sh
+./backfill_constellation.sh --DRYRUN --verbose
 
 # Vérifier les logs
-tail -f ~/.zen/strfry/constellation-sync.log
+tail -f ~/.zen/strfry/constellation-backfill.log
 ```
 
 #### 2. Aucun pair découvert
@@ -526,17 +524,16 @@ find ~/.zen/tmp/swarm/ -name "12345.json" -exec cat {} \;
 ping -c 3 relay.copylaradio.com
 ```
 
-#### 3. Synchronisation ne fonctionne pas
+#### 3. Backfill ne fonctionne pas
 ```bash
-# Vérifier le processus router
-ps aux | grep "strfry router"
+# Vérifier le processus backfill
+ps aux | grep "backfill_constellation"
 
-# Vérifier les connexions
+# Vérifier les connexions WebSocket
 netstat -tulpn | grep :7777
 
 # Tester manuellement
-cd ~/.zen/strfry
-./strfry router strfry-router.conf
+./backfill_constellation.sh --verbose
 ```
 
 ### 🔍 Mode debug
@@ -557,12 +554,14 @@ tail -f ~/.zen/strfry/constellation-sync.log | grep -E "(DEBUG|ERROR)"
 - [ ] **Astroport.ONE** : `_12345.sh` est en cours d'exécution
 - [ ] **strfry** : Binaire installé et exécutable dans `~/.zen/strfry/`
 - [ ] **Configuration** : Fichiers de configuration strfry présents
+- [ ] **Scripts** : Scripts de backfill dans `~/.zen/workspace/NIP-101/`
 - [ ] **Répertoires** : IPNS et HEX accessibles dans `~/.zen/tmp/` et `~/.zen/game/`
-- [ ] **Scripts** : Scripts de synchronisation dans `~/.zen/workspace/NIP-101/`
+
 - [ ] **Connectivité** : Réseau accessible vers les pairs constellation
 - [ ] **Ports** : Ports 7777 (strfry) et 8080 (IPFS) ouverts
 - [ ] **Permissions** : Droits d'écriture sur les répertoires de logs
 - [ ] **Intégration** : `constellation_sync_trigger.sh` détecté par `_12345.sh`
+- [ ] **Filtrage** : Exclusion des messages "Hello NOSTR visitor." fonctionnelle
 
 ## 🔒 Sécurité
 
@@ -663,6 +662,68 @@ Le système de synchronisation de constellation s'intègre dans l'écosystème [
 - **🏗️ [ARCHITECTURE.md](https://github.com/papiche/Astroport.ONE/blob/master/ARCHITECTURE.md)** : Vue d'ensemble technique complète du système
 - **📖 [DOCUMENTATION.md](https://github.com/papiche/Astroport.ONE/blob/master/DOCUMENTATION.md)** : Hub central de documentation pour tous les composants
 
+## 🔧 Fonctionnement technique
+
+### 🔄 **Mécanisme de backfill actuel**
+
+Le système utilise une **approche WebSocket unifiée** pour récupérer les événements historiques :
+
+#### **1. Découverte des pairs**
+```bash
+# Scan des fichiers 12345.json dans le swarm IPNS
+~/.zen/tmp/swarm/*/12345.json → extraction de myRELAY et ipfsnodeid
+
+# Distinction des types de relay
+- Routable : wss:// ou ws:// avec IP publique
+- Non-routable : ws://127.0.0.1:7777 (nécessite tunnel P2P)
+```
+
+#### **2. Connexion WebSocket**
+```bash
+# Pour les relays routables
+WebSocket direct → wss://relay.copylaradio.com
+
+# Pour les relays non-routables
+1. Création tunnel P2P : ipfs p2p forward /x/strfry-{nodeid} /ip4/127.0.0.1/tcp/9999
+2. Connexion WebSocket : ws://127.0.0.1:9999
+```
+
+#### **3. Requête Nostr**
+```json
+["REQ", "backfill", {
+    "kinds": [0, 1, 3, 22242],
+    "since": 1754995729,
+    "limit": 10000,
+    "authors": ["01f33753...", "039b3d71...", ...]
+}]
+```
+
+#### **4. Filtrage et import**
+```bash
+# Filtrage automatique
+jq '.[] | select(.content | test("Hello NOSTR visitor.") | not)'
+
+# Import dans strfry
+strfry import < events_filtered.ndjson
+```
+
+### 🛡️ **Filtrage des messages IA**
+
+Le système **exclut automatiquement** les messages générés par l'IA du capitaine :
+
+- **Détection** : Messages contenant "Hello NOSTR visitor."
+- **Filtrage** : Exclusion avant import dans la base locale
+- **Statistiques** : Comptage des messages filtrés vs importés
+- **Logs** : Traçabilité complète du processus de filtrage
+
+### 📊 **Exemple de sortie typique**
+```bash
+[2025-08-13 13:10:59] [INFO] Total events: 42
+[2025-08-13 13:10:59] [INFO] Events after filtering: 7
+[2025-08-13 13:10:59] [INFO] Removed 'Hello NOSTR visitor.' messages: 35
+[2025-08-13 13:10:59] [INFO] ✅ Successfully imported 7 events to strfry
+```
+
 ### 🆘 NIP-101 Support
 
 - **Issues GitHub** : [Report a bug](https://github.com/papiche/NIP-101/issues)
@@ -736,8 +797,8 @@ La synchronisation de constellation NOSTR **renforce l'écosystème UPlanet** en
 
 **🌟 NIP-101 : L'infrastructure NOSTR complète d'Astroport.ONE**
 
-*Synchronisation, filtrage intelligent, IA intégrée et économie Zen !*
+*Backfill automatique, filtrage intelligent, exclusion des messages IA et économie Zen !*
 
-**🔄 Constellation Sync** • **🛡️ Filtrage Avancé** • **🤖 IA & Mémoire** • **💰 Micro-paiements** • **🌍 GeoKeys UPlanet**
+**🔄 Constellation Backfill** • **🛡️ Filtrage Avancé** • **🤖 Exclusion IA** • **💰 Micro-paiements** • **🌍 GeoKeys UPlanet**
 
 </div>
