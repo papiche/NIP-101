@@ -154,4 +154,32 @@ log_with_timestamp() {
 ensure_log_dir() {
     local log_file="$1"
     mkdir -p "$(dirname "$log_file")"
+}
+
+# Function to parse ẐEN amount from reaction content
+parse_zen_amount() {
+    local content="$1"
+    local amount="1"  # Default amount for simple "+" or like emojis
+    
+    case "$content" in
+        ""|"+"|"👍"|"❤️"|"♥️"|"♥")
+            amount="1"
+            ;;
+        "+[0-9]"*|"+[0-9][0-9]"*|"+[0-9][0-9][0-9]"*)
+            # Extract number after +
+            amount=$(echo "$content" | sed 's/^+\([0-9]\+\).*/\1/')
+            # Validate it's a reasonable number (1-1000 ẐEN max)
+            if [[ "$amount" -gt 1000 ]]; then
+                amount="1000"
+            elif [[ "$amount" -lt 1 ]]; then
+                amount="1"
+            fi
+            ;;
+        *)
+            # For other content, default to 1
+            amount="1"
+            ;;
+    esac
+    
+    echo "$amount"
 } 

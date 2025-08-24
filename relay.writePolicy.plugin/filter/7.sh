@@ -32,10 +32,17 @@ if ! check_authorization "$pubkey" "log_like"; then
     exit 1
 fi
 
+# Parse ẐEN amount from content
+ZEN_AMOUNT=$(parse_zen_amount "$content")
+
 # Determine reaction type and handle payment logic
 case "$content" in
-    ""|"+"|"👍"|"❤️"|"♥️"|"♥")
-        reaction_type="LIKE"
+    ""|"+"|"👍"|"❤️"|"♥️"|"♥"|"+[0-9]"*|"+[0-9][0-9]"*|"+[0-9][0-9][0-9]"*)
+        if [[ "$ZEN_AMOUNT" -eq 1 ]]; then
+            reaction_type="LIKE (${ZEN_AMOUNT}Ẑ)"
+        else
+            reaction_type="LIKE (${ZEN_AMOUNT}Ẑ)"
+        fi
 
         # Search if reacted_author_pubkey is part of UPlanet
         G1PUBNOSTR=$(~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh "$reacted_author_pubkey" 2>/dev/null)
@@ -52,7 +59,7 @@ case "$content" in
                     CAPTAIN_WALLET_DIR="$KEY_DIR/$CAPTAINEMAIL"
                     if [[ -s "${CAPTAIN_WALLET_DIR}/.secret.dunikey" ]]; then
                         PAYMENT_WALLET="${CAPTAIN_WALLET_DIR}/.secret.dunikey"
-                        PAYMENT_METHOD="captain_wallet ($CAPTAINEMAIL)"
+                        PAYMENT_METHOD="MULTIPASS:($CAPTAINEMAIL)"
                         log_like "PAYMENT: CAPTAIN using wallet from $CAPTAINEMAIL"
                     else
                         log_like "PAYMENT: Cannot send payment - missing .secret.dunikey for CAPTAIN in $CAPTAINEMAIL"
@@ -62,7 +69,7 @@ case "$content" in
                     PLAYER_DIR="$KEY_DIR/$EMAIL"
                     if [[ -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
                         PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
-                        PAYMENT_METHOD="own_wallet ($EMAIL)"
+                        PAYMENT_METHOD="MULTIPASS:($EMAIL)"
                     else
                         log_like "PAYMENT: Cannot send payment - missing .secret.dunikey for ${EMAIL}"
                     fi
@@ -70,18 +77,19 @@ case "$content" in
                 
                 # Execute payment if wallet is available
                 if [[ -n "$PAYMENT_WALLET" ]]; then
-                    AMOUNT="0.1"
-                    COMMENT="UPLANET:${UPLANETG1PUB:0:8}:$EMAIL:LIKE:${reacted_event_id}"
+                    # Convert ẐEN to G1 (assuming 1 ẐEN = 0.1 G1)
+                    AMOUNT=$(echo "scale=2; $ZEN_AMOUNT * 0.1" | bc -l)
+                    COMMENT="UPLANET:${UPLANETG1PUB:0:8}:$EMAIL:LIKE:${ZEN_AMOUNT}Z:${reacted_event_id}"
                     
-                    log_like "PAYMENT: Attempting to send $AMOUNT G1 to $G1PUBNOSTR using $PAYMENT_METHOD"
+                    log_like "PAYMENT: Attempting to send ${ZEN_AMOUNT}Ẑ ($AMOUNT G1) to $G1PUBNOSTR using $PAYMENT_METHOD"
                     
                     ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT"
                     PAYMENT_RESULT=$?
                     
                     if [[ $PAYMENT_RESULT -eq 0 ]]; then
-                        log_like "PAYMENT: Successfully sent $AMOUNT G1 to $G1PUBNOSTR for LIKE reaction via $PAYMENT_METHOD"
+                        log_like "PAYMENT: Successfully sent ${ZEN_AMOUNT}Ẑ ($AMOUNT G1) to $G1PUBNOSTR for LIKE reaction via $PAYMENT_METHOD"
                     else
-                        log_like "PAYMENT: Failed to send $AMOUNT G1 to $G1PUBNOSTR (exit code: $PAYMENT_RESULT) via $PAYMENT_METHOD"
+                        log_like "PAYMENT: Failed to send ${ZEN_AMOUNT}Ẑ ($AMOUNT G1) to $G1PUBNOSTR (exit code: $PAYMENT_RESULT) via $PAYMENT_METHOD"
                     fi
                 fi
             else
