@@ -83,7 +83,7 @@ case "$content" in
                     
                     log_like "PAYMENT: Attempting to send ${ZEN_AMOUNT}Ẑ ($AMOUNT G1) to $G1PUBNOSTR using $PAYMENT_METHOD"
                     
-                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT"
+                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT" >> "$LOG_FILE"
                     PAYMENT_RESULT=$?
                     
                     if [[ $PAYMENT_RESULT -eq 0 ]]; then
