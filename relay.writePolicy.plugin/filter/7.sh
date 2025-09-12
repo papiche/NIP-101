@@ -79,11 +79,14 @@ case "$content" in
                 if [[ -n "$PAYMENT_WALLET" ]]; then
                     # Convert ẐEN to G1 (assuming 1 ẐEN = 0.1 G1)
                     AMOUNT=$(echo "scale=2; $ZEN_AMOUNT * 0.1" | bc -l)
+                    if (( $(echo "$AMOUNT < 1" | bc -l) )); then
+                        AMOUNT="0$AMOUNT"
+                    fi
                     COMMENT="UPLANET:${UPLANETG1PUB:0:8}:$EMAIL:LIKE:${ZEN_AMOUNT}Z:${reacted_event_id}"
                     
                     log_like "PAYMENT: Attempting to send ${ZEN_AMOUNT}Ẑ ($AMOUNT G1) to $G1PUBNOSTR using $PAYMENT_METHOD"
                     
-                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT" >> "$LOG_FILE"
+                    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "$PAYMENT_WALLET" "$AMOUNT" "$G1PUBNOSTR" "$COMMENT" >> 
                     PAYMENT_RESULT=$?
                     
                     if [[ $PAYMENT_RESULT -eq 0 ]]; then
