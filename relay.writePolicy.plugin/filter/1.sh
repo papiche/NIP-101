@@ -113,6 +113,13 @@ if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
     done
 fi
 
+# PlantNet detection (handled by UPlanet_IA_Responder.sh)
+is_plantnet_message=false
+if [[ "$content" == *"#plantnet"* ]]; then
+    is_plantnet_message=true
+    log_uplanet "PLANTNET message detected - will be processed by UPlanet_IA_Responder.sh"
+fi
+
 # Consolidated memory handling function
 handle_memory_storage() {
     local user_id="$KNAME"
