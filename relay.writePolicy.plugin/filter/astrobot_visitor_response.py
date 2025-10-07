@@ -55,6 +55,33 @@ class AstroBotVisitorResponder:
         )
         self.logger = logging.getLogger('AstroBotVisitorResponder')
         
+    def _extract_json_from_markdown(self, text: str) -> str:
+        """
+        Extract JSON from markdown code blocks if present.
+        Handles cases where AI returns JSON wrapped in ```json ... ``` or ``` ... ```
+        
+        Args:
+            text (str): The text that may contain JSON in markdown code blocks
+            
+        Returns:
+            str: The extracted JSON string, or the original text if no code block found
+        """
+        # Try to extract JSON from markdown code blocks
+        # Pattern 1: ```json ... ```
+        json_pattern = r'```json\s*\n?(.*?)\n?```'
+        match = re.search(json_pattern, text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        
+        # Pattern 2: ``` ... ```
+        code_pattern = r'```\s*\n?(.*?)\n?```'
+        match = re.search(code_pattern, text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        
+        # No markdown code block found, return as is
+        return text.strip()
+    
     def _load_banks_config(self) -> Dict:
         """Charge la configuration des personas d'AstroBot"""
         if os.path.exists(self.banks_config_file):
@@ -509,8 +536,11 @@ Important: Return ONLY the JSON, no other text."""
                     response = json.loads(result.stdout)
                     ai_answer = response.get('answer', '{}')
                     
+                    # Clean the AI answer: extract JSON from markdown code blocks if present
+                    ai_answer_cleaned = self._extract_json_from_markdown(ai_answer)
+                    
                     # Parser la réponse de l'IA
-                    persona_selection = json.loads(ai_answer)
+                    persona_selection = json.loads(ai_answer_cleaned)
                     selected_slot = str(persona_selection.get('persona', '3'))
                     reason = persona_selection.get('reason', 'AI selection')
                     
