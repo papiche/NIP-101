@@ -421,6 +421,13 @@ if [[ "$check" != "nobody" ]]; then
     fi
 else
     # Visitor NOSTR message reply
+    # Only respond if message contains more than 50 characters
+    content_length=${#content}
+    if [[ $content_length -le 50 ]]; then
+        log_uplanet "Message from nobody ($pubkey) too short ($content_length chars), rejecting without response"
+        exit 1  # Reject message without responding
+    fi
+    
     handle_visitor_message "$pubkey" "$event_id" "$content"
     exit 0
 fi
