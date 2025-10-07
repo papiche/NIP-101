@@ -331,60 +331,227 @@ class AstroBotVisitorResponder:
         self.logger.info("Extracting themes from profile, recent messages and current message")
         themes = set()
         
+        # Mapping exact des thèmes vers les thèmes des personas
+        # Bank 0: technologie, developpeur, crypto, logiciel-libre, g1, innovation, digital, monnaie
+        # Bank 1: souverainete, transition, ecologie, collectif, local, partage, entraide, liberte
+        # Bank 2: creatif, savoir-faire, artisanat, creation, artiste, musique, produits-naturels
+        # Bank 3: spiritualite, nature, permaculture, bien-etre, therapeute, holistique
+        
         # Extraire les thèmes du profil
         if profile:
-            # Analyser le nom d'affichage
+            # Analyser le nom d'affichage avec détection spécifique
             display_name = profile.get('display_name', '').lower()
-            if any(theme in display_name for theme in ['dev', 'tech', 'crypto', 'art', 'music', 'nature']):
-                themes.update(['technologie', 'creatif', 'nature'])
             
-            # Analyser la bio
+            # Détection technologie/developpeur
+            if any(kw in display_name for kw in ['dev', 'tech', 'crypto', 'engineer', 'developer', 'coder', 'programmer']):
+                themes.update(['technologie', 'developpeur', 'digital'])
+            
+            # Détection créatif/artiste
+            if any(kw in display_name for kw in ['art', 'music', 'artist', 'musician', 'creator', 'maker', 'designer']):
+                themes.update(['creatif', 'artiste', 'creation'])
+            
+            # Détection nature/spiritualité
+            if any(kw in display_name for kw in ['nature', 'zen', 'yoga', 'meditat', 'healing', 'therapist']):
+                themes.update(['nature', 'spiritualite', 'bien-etre'])
+            
+            # Détection souveraineté/liberté
+            if any(kw in display_name for kw in ['freedom', 'libre', 'sovereign', 'anarchist', 'activist']):
+                themes.update(['souverainete', 'liberte'])
+            
+            # Analyser la bio avec mapping vers les thèmes des personas
             bio = profile.get('about', '').lower()
-            theme_keywords = {
-                'technologie': ['dev', 'tech', 'programming', 'crypto', 'blockchain', 'nostr', 'developer', 'engineer', 'software', 'code', 'computer', 'digital'],
-                'creatif': ['art', 'music', 'artist', 'creative', 'design', 'craft', 'maker', 'creator', 'musician', 'painter', 'writer', 'composer'],
-                'nature': ['nature', 'permaculture', 'ecology', 'sustainable', 'organic', 'garden', 'farm', 'environment', 'earth', 'green', 'eco'],
-                'spiritualite': ['spiritual', 'meditation', 'yoga', 'healing', 'wellness', 'mindfulness', 'consciousness', 'zen', 'peace', 'soul'],
-                'souverainete': ['freedom', 'liberty', 'sovereign', 'decentralized', 'autonomy', 'independence', 'self-sufficient', 'free', 'independent']
+            
+            profile_theme_keywords = {
+                'technologie': ['tech', 'programming', 'software', 'computer', 'code', 'developer', 'engineer', 'dev', 'coder', 'it', 'digital', 'web', 'app'],
+                'developpeur': ['developer', 'programmer', 'coder', 'coding', 'programming', 'software engineer', 'full stack', 'backend', 'frontend'],
+                'crypto': ['crypto', 'bitcoin', 'blockchain', 'ethereum', 'nostr', 'web3', 'defi', 'nft', 'satoshi'],
+                'logiciel-libre': ['open source', 'free software', 'gnu', 'linux', 'foss', 'libre', 'opensource', 'open-source'],
+                'innovation': ['innovation', 'innovative', 'future', 'pioneering', 'cutting edge', 'disruptive'],
+                'monnaie': ['currency', 'money', 'monnaie', 'économie', 'economy', 'finance', 'ğ1', 'g1', 'june'],
+                'souverainete': ['sovereign', 'sovereignty', 'souveraineté', 'autonomy', 'independence', 'self-sufficient', 'autonomous'],
+                'transition': ['transition', 'change', 'transformation', 'evolve', 'shift'],
+                'ecologie': ['ecology', 'ecological', 'ecologie', 'sustainable', 'sustainability', 'climate', 'environment'],
+                'collectif': ['collective', 'community', 'collaboration', 'together', 'ensemble', 'collectif', 'cooperative'],
+                'local': ['local', 'locality', 'neighborhood', 'regional', 'territoire'],
+                'partage': ['share', 'sharing', 'partage', 'commons', 'communs', 'mutual aid'],
+                'liberte': ['freedom', 'liberty', 'free', 'libre', 'liberté', 'liberation'],
+                'creatif': ['creative', 'creativity', 'création', 'art', 'artistic', 'design', 'craft'],
+                'artiste': ['artist', 'artiste', 'musician', 'painter', 'sculptor', 'photographer', 'writer'],
+                'musique': ['music', 'musique', 'musician', 'song', 'compose', 'audio', 'sound'],
+                'artisanat': ['craft', 'artisan', 'handmade', 'handcraft', 'artisanat', 'maker'],
+                'savoir-faire': ['skill', 'craftsmanship', 'expertise', 'know-how', 'savoir-faire', 'technique'],
+                'spiritualite': ['spiritual', 'spirituality', 'spiritualité', 'consciousness', 'awakening', 'enlightenment'],
+                'nature': ['nature', 'natural', 'earth', 'planet', 'wild', 'wilderness', 'outdoor'],
+                'permaculture': ['permaculture', 'agroecology', 'regenerative', 'organic farming'],
+                'bien-etre': ['wellness', 'wellbeing', 'bien-être', 'health', 'healthy', 'santé'],
+                'therapeute': ['therapist', 'therapy', 'healing', 'healer', 'thérapeute', 'therapeutic']
             }
             
-            for theme, keywords in theme_keywords.items():
+            for theme, keywords in profile_theme_keywords.items():
                 if any(keyword in bio for keyword in keywords):
                     themes.add(theme)
         
-        # Analyser les messages récents
+        # Analyser les messages récents et le message actuel
         all_messages_text = current_message.lower()
         for message in messages:
             all_messages_text += " " + message.get('content', '').lower()
         
-        message_themes = {
-            'technologie': ['tech', 'crypto', 'nostr', 'blockchain', 'dev', 'programming', 'code', 'software', 'computer', 'digital', 'ai', 'machine learning'],
-            'creatif': ['art', 'music', 'creative', 'design', 'craft', 'draw', 'paint', 'write', 'compose', 'artist', 'creative', 'design'],
-            'nature': ['nature', 'ecology', 'sustainable', 'organic', 'garden', 'plant', 'earth', 'environment', 'green', 'eco', 'permaculture'],
-            'spiritualite': ['spiritual', 'meditation', 'healing', 'wellness', 'peace', 'mind', 'soul', 'energy', 'zen', 'consciousness'],
-            'souverainete': ['freedom', 'liberty', 'sovereign', 'decentralized', 'free', 'independent', 'autonomous', 'self-sufficient']
+        # Keywords pour messages avec mapping vers thèmes personas
+        message_theme_keywords = {
+            'technologie': ['tech', 'technology', 'software', 'computer', 'digital', 'app', 'application', 'code'],
+            'developpeur': ['dev', 'developer', 'programming', 'coding', 'code', 'script', 'api'],
+            'crypto': ['crypto', 'bitcoin', 'blockchain', 'nostr', 'ethereum', 'btc', 'web3', 'decentralized'],
+            'innovation': ['innovation', 'innovative', 'new', 'future', 'modern'],
+            'digital': ['digital', 'numérique', 'online', 'internet', 'web'],
+            'souverainete': ['sovereign', 'sovereignty', 'autonomy', 'independence', 'self-sufficient'],
+            'liberte': ['freedom', 'liberty', 'free', 'libre', 'liberation'],
+            'ecologie': ['ecology', 'ecological', 'sustainable', 'environment', 'climate', 'green'],
+            'collectif': ['community', 'collective', 'together', 'collaboration', 'group'],
+            'partage': ['share', 'sharing', 'commons', 'mutual'],
+            'creatif': ['creative', 'creativity', 'art', 'artistic', 'create'],
+            'artiste': ['artist', 'music', 'musician', 'paint', 'draw', 'compose'],
+            'musique': ['music', 'song', 'audio', 'sound', 'melody'],
+            'artisanat': ['craft', 'handmade', 'artisan', 'maker'],
+            'spiritualite': ['spiritual', 'meditation', 'consciousness', 'energy', 'soul'],
+            'nature': ['nature', 'natural', 'earth', 'plant', 'tree', 'garden'],
+            'permaculture': ['permaculture', 'organic', 'regenerative', 'compost'],
+            'bien-etre': ['wellness', 'wellbeing', 'health', 'healing', 'peace', 'zen']
         }
         
-        for theme, keywords in message_themes.items():
+        for theme, keywords in message_theme_keywords.items():
             if any(keyword in all_messages_text for keyword in keywords):
                 themes.add(theme)
         
-        # Ajouter des thèmes basés sur la langue du message
-        if any(word in current_message.lower() for word in ['bonjour', 'salut', 'hello', 'hi', 'hey']):
-            themes.add('accueil')  # Thème d'accueil pour les messages simples
+        # Ne PAS ajouter 'accueil' comme thème principal
+        # Cela force le persona par défaut systématiquement
         
         themes_list = list(themes)
         self.logger.info(f"Extracted themes: {themes_list}")
         return themes_list
     
-    def select_best_persona(self, themes: List[str]) -> Tuple[str, Dict]:
-        """Sélectionne le meilleur persona basé sur les thèmes"""
-        self.logger.info(f"Selecting best persona for themes: {themes}")
+    def select_best_persona_with_ai(self, profile: Dict, recent_messages: List[Dict], current_message: str) -> Tuple[str, Dict]:
+        """Sélectionne le meilleur persona en utilisant l'IA (Ollama via question.py)"""
+        self.logger.info("🤖 Using AI to select best persona based on profile and messages")
         
-        if not themes or themes == ['accueil']:
-            # Par défaut, utiliser le persona Holistique qui est le plus accueillant
+        # Préparer le contexte pour l'IA
+        profile_text = ""
+        if profile:
+            display_name = profile.get('display_name', 'Unknown')
+            about = profile.get('about', 'No bio')
+            nip05 = profile.get('nip05', 'No NIP-05')
+            profile_text = f"Display name: {display_name}\nBio: {about}\nNIP-05: {nip05}"
+        else:
+            profile_text = "No profile information available"
+        
+        # Préparer les messages récents
+        messages_text = ""
+        if recent_messages:
+            messages_text = "Recent messages:\n"
+            for i, msg in enumerate(recent_messages[:5], 1):
+                content = msg.get('content', '')[:200]  # Limiter à 200 caractères
+                messages_text += f"{i}. {content}...\n"
+        else:
+            messages_text = "No recent messages"
+        
+        # Construire le prompt de sélection de persona
+        personas_description = ""
+        for slot, bank in self.banks_config['banks'].items():
+            name = bank.get('name', 'Unknown')
+            description = bank.get('description', '')
+            themes = ', '.join(bank.get('themes', []))
+            personas_description += f"\n{slot}. **{name}**: {description}\n   Themes: {themes}\n"
+        
+        selection_prompt = f"""You are an expert in persona selection for an AI assistant system.
+
+Available personas:
+{personas_description}
+
+Visitor information:
+---
+Profile:
+{profile_text}
+
+{messages_text}
+
+Current message: "{current_message}"
+---
+
+Based on the visitor's profile, recent messages, and current message, select the BEST persona (0, 1, 2, or 3) that should respond to this visitor.
+
+Consider:
+- The visitor's interests and background from their profile
+- The topics they discuss in their messages
+- The tone and content of their communication
+- Which persona would resonate most with them
+
+Respond with ONLY a JSON object in this format:
+{{"persona": "0", "reason": "Brief explanation of why this persona is best"}}
+
+Important: Return ONLY the JSON, no other text."""
+        
+        try:
+            # Appeler question.py avec --json
+            question_script = os.path.join(self.base_path, "Astroport.ONE", "IA", "question.py")
+            if not os.path.exists(question_script):
+                self.logger.warning(f"question.py not found at {question_script}, falling back to keyword method")
+                return self._select_best_persona_fallback(profile, recent_messages, current_message)
+            
+            self.logger.info("📞 Asking AI to select best persona...")
+            result = subprocess.run(
+                ['python3', question_script, selection_prompt, '--json'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    response = json.loads(result.stdout)
+                    ai_answer = response.get('answer', '{}')
+                    
+                    # Parser la réponse de l'IA
+                    persona_selection = json.loads(ai_answer)
+                    selected_slot = str(persona_selection.get('persona', '3'))
+                    reason = persona_selection.get('reason', 'AI selection')
+                    
+                    # Valider que le slot existe
+                    if selected_slot not in self.banks_config['banks']:
+                        self.logger.warning(f"AI selected invalid slot {selected_slot}, using default")
+                        selected_slot = "3"
+                    
+                    selected_bank = self.banks_config['banks'][selected_slot]
+                    persona_name = selected_bank.get('name', 'Unknown')
+                    
+                    self.logger.info(f"✅ AI selected persona {selected_slot} ({persona_name})")
+                    self.logger.info(f"   Reason: {reason}")
+                    
+                    return selected_slot, selected_bank
+                    
+                except (json.JSONDecodeError, KeyError) as e:
+                    self.logger.error(f"Failed to parse AI response: {e}")
+                    self.logger.debug(f"AI output: {result.stdout}")
+            else:
+                self.logger.warning(f"AI call failed: {result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            self.logger.warning("AI persona selection timed out (30s)")
+        except Exception as e:
+            self.logger.error(f"Error during AI persona selection: {e}")
+        
+        # Fallback sur la méthode par mots-clés
+        self.logger.info("Falling back to keyword-based persona selection")
+        return self._select_best_persona_fallback(profile, recent_messages, current_message)
+    
+    def _select_best_persona_fallback(self, profile: Dict, recent_messages: List[Dict], current_message: str) -> Tuple[str, Dict]:
+        """Méthode de fallback : sélection par mots-clés si l'IA échoue"""
+        self.logger.info("Using keyword-based fallback for persona selection")
+        
+        # Extraire les thèmes comme avant
+        themes = self.extract_themes_from_profile_and_messages(profile, recent_messages, current_message)
+        
+        if not themes:
             selected_persona = "3"
-            self.logger.info(f"Using default persona: {selected_persona} (Holistique)")
+            self.logger.info(f"No themes detected, using default persona: {selected_persona} (Holistique/Thérapeute)")
             return selected_persona, self.banks_config['banks']['3']
         
         # Calculer le score de correspondance pour chaque persona
@@ -394,17 +561,17 @@ class AstroBotVisitorResponder:
             if not bank_themes:
                 continue
             
-            # Calculer l'intersection
             intersection = set(themes).intersection(bank_themes)
             if intersection:
-                score = len(intersection) / len(bank_themes)
-                # Bonus pour les thèmes forts
-                if 'technologie' in intersection:
-                    score += 0.2
-                if 'creatif' in intersection:
-                    score += 0.15
-                if 'spiritualite' in intersection:
-                    score += 0.1
+                score = len(intersection)
+                
+                # Bonus pour les thèmes stratégiques
+                if 'technologie' in intersection: score += 0.5
+                if 'developpeur' in intersection: score += 0.5
+                if 'crypto' in intersection: score += 0.4
+                if 'creatif' in intersection: score += 0.4
+                if 'artiste' in intersection: score += 0.3
+                if 'spiritualite' in intersection: score += 0.3
                 
                 bank_scores[slot] = {
                     'score': score,
@@ -413,17 +580,16 @@ class AstroBotVisitorResponder:
                 }
         
         if not bank_scores:
-            # Aucune correspondance, utiliser le persona Holistique
             selected_persona = "3"
-            self.logger.info(f"No matching personas found, using default: {selected_persona} (Holistique)")
+            self.logger.info(f"No matching personas found, using default: {selected_persona} (Holistique/Thérapeute)")
             return selected_persona, self.banks_config['banks']['3']
         
-        # Sélectionner le persona avec le meilleur score
         best_slot = max(bank_scores.keys(), key=lambda x: bank_scores[x]['score'])
         best_score = bank_scores[best_slot]['score']
-        matching_themes = bank_scores[best_slot]['matching_themes']
+        best_persona_name = bank_scores[best_slot]['bank'].get('name', 'Unknown')
         
-        self.logger.info(f"Selected persona {best_slot} with score {best_score:.2f}, matching themes: {matching_themes}")
+        self.logger.info(f"✅ Selected persona {best_slot} ({best_persona_name}) with score {best_score:.2f}")
+        
         return best_slot, bank_scores[best_slot]['bank']
     
     def generate_persona_prompt(self, persona: Dict, visitor_message: str, visitor_themes: List[str], recent_messages: List[Dict]) -> str:
@@ -494,11 +660,11 @@ Réponse:"""
             target_language = self.detect_language(all_text)
             self.logger.info(f"Detected language: {target_language}")
             
-            # Extraire les thèmes
-            themes = self.extract_themes_from_profile_and_messages(profile, recent_messages, visitor_message)
+            # Sélectionner le meilleur persona AVEC L'IA (au lieu des mots-clés)
+            persona_slot, selected_persona = self.select_best_persona_with_ai(profile, recent_messages, visitor_message)
             
-            # Sélectionner le meilleur persona
-            persona_slot, selected_persona = self.select_best_persona(themes)
+            # Extraire les thèmes pour le prompt de génération (optionnel, pour le contexte)
+            themes = self.extract_themes_from_profile_and_messages(profile, recent_messages, visitor_message)
             
             # Générer le prompt personnalisé
             prompt = self.generate_persona_prompt(selected_persona, visitor_message, themes, recent_messages)
