@@ -11,11 +11,19 @@ event_json="$1"
 extract_event_data "$event_json"
 
 # Extract UPlanet-specific tags
-extract_tags "$event_json" "application" "url" "latitude" "longitude"
+extract_tags "$event_json" "application" "url" "latitude" "longitude" "g"
 application="$application"
 url="$url"
 latitude="$latitude"
 longitude="$longitude"
+
+# Extract coordinates from "g" tag if latitude/longitude not directly provided
+# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
+if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
+    latitude=$(echo "$g" | cut -d',' -f1 | xargs)
+    longitude=$(echo "$g" | cut -d',' -f2 | xargs)
+    log_uplanet "Extracted coordinates from 'g' tag: lat=$latitude, lon=$longitude"
+fi
 
 # Initialize full_content with content if not already set
 [[ -z "$full_content" ]] && full_content="$content"
