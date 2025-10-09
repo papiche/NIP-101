@@ -14,6 +14,9 @@
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 
+# Source common functions
+source "$MY_PATH/filter/common.sh"
+
 # Définition du fichier de log
 LOG_FILE="$HOME/.zen/tmp/strfry.log"
 
@@ -107,6 +110,28 @@ is_key_blacklisted() {
     return 1 # Clé non blacklistée
 }
 
+# Function to classify user type: nobody, player, or uplanet
+classify_user() {
+    local pubkey="$1"
+    local user_type="nobody"
+    
+    # Check if pubkey has email (MULTIPASS account)
+    local email=$(get_key_email "$pubkey")
+    
+    if [[ -n "$email" ]]; then
+        # Has MULTIPASS account
+        if [[ $email =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $email == "CAPTAIN" ]]; then
+            user_type="player"
+        else
+            user_type="uplanet"
+        fi
+    elif check_amis_of_amis "$pubkey"; then
+        # In amisOfAmis.txt
+        user_type="uplanet"
+    fi
+    
+    echo "$user_type"
+}
 
 # Fonction pour traiter un événement de type 'new'
 process_new_event() {
@@ -127,7 +152,36 @@ process_new_event() {
         return
     fi
 
-    # Exécuter le filtre correspondant (si le script existe)
+    # Classify user type (nobody, player, uplanet)
+    local user_type=$(classify_user "$pubkey")
+    log_message "User classification for $pubkey: $user_type"
+
+    # Reject all events from "nobody" by default (unless specific filter allows it)
+    if [[ "$user_type" == "nobody" ]]; then
+        # Check if a specific filter exists for this kind
+        if [[ -x $MY_PATH/filter/$kind.sh ]]; then
+            # Let the specific filter handle the "nobody" case
+            log_message "Running filter $kind.sh for 'nobody' user: $pubkey"
+            $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log
+            local filter_result=$?
+            if [[ $filter_result -ne 0 ]]; then
+                log_message "Filter $kind.sh rejected event from 'nobody': $event_id"
+                echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
+                return
+            fi
+            # If filter returns 0, accept the event
+            log_message "Filter $kind.sh accepted event from 'nobody': $event_id"
+            echo "{\"id\": \"$event_id\", \"action\": \"accept\"}"
+            return
+        else
+            # No specific filter, reject by default for "nobody"
+            log_message "Rejecting event (kind $kind) from 'nobody' pubkey: $pubkey (no specific filter)"
+            echo "{\"id\": \"$event_id\", \"action\": \"reject\"}"
+            return
+        fi
+    fi
+
+    # For authorized users (player/uplanet), run specific filters if they exist
     if [[ -x $MY_PATH/filter/$kind.sh ]]; then
         # log_message "Running filter for kind $kind"
         # Rediriger toutes les sorties du filtre ~/.zen/tmp/strfry.log 
