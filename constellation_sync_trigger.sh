@@ -1,7 +1,8 @@
 #!/bin/bash
 # Constellation Sync Trigger for _12345.sh
 # This script is called by _12345.sh to trigger constellation synchronization
-# after 12:00 (noon) to sync messages since yesterday noon
+# every hour to ensure N² synchronization (friends of friends are friends)
+# The 1-day backfill window catches any missed events, and strfry handles duplicates automatically
 
 ## SET ASTROPORT ENVIRONNEMENT
 [[ ! -s ~/.zen/Astroport.ONE/tools/my.sh ]] \
@@ -59,28 +60,239 @@ remove_lock() {
 
 # Function to check if it's time to sync
 should_sync() {
-    local current_hour=$(date +%H)
-    local current_minute=$(date +%M)
-    
-    # Sync after 12:00 (noon)
-    if [[ $current_hour -ge 12 ]]; then
-        # Check if we already synced today
-        local last_sync_file="$HOME/.zen/strfry/last_constellation_sync"
-        local today=$(date +%Y%m%d)
-        
-        if [[ ! -f "$last_sync_file" ]] || [[ "$(cat "$last_sync_file")" != "$today" ]]; then
-            return 0  # Should sync
-        fi
-    fi
-    
-    return 1  # Should not sync
+    # Synchronize every hour (at the rhythm of _12345.sh)
+    # No time restriction - sync whenever triggered
+    # The 1-day window ensures we catch any missed events
+    # strfry automatically handles duplicates, so it's safe to sync frequently
+    return 0  # Always should sync when triggered
 }
 
 # Function to mark sync as completed
 mark_sync_completed() {
-    local today=$(date +%Y%m%d)
-    echo "$today" > "$HOME/.zen/strfry/last_constellation_sync"
-    log "INFO" "Marked sync as completed for today: $today"
+    local timestamp=$(date +%s)
+    echo "$timestamp" > "$HOME/.zen/strfry/last_constellation_sync"
+    log "INFO" "Marked sync as completed at: $(date '+%Y-%m-%d %H:%M:%S')"
+}
+
+# Function to generate HTML email report from log
+generate_email_report() {
+    local log_content="$1"
+    local status="$2"
+    local sync_date=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Extract statistics from log
+    local total_peers=$(echo "$log_content" | grep -c "Processing peer:" || echo "0")
+    local successful_backfills=$(echo "$log_content" | grep -c "backfill successful" || echo "0")
+    local failed_backfills=$(echo "$log_content" | grep -c "backfill failed" || echo "0")
+    local total_events=$(echo "$log_content" | grep -oP "Collected \K[0-9]+" | awk '{s+=$1} END {print s}' || echo "0")
+    local hex_count=$(echo "$log_content" | grep -oP "Targeting \K[0-9]+" | head -1 || echo "0")
+    
+    # Status icon and color
+    local status_icon="✅"
+    local status_color="#28a745"
+    local status_text="SUCCESS"
+    
+    if [[ "$status" != "success" ]]; then
+        status_icon="❌"
+        status_color="#dc3545"
+        status_text="FAILED"
+    fi
+    
+    cat <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Constellation Sync Report - $sync_date</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+        }
+        .status {
+            background-color: ${status_color};
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 30px;
+        }
+        .stat-card {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px;
+            color: #495057;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        .stat-card p {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+            color: #212529;
+        }
+        .log-section {
+            padding: 30px;
+            border-top: 1px solid #dee2e6;
+        }
+        .log-section h2 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .log-content {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Constellation Sync Report</h1>
+            <p>N² Nostr Relay Synchronization</p>
+            <p>${sync_date}</p>
+        </div>
+        
+        <div class="status">
+            ${status_icon} ${status_text}
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Peers</h3>
+                <p>${total_peers}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Successful</h3>
+                <p style="color: #28a745;">${successful_backfills}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Failed</h3>
+                <p style="color: #dc3545;">${failed_backfills}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Events Collected</h3>
+                <p>${total_events}</p>
+            </div>
+            <div class="stat-card">
+                <h3>HEX Pubkeys</h3>
+                <p>${hex_count}</p>
+            </div>
+        </div>
+        
+        <div class="log-section">
+            <h2>📋 Detailed Log</h2>
+            <div class="log-content">$(echo "$log_content" | tail -n 200)</div>
+        </div>
+        
+        <div class="footer">
+            <p>🚀 Astroport.ONE - UPlanet Constellation</p>
+            <p><a href="https://github.com/papiche/Astroport.ONE">Learn more about the constellation network</a></p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+}
+
+# Function to send email report via mailjet
+send_email_report() {
+    local status="$1"
+    local log_file="$LOG_FILE"
+    
+    # Check if CAPTAINEMAIL is defined
+    if [[ -z "$CAPTAINEMAIL" ]]; then
+        log "WARN" "CAPTAINEMAIL not defined, skipping email report"
+        return 1
+    fi
+    
+    # Check if mailjet.sh exists
+    local mailjet_script="$HOME/.zen/Astroport.ONE/tools/mailjet.sh"
+    if [[ ! -x "$mailjet_script" ]]; then
+        log "WARN" "mailjet.sh not found or not executable, skipping email report"
+        return 1
+    fi
+    
+    # Generate HTML report
+    local report_file="$HOME/.zen/tmp/constellation_sync_report_$(date +%Y%m%d_%H%M%S).html"
+    local log_content=$(tail -n 500 "$log_file" 2>/dev/null || echo "No log content available")
+    
+    generate_email_report "$log_content" "$status" > "$report_file"
+    
+    # Email subject based on status
+    local subject
+    if [[ "$status" == "success" ]]; then
+        subject="✅ Constellation Sync Report - $(date '+%H:%M')"
+    else
+        subject="❌ Constellation Sync Failed - $(date '+%H:%M')"
+    fi
+    
+    # Send email
+    log "INFO" "Sending email report to $CAPTAINEMAIL"
+    if "$mailjet_script" "$CAPTAINEMAIL" "$report_file" "$subject" 2>/dev/null; then
+        log "INFO" "Email report sent successfully to $CAPTAINEMAIL"
+        # Clean up report file after sending
+        rm -f "$report_file"
+        return 0
+    else
+        log "ERROR" "Failed to send email report to $CAPTAINEMAIL"
+        return 1
+    fi
 }
 
 # Function to trigger constellation sync
@@ -99,15 +311,11 @@ trigger_constellation_sync() {
     # Trap to ensure lock file is removed on exit
     trap remove_lock EXIT
     
-    # Calculate days since yesterday noon
-    local current_time=$(date +%s)
-    local yesterday_noon=$(date -d "yesterday 12:00:00" +%s)
-    local days_diff=$(( (current_time - yesterday_noon) / 86400 ))
+    # Always backfill 1 day to ensure we catch any missed events
+    # strfry handles duplicates automatically, so it's safe to overlap
+    local days_diff=1
     
-    # Ensure at least 1 day
-    [[ $days_diff -lt 1 ]] && days_diff=1
-    
-    log "INFO" "Starting backfill for $days_diff day(s) since yesterday noon"
+    log "INFO" "Starting hourly backfill for $days_diff day(s) - N² constellation sync"
     
     # Execute backfill in background
     cd "$SCRIPT_DIR"
@@ -133,10 +341,18 @@ trigger_constellation_sync() {
     if kill -0 "$backfill_pid" 2>/dev/null; then
         log "WARN" "Backfill timeout after 30 minutes, force killing"
         kill -9 "$backfill_pid" 2>/dev/null
+        
+        # Send failure email report
+        send_email_report "failed"
+        
         return 1
     else
         log "INFO" "Backfill completed successfully"
         mark_sync_completed
+        
+        # Send success email report
+        send_email_report "success"
+        
         return 0
     fi
 }
@@ -144,12 +360,6 @@ trigger_constellation_sync() {
 # Main execution
 main() {
     log "INFO" "Constellation sync trigger started"
-    
-    # Check if we should sync
-    if ! should_sync; then
-        log "INFO" "Not time to sync yet or already synced today"
-        exit 0
-    fi
     
     # Check if sync is already running
     if is_sync_running; then
@@ -163,6 +373,7 @@ main() {
         exit 0
     else
         log "ERROR" "Constellation sync failed"
+        # Email report already sent by trigger_constellation_sync
         exit 1
     fi
 }
