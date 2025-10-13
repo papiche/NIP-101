@@ -16,6 +16,51 @@ SCRIPT_DIR="$HOME/.zen/workspace/NIP-101"
 BACKFILL_SCRIPT="$SCRIPT_DIR/backfill_constellation.sh"
 LOG_FILE="$HOME/.zen/strfry/constellation-trigger.log"
 LOCK_FILE="$HOME/.zen/strfry/constellation-sync.lock"
+BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
+
+# Log rotation settings
+MAX_LOG_SIZE_MB=10  # Rotate when log exceeds 10MB
+MAX_LOG_FILES=5     # Keep 5 rotated log files
+
+# Function to rotate logs if they exceed size limit
+rotate_logs() {
+    local log_file="$1"
+    local max_size_mb="$2"
+    local max_files="$3"
+    
+    if [[ ! -f "$log_file" ]]; then
+        return 0
+    fi
+    
+    # Check if log file exceeds size limit
+    local file_size_mb=$(du -m "$log_file" | cut -f1)
+    
+    if [[ $file_size_mb -gt $max_size_mb ]]; then
+        log "INFO" "Rotating log file: $log_file (${file_size_mb}MB > ${max_size_mb}MB)"
+        
+        # Rotate existing files
+        for ((i=max_files-1; i>=1; i--)); do
+            if [[ -f "${log_file}.${i}" ]]; then
+                mv "${log_file}.${i}" "${log_file}.$((i+1))"
+            fi
+        done
+        
+        # Move current log to .1
+        mv "$log_file" "${log_file}.1"
+        
+        # Create new empty log file
+        touch "$log_file"
+        
+        log "INFO" "Log rotation completed: $log_file -> ${log_file}.1"
+        
+        # Remove old log files beyond max_files
+        for ((i=max_files+1; i<=10; i++)); do
+            if [[ -f "${log_file}.${i}" ]]; then
+                rm -f "${log_file}.${i}"
+            fi
+        done
+    fi
+}
 
 # Function to log messages
 log() {
@@ -250,6 +295,56 @@ generate_email_report() {
 EOF
 }
 
+# Function to show log statistics
+show_log_stats() {
+    echo "📊 Constellation Log Statistics:"
+    echo "================================"
+    
+    # Check trigger log
+    if [[ -f "$LOG_FILE" ]]; then
+        local trigger_size=$(du -h "$LOG_FILE" | cut -f1)
+        local trigger_lines=$(wc -l < "$LOG_FILE" 2>/dev/null || echo "0")
+        echo "Trigger log: $LOG_FILE ($trigger_size, $trigger_lines lines)"
+        
+        # Show rotated files
+        for i in {1..5}; do
+            if [[ -f "${LOG_FILE}.${i}" ]]; then
+                local rotated_size=$(du -h "${LOG_FILE}.${i}" | cut -f1)
+                local rotated_lines=$(wc -l < "${LOG_FILE}.${i}" 2>/dev/null || echo "0")
+                echo "  Rotated $i: ${LOG_FILE}.${i} ($rotated_size, $rotated_lines lines)"
+            fi
+        done
+    else
+        echo "Trigger log: $LOG_FILE (not found)"
+    fi
+    
+    echo ""
+    
+    # Check backfill log
+    if [[ -f "$BACKFILL_LOG" ]]; then
+        local backfill_size=$(du -h "$BACKFILL_LOG" | cut -f1)
+        local backfill_lines=$(wc -l < "$BACKFILL_LOG" 2>/dev/null || echo "0")
+        echo "Backfill log: $BACKFILL_LOG ($backfill_size, $backfill_lines lines)"
+        
+        # Show rotated files
+        for i in {1..5}; do
+            if [[ -f "${BACKFILL_LOG}.${i}" ]]; then
+                local rotated_size=$(du -h "${BACKFILL_LOG}.${i}" | cut -f1)
+                local rotated_lines=$(wc -l < "${BACKFILL_LOG}.${i}" 2>/dev/null || echo "0")
+                echo "  Rotated $i: ${BACKFILL_LOG}.${i} ($rotated_size, $rotated_lines lines)"
+            fi
+        done
+    else
+        echo "Backfill log: $BACKFILL_LOG (not found)"
+    fi
+    
+    echo ""
+    echo "📋 Log Rotation Settings:"
+    echo "  Max size: ${MAX_LOG_SIZE_MB}MB"
+    echo "  Max files: ${MAX_LOG_FILES}"
+    echo "  Rotation: Automatic on size limit"
+}
+
 # Function to send email report via mailjet
 send_email_report() {
     local status="$1"
@@ -364,6 +459,10 @@ trigger_constellation_sync() {
 main() {
     log "INFO" "Constellation sync trigger started"
     
+    # Rotate logs if needed
+    rotate_logs "$LOG_FILE" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
+    rotate_logs "$BACKFILL_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
+    
     # Check if sync is already running
     if is_sync_running; then
         log "INFO" "Constellation sync already running, skipping"
@@ -380,6 +479,12 @@ main() {
         exit 1
     fi
 }
+
+# Check for log stats option
+if [[ "$1" == "--log-stats" ]]; then
+    show_log_stats
+    exit 0
+fi
 
 # Run main function
 main "$@"
