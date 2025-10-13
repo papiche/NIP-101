@@ -17,6 +17,8 @@ BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
 DRYRUN=false
 DAYS_BACK=1
 VERBOSE=false
+INCLUDE_DMS=true
+NO_VERIFY=true
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -32,13 +34,23 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --no-dms)
+            INCLUDE_DMS=false
+            shift
+            ;;
+        --verify)
+            NO_VERIFY=false
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--DRYRUN] [--days N] [--verbose|-v] [--show-hex] [--stats]"
+            echo "Usage: $0 [--DRYRUN] [--days N] [--verbose|-v] [--no-dms] [--verify] [--show-hex] [--stats]"
             echo ""
             echo "Options:"
             echo "  --DRYRUN     Show what would be done without executing"
             echo "  --days N     Backfill N days back (default: 1)"
             echo "  --verbose    Show detailed output"
+            echo "  --no-dms     Exclude direct messages (DMs) from synchronization"
+            echo "  --verify     Enable signature verification (slower but more secure)"
             echo "  --show-hex   Display all HEX pubkeys found in constellation"
             echo "  --stats      Show database statistics and monitoring info"
             echo "  --help       Show this help message"
@@ -313,7 +325,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
+            "kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, blog, calendar
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -344,6 +356,15 @@ EOF
     # Create a temporary backfill configuration with author filtering
     local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
     
+    # Build kinds array based on INCLUDE_DMS setting
+    local kinds_array="[0, 1, 3, 5, 6, 7, 30023, 30024]"  # Base kinds
+    if [[ "$INCLUDE_DMS" == "true" ]]; then
+        kinds_array="[0, 1, 3, 4, 5, 6, 7, 30023, 30024]"  # Include DMs
+        log "INFO" "Including direct messages (DMs) in synchronization"
+    else
+        log "INFO" "Excluding direct messages (DMs) from synchronization"
+    fi
+    
     cat > "$temp_config" <<EOF
 # Temporary backfill configuration for $peer (targeted)
 connectionTimeout = 30
@@ -354,7 +375,7 @@ streams {
         
         # Request events from constellation members in the last N days
         filter = { 
-            "kinds": [0, 1, 3, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
+            "kinds": $kinds_array,  # Dynamic kinds based on --no-dms option
             "authors": [$authors_filter],
             "since": $since_timestamp,
             "limit": 10000
@@ -461,7 +482,14 @@ execute_backfill_websocket_batch() {
     
     # Create the Nostr REQ message
     local req_message='["REQ", "backfill", {'
-    req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024], '  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
+    
+    # Build kinds array based on INCLUDE_DMS setting
+    if [[ "$INCLUDE_DMS" == "true" ]]; then
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024], '  # Include DMs
+    else
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024], '  # Exclude DMs
+    fi
+    
     req_message+="\"since\": $since_timestamp, "
     req_message+='"limit": 10000'
     
@@ -601,6 +629,13 @@ process_and_import_events() {
         return 0
     fi
     
+    # Count different event types for logging
+    local total_events=$(jq -r 'length' "$response_file" 2>/dev/null | head -1 || echo "0")
+    local dm_events=$(jq -r '[.[] | select(.kind == 4)] | length' "$response_file" 2>/dev/null || echo "0")
+    local public_events=$(jq -r '[.[] | select(.kind != 4)] | length' "$response_file" 2>/dev/null || echo "0")
+    
+    log "INFO" "Event breakdown: $total_events total ($dm_events DMs, $public_events public)"
+    
     # Create a filtered file without "Hello NOSTR visitor." messages
     local filtered_file="${response_file%.json}_filtered.json"
     
@@ -631,12 +666,22 @@ process_and_import_events() {
     log "INFO" "Converting to strfry import format..."
     jq -c '.[]' "$filtered_file" > "$import_file" 2>/dev/null
     
-    # Import events to strfry
-    log "INFO" "Importing $filtered_events events to strfry..."
+    # Import events to strfry with optional verification
+    local import_cmd="./strfry import"
+    if [[ "$NO_VERIFY" == "true" ]]; then
+        import_cmd="./strfry import --no-verify"
+        log "INFO" "Importing $filtered_events events to strfry (no-verify mode for speed)..."
+    else
+        log "INFO" "Importing $filtered_events events to strfry (with signature verification)..."
+    fi
     
     cd ~/.zen/strfry
-    if ./strfry import < "$import_file" 2>/dev/null; then
-        log "INFO" "✅ Successfully imported $filtered_events events to strfry"
+    if $import_cmd < "$import_file" 2>/dev/null; then
+        if [[ "$NO_VERIFY" == "true" ]]; then
+            log "INFO" "✅ Successfully imported $filtered_events events to strfry (no-verify mode)"
+        else
+            log "INFO" "✅ Successfully imported $filtered_events events to strfry (verified mode)"
+        fi
     else
         log "ERROR" "❌ Failed to import events to strfry"
         rm -f "$filtered_file" "$import_file"
@@ -749,7 +794,7 @@ main() {
         log "ERROR" "strfry binary not found or not executable"
         exit 1
     fi
-    
+
     # Get constellation peers directly from IPNS swarm discovery
     log "INFO" "Discovering constellation peers from IPNS swarm..."
     local discovered_peers
@@ -782,6 +827,21 @@ main() {
         log "INFO" "DRY RUN MODE - No actual backfill will be performed"
         log "INFO" "Would backfill from peers: ${peers[*]}"
         log "INFO" "Would request events since: $(date -d "@$since_timestamp" '+%Y-%m-%d %H:%M:%S')"
+        
+        # Show DM configuration in dry run
+        if [[ "$INCLUDE_DMS" == "true" ]]; then
+            log "INFO" "Would include direct messages (DMs) in synchronization"
+        else
+            log "INFO" "Would exclude direct messages (DMs) from synchronization"
+        fi
+        
+        # Show verification mode in dry run
+        if [[ "$NO_VERIFY" == "true" ]]; then
+            log "INFO" "Would use --no-verify mode for faster import (trusted constellation sources)"
+        else
+            log "INFO" "Would use signature verification mode for secure import"
+        fi
+        
         exit 0
     fi
     
