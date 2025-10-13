@@ -313,7 +313,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3],  # Profiles, text notes, contacts
+            "kinds": [0, 1, 3, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -354,7 +354,7 @@ streams {
         
         # Request events from constellation members in the last N days
         filter = { 
-            "kinds": [0, 1, 3],  # Profiles, text notes, contacts
+            "kinds": [0, 1, 3, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
             "authors": [$authors_filter],
             "since": $since_timestamp,
             "limit": 10000
@@ -461,7 +461,7 @@ execute_backfill_websocket_batch() {
     
     # Create the Nostr REQ message
     local req_message='["REQ", "backfill", {'
-    req_message+='"kinds": [0, 1, 3], '
+    req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024], '  # Profiles, text notes, contacts, deletions, reposts, reactions, blog, calendar
     req_message+="\"since\": $since_timestamp, "
     req_message+='"limit": 10000'
     

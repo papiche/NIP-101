@@ -268,6 +268,9 @@ send_email_report() {
         return 1
     fi
     
+    # Ensure tmp directory exists
+    mkdir -p "$HOME/.zen/tmp"
+    
     # Generate HTML report
     local report_file="$HOME/.zen/tmp/constellation_sync_report_$(date +%Y%m%d_%H%M%S).html"
     local log_content=$(tail -n 500 "$log_file" 2>/dev/null || echo "No log content available")
