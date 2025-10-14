@@ -17,6 +17,7 @@ BACKFILL_SCRIPT="$SCRIPT_DIR/backfill_constellation.sh"
 LOG_FILE="$HOME/.zen/strfry/constellation-trigger.log"
 LOCK_FILE="$HOME/.zen/strfry/constellation-sync.lock"
 BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
+HEX_PROFILE_LOG="$HOME/.zen/strfry/hex-to-profile.log"
 
 # Log rotation settings
 MAX_LOG_SIZE_MB=10  # Rotate when log exceeds 10MB
@@ -339,6 +340,26 @@ show_log_stats() {
     fi
     
     echo ""
+    
+    # Check hex-to-profile log
+    if [[ -f "$HEX_PROFILE_LOG" ]]; then
+        local hex_profile_size=$(du -h "$HEX_PROFILE_LOG" | cut -f1)
+        local hex_profile_lines=$(wc -l < "$HEX_PROFILE_LOG" 2>/dev/null || echo "0")
+        echo "HEX profile log: $HEX_PROFILE_LOG ($hex_profile_size, $hex_profile_lines lines)"
+        
+        # Show rotated files
+        for i in {1..5}; do
+            if [[ -f "${HEX_PROFILE_LOG}.${i}" ]]; then
+                local rotated_size=$(du -h "${HEX_PROFILE_LOG}.${i}" | cut -f1)
+                local rotated_lines=$(wc -l < "${HEX_PROFILE_LOG}.${i}" 2>/dev/null || echo "0")
+                echo "  Rotated $i: ${HEX_PROFILE_LOG}.${i} ($rotated_size, $rotated_lines lines)"
+            fi
+        done
+    else
+        echo "HEX profile log: $HEX_PROFILE_LOG (not found)"
+    fi
+    
+    echo ""
     echo "📋 Log Rotation Settings:"
     echo "  Max size: ${MAX_LOG_SIZE_MB}MB"
     echo "  Max files: ${MAX_LOG_FILES}"
@@ -462,6 +483,7 @@ main() {
     # Rotate logs if needed
     rotate_logs "$LOG_FILE" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
     rotate_logs "$BACKFILL_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
+    rotate_logs "$HEX_PROFILE_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
     
     # Check if sync is already running
     if is_sync_running; then
