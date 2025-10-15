@@ -12,6 +12,11 @@ source ~/.zen/Astroport.ONE/tools/my.sh
 # Configuration
 BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
 BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
+LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
+
+# Log rotation settings
+MAX_LOG_SIZE_MB=10  # Rotate when log exceeds 10MB
+MAX_LOG_FILES=5     # Keep 5 rotated log files
 
 # Parse command line arguments
 DRYRUN=false
@@ -130,6 +135,50 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Function to rotate logs if they exceed size limit
+rotate_logs() {
+    local log_file="$1"
+    local max_size_mb="$2"
+    local max_files="$3"
+    
+    if [[ ! -f "$log_file" ]]; then
+        return 0
+    fi
+    
+    # Check if log file exceeds size limit
+    local file_size_mb=$(du -m "$log_file" 2>/dev/null | cut -f1)
+    
+    if [[ -z "$file_size_mb" ]]; then
+        file_size_mb=0
+    fi
+    
+    if [[ $file_size_mb -gt $max_size_mb ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Rotating log file: $log_file (${file_size_mb}MB > ${max_size_mb}MB)" >> "$log_file"
+        
+        # Rotate existing files
+        for ((i=max_files-1; i>=1; i--)); do
+            if [[ -f "${log_file}.${i}" ]]; then
+                mv "${log_file}.${i}" "${log_file}.$((i+1))"
+            fi
+        done
+        
+        # Move current log to .1
+        mv "$log_file" "${log_file}.1"
+        
+        # Create new empty log file
+        touch "$log_file"
+        
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Log rotation completed: $log_file -> ${log_file}.1" >> "$log_file"
+        
+        # Remove old log files beyond max_files
+        for ((i=max_files+1; i<=10; i++)); do
+            if [[ -f "${log_file}.${i}" ]]; then
+                rm -f "${log_file}.${i}"
+            fi
+        done
+    fi
+}
+
 # Function to log messages
 log() {
     local level="$1"
@@ -144,6 +193,37 @@ log() {
     # Always log to file
     echo "[$timestamp] [$level] $message" >> "$BACKFILL_LOG"
 }
+
+# Function to check if backfill is already running
+is_backfill_running() {
+    if [[ -f "$LOCK_FILE" ]]; then
+        local pid=$(cat "$LOCK_FILE" 2>/dev/null)
+        if [[ -n "$pid" && -d "/proc/$pid" ]]; then
+            log "INFO" "Backfill already running with PID: $pid"
+            return 0  # Backfill is running
+        else
+            # Remove stale lock file
+            log "WARN" "Removing stale lock file (PID $pid not running)"
+            rm -f "$LOCK_FILE"
+        fi
+    fi
+    return 1  # No backfill running
+}
+
+# Function to create lock file
+create_lock() {
+    echo $$ > "$LOCK_FILE"
+    log "INFO" "Created lock file with PID $$"
+}
+
+# Function to remove lock file
+remove_lock() {
+    rm -f "$LOCK_FILE"
+    log "INFO" "Removed lock file"
+}
+
+# Trap to ensure lock file is removed on exit
+trap remove_lock EXIT INT TERM
 
 # Function to get all HEX pubkeys from nostr directory and amisOfAmis.txt files
 get_constellation_hex_pubkeys() {
@@ -441,9 +521,21 @@ execute_backfill_websocket() {
         return $?
     fi
     
+    # OPT #6: Batch size adaptatif selon le nombre de HEX
+    local total_hex=$(echo "$hex_pubkeys" | wc -l)
+    local batch_size=50  # Default
+    
+    if [[ $total_hex -lt 50 ]]; then
+        batch_size=$total_hex  # 1 seul batch
+        log "INFO" "Small constellation: using single batch of $batch_size HEX pubkeys"
+    elif [[ $total_hex -gt 200 ]]; then
+        batch_size=100  # Batches plus gros si beaucoup de HEX
+        log "INFO" "Large constellation: using batch size of $batch_size HEX pubkeys"
+    fi
+    
     # Split hex_pubkeys into batches
     local batches
-    batches=$(split_hex_pubkeys_into_batches "$hex_pubkeys" 50)
+    batches=$(split_hex_pubkeys_into_batches "$hex_pubkeys" "$batch_size")
     
     if [[ -z "$batches" ]]; then
         log "WARN" "No batches created, skipping backfill"
@@ -473,8 +565,10 @@ execute_backfill_websocket() {
         
         ((batch_number++))
         
-        # Small delay between batches to avoid overwhelming the relay
+        # OPT #7: Sleep conditionnel - ne sleep que s'il reste des batches
+        if [[ $batch_number -lt ${#batches_array[@]} ]]; then
         sleep 1
+        fi
     done
     
     log "INFO" "Total events collected across all batches: $total_events"
@@ -507,83 +601,15 @@ execute_backfill_websocket_single_hex() {
     log "INFO" "Connecting to WebSocket: $peer for full sync"
     log "DEBUG" "Request: single HEX ${hex_pubkey:0:8}, since=$since_timestamp (0=all messages)"
     
-    # Create a temporary Python script for WebSocket connection
-    local python_script="$HOME/.zen/strfry/websocket_full_sync_${RANDOM}.py"
+    # OPT #2: Use permanent Python script instead of creating/destroying temp scripts
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
     local response_file="$HOME/.zen/strfry/backfill-full-response-${RANDOM}.json"
     
-    cat > "$python_script" <<EOF
-#!/usr/bin/env python3
-import asyncio
-import websockets
-import json
-import sys
-import time
-
-async def backfill_websocket(websocket_url, req_message, response_file):
-    try:
-        async with websockets.connect(websocket_url, ping_interval=None, ping_timeout=None) as websocket:
-            print(f"Connected to {websocket_url}")
-            
-            # Send the REQ message
-            await websocket.send(req_message)
-            print(f"Sent full sync request")
-            
-            # Collect events for 60 seconds (longer for full sync)
-            events = []
-            start_time = time.time()
-            timeout = 60
-            
-            while time.time() - start_time < timeout:
-                try:
-                    message = await asyncio.wait_for(websocket.recv(), timeout=10)
-                    data = json.loads(message)
-                    
-                    if isinstance(data, list) and len(data) > 0:
-                        if data[0] == "EVENT":
-                            events.append(data[2])  # The event object
-                        elif data[0] == "EOSE":
-                            print("Received EOSE, ending collection")
-                            break
-                        elif data[0] == "NOTICE":
-                            print(f"Notice: {data[1]}")
-                        elif data[0] == "OK":
-                            print(f"OK: {data[1]} - {data[2]}")
-                except asyncio.TimeoutError:
-                    continue
-                except Exception as e:
-                    print(f"Error processing message: {e}")
-                    break
-            
-            # Save events to file
-            with open(response_file, 'w') as f:
-                json.dump(events, f, indent=2)
-            
-            print(f"Collected {len(events)} events")
-            return len(events)
-            
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-        return 0
-
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python3 script.py <websocket_url> <req_message> <response_file>")
-        sys.exit(1)
-    
-    websocket_url = sys.argv[1]
-    req_message = sys.argv[2]
-    response_file = sys.argv[3]
-    
-    result = asyncio.run(backfill_websocket(websocket_url, req_message, response_file))
-    sys.exit(0 if result > 0 else 1)
-EOF
-    
-    # Make Python script executable
-    chmod +x "$python_script"
-    
     # Execute the Python WebSocket script and capture the number of events
+    # Use 60s timeout for full sync
     local python_output
-    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 2>/dev/null)
+    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 60 2>/dev/null)
     local python_exit_code=$?
     
     if [[ $python_exit_code -eq 0 ]]; then
@@ -595,8 +621,8 @@ EOF
         # Process the response and import events to local strfry
         process_and_import_events "$response_file"
         
-        # Clean up
-        rm -f "$response_file" "$python_script"
+        # Clean up response file only (keep script)
+        rm -f "$response_file"
         
         # Return success if we got any events
         if [[ $events_count -gt 0 ]]; then
@@ -606,7 +632,7 @@ EOF
         fi
     else
         log "ERROR" "Full sync WebSocket backfill failed for ${hex_pubkey:0:8}"
-        rm -f "$response_file" "$python_script"
+        rm -f "$response_file"
         return 1
     fi
 }
@@ -651,84 +677,14 @@ execute_backfill_websocket_batch() {
     log "INFO" "Connecting to WebSocket: $peer"
     log "DEBUG" "Request size: ${#req_message} characters"
     
-    # Create a temporary Python script for WebSocket connection
-    local python_script="$HOME/.zen/strfry/websocket_backfill_${RANDOM}.py"
+    # OPT #2: Use permanent Python script instead of creating/destroying temp scripts
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
     local response_file="$HOME/.zen/strfry/backfill-response-${RANDOM}.json"
-    
-    cat > "$python_script" <<EOF
-#!/usr/bin/env python3
-import asyncio
-import websockets
-import json
-import sys
-import signal
-import time
-
-async def backfill_websocket(websocket_url, req_message, response_file):
-    try:
-        async with websockets.connect(websocket_url, ping_interval=None, ping_timeout=None) as websocket:
-            print(f"Connected to {websocket_url}")
-            
-            # Send the REQ message
-            await websocket.send(req_message)
-            print(f"Sent request: {req_message}")
-            
-            # Collect events for 30 seconds
-            events = []
-            start_time = time.time()
-            timeout = 30
-            
-            while time.time() - start_time < timeout:
-                try:
-                    message = await asyncio.wait_for(websocket.recv(), timeout=5)
-                    data = json.loads(message)
-                    
-                    if isinstance(data, list) and len(data) > 0:
-                        if data[0] == "EVENT":
-                            events.append(data[2])  # The event object
-                        elif data[0] == "EOSE":
-                            print("Received EOSE, ending collection")
-                            break
-                        elif data[0] == "NOTICE":
-                            print(f"Notice: {data[1]}")
-                        elif data[0] == "OK":
-                            print(f"OK: {data[1]} - {data[2]}")
-                except asyncio.TimeoutError:
-                    continue
-                except Exception as e:
-                    print(f"Error processing message: {e}")
-                    break
-            
-            # Save events to file
-            with open(response_file, 'w') as f:
-                json.dump(events, f, indent=2)
-            
-            print(f"Collected {len(events)} events")
-            return len(events)
-            
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-        return 0
-
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python3 script.py <websocket_url> <req_message> <response_file>")
-        sys.exit(1)
-    
-    websocket_url = sys.argv[1]
-    req_message = sys.argv[2]
-    response_file = sys.argv[3]
-    
-    result = asyncio.run(backfill_websocket(websocket_url, req_message, response_file))
-    sys.exit(0 if result > 0 else 1)
-EOF
-    
-    # Make Python script executable
-    chmod +x "$python_script"
     
     # Execute the Python WebSocket script and capture the number of events
     local python_output
-    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 2>/dev/null)
+    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 30 2>/dev/null)
     local python_exit_code=$?
     
     if [[ $python_exit_code -eq 0 ]]; then
@@ -742,14 +698,14 @@ EOF
         # Process the response and import events to local strfry
         process_and_import_events "$response_file"
         
-        # Clean up
-        rm -f "$response_file" "$python_script"
+        # Clean up response file only (keep script)
+        rm -f "$response_file"
         
         # Return the number of events collected
         return "$events_count"
     else
         log "ERROR" "WebSocket backfill failed"
-        rm -f "$response_file" "$python_script"
+        rm -f "$response_file"
         return 0
     fi
 }
@@ -766,10 +722,11 @@ process_and_import_events() {
         return 0
     fi
     
-    # Count different event types for logging
-    local total_events=$(jq -r 'length' "$response_file" 2>/dev/null | head -1 || echo "0")
-    local dm_events=$(jq -r '[.[] | select(.kind == 4)] | length' "$response_file" 2>/dev/null || echo "0")
-    local public_events=$(jq -r '[.[] | select(.kind != 4)] | length' "$response_file" 2>/dev/null || echo "0")
+    # OPT #4: Fusionner appels jq - 1 seul appel au lieu de 3
+    read total_events dm_events public_events < <(
+        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length)] | @tsv' \
+        "$response_file" 2>/dev/null || echo "0 0 0"
+    )
     
     log "INFO" "Event breakdown: $total_events total ($dm_events DMs, $public_events public)"
     
@@ -781,9 +738,8 @@ process_and_import_events() {
     # Filter out events containing "Hello NOSTR visitor." in their content
     jq -r '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
     
-    # Count events before and after filtering
-    local total_events=$(jq -r 'length' "$response_file" 2>/dev/null | head -1 || echo "0")
-    local filtered_events=$(jq -r 'length' "$filtered_file" 2>/dev/null | head -1 || echo "0")
+    # Count events after filtering (total_events already calculated above)
+    local filtered_events=$(wc -l < "$filtered_file" 2>/dev/null || echo "0")
     local removed_events=$((total_events - filtered_events))
     
     log "INFO" "Total events: $total_events"
@@ -923,8 +879,27 @@ execute_backfill() {
 
 # Main execution
 main() {
+    # Rotate logs before starting (check at beginning of each run)
+    rotate_logs "$BACKFILL_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
+    
     log "INFO" "Starting Astroport constellation backfill process"
+    
+    # Check if backfill is already running
+    if is_backfill_running; then
+        log "INFO" "Backfill already running, skipping this execution"
+        exit 0
+    fi
+    
+    # Create lock file
+    create_lock
+    
     log "INFO" "Backfilling $DAYS_BACK day(s) of events"
+    
+    # OPT #1: Cache HEX pubkeys (appelé 3+ fois dans le script)
+    local start_hex_cache=$(date +%s%3N)
+    CONSTELLATION_HEX_CACHE=$(get_constellation_hex_pubkeys)
+    local end_hex_cache=$(date +%s%3N)
+    log "PERF" "get_constellation_hex_pubkeys cached: $((end_hex_cache - start_hex_cache))ms"
     
     # Check if strfry binary exists
     if [[ ! -x "$HOME/.zen/strfry/strfry" ]]; then
@@ -932,11 +907,33 @@ main() {
         exit 1
     fi
 
+    # OPT #9: Cache peers discovery (valide 1h)
+    local PEERS_CACHE_FILE="$HOME/.zen/tmp/constellation_peers_cache.txt"
+    local PEERS_CACHE_AGE=$((60 * 60))  # 1 heure
+    local discovered_peers=""
+    
+    if [[ -f "$PEERS_CACHE_FILE" ]]; then
+        cache_age=$(( $(date +%s) - $(stat -c %Y "$PEERS_CACHE_FILE" 2>/dev/null || echo 0) ))
+        if [[ $cache_age -lt $PEERS_CACHE_AGE ]]; then
+            discovered_peers=$(cat "$PEERS_CACHE_FILE")
+            log "INFO" "Using cached peers (${cache_age}s old, valid for $((PEERS_CACHE_AGE - cache_age))s more)"
+        fi
+    fi
+    
+    if [[ -z "$discovered_peers" ]]; then
     # Get constellation peers directly from IPNS swarm discovery
     log "INFO" "Discovering constellation peers from IPNS swarm..."
-    local discovered_peers
+        local start_peers=$(date +%s%3N)
     discovered_peers=$(discover_constellation_peers 2>/dev/null)
+        local end_peers=$(date +%s%3N)
+        log "PERF" "discover_constellation_peers: $((end_peers - start_peers))ms"
     log "DEBUG" "discover_constellation_peers returned: '$discovered_peers'"
+        
+        # Save to cache
+        mkdir -p "$HOME/.zen/tmp"
+        echo "$discovered_peers" > "$PEERS_CACHE_FILE"
+        log "INFO" "Saved peers to cache (valid for ${PEERS_CACHE_AGE}s)"
+    fi
     
     local peers=()
     if [[ -n "$discovered_peers" ]]; then
@@ -993,7 +990,8 @@ main() {
         local ipfsnodeid=""
         
         # Get HEX pubkeys for targeted backfill (same for all relay types)
-        local hex_pubkeys=$(get_constellation_hex_pubkeys)
+        # OPT #1: Use cached HEX pubkeys
+        local hex_pubkeys="$CONSTELLATION_HEX_CACHE"
         
         # Check if this is a P2P localhost relay
         if [[ "$peer" =~ ^localhost:([^:]+):(.+)$ ]]; then
@@ -1056,8 +1054,8 @@ main() {
         log "INFO" "🔍 Extracting profiles from constellation HEX pubkeys..."
         
         # Get constellation HEX pubkeys
-        local hex_pubkeys
-        hex_pubkeys=$(get_constellation_hex_pubkeys 2>/dev/null)
+        # OPT #1: Use cached HEX pubkeys
+        local hex_pubkeys="$CONSTELLATION_HEX_CACHE"
         
         if [[ -n "$hex_pubkeys" ]]; then
             local hex_count=$(echo "$hex_pubkeys" | wc -l)
@@ -1102,21 +1100,32 @@ main() {
                             log "INFO" "$hex_line"
                         done
                         
-                        # Check for HEX pubkeys with recent events in strfry and handle missing profiles
-                        log "INFO" "🔍 Checking for HEX pubkeys with events in strfry..."
+                        # OPT #3: Batch strfry scan - 1 seul scan pour tous les HEX au lieu de N scans
+                        log "INFO" "🔍 Checking for HEX pubkeys with events in strfry (batch scan)..."
                         local recent_hex_count=0
                         local missing_profiles=()
                         
+                        local start_batch_scan=$(date +%s%3N)
+                        
+                        # Build authors array for single scan
+                        local authors_json=$(cat "$hex_file" | jq -R . | jq -s .)
+                        
+                        # 1 SEUL scan pour tous les HEX (énorme gain de performance)
+                        local all_profiles=$(cd "$HOME/.zen/strfry" && ./strfry scan "{
+                            \"kinds\": [0],
+                            \"authors\": $authors_json
+                        }" 2>/dev/null)
+                        
+                        local end_batch_scan=$(date +%s%3N)
+                        log "PERF" "Batch strfry scan for all HEX: $((end_batch_scan - start_batch_scan))ms"
+                        
+                        # Parse results in memory (much faster than N separate scans)
                         while IFS= read -r hex_pubkey; do
                             if [[ -n "$hex_pubkey" && ${#hex_pubkey} -eq 64 ]]; then
-                                # Check if this HEX has any kind 0 (profile) event in strfry
-                                local profile_event=$(cd "$HOME/.zen/strfry" && ./strfry scan "{
-                                    \"kinds\": [0],
-                                    \"authors\": [\"$hex_pubkey\"],
-                                    \"limit\": 1
-                                }" 2>/dev/null | jq -c 'select(.kind == 0)' 2>/dev/null | head -1)
+                                # Check if this HEX has a profile in the batch results
+                                local profile_event=$(echo "$all_profiles" | jq -c "select(.pubkey == \"$hex_pubkey\")" 2>/dev/null | head -1)
                                 
-                                if [[ -n "$profile_event" && "$profile_event" != "null" ]]; then
+                                if [[ -n "$profile_event" && "$profile_event" != "null" && "$profile_event" != "" ]]; then
                                     # Profile found
                                     ((recent_hex_count++))
                                     
@@ -1125,7 +1134,7 @@ main() {
                                     local profile_display=$(echo "$profile_event" | jq -r '.content | fromjson | .display_name // empty' 2>/dev/null)
                                     local profile_nip05=$(echo "$profile_event" | jq -r '.content | fromjson | .nip05 // empty' 2>/dev/null)
                                     
-                                    if [[ -n "$profile_name" && "$profile_name" != "null" ]]; then
+                                    if [[ -n "$profile_name" && "$profile_name" != "null" && "$profile_name" != "" ]]; then
                                         log "INFO" "  ✅ ${hex_pubkey:0:8}... Profile: $profile_name"
                                         if [[ -n "$profile_display" && "$profile_display" != "null" ]]; then
                                             log "INFO" "      Display: $profile_display"
@@ -1147,39 +1156,54 @@ main() {
                         log "INFO" "📊 Found $recent_hex_count HEX pubkeys with profiles"
                         log "INFO" "📊 Found ${#missing_profiles[@]} HEX pubkeys WITHOUT profiles"
                         
-                        # If we have missing profiles, trigger full sync for those HEX pubkeys
+                        # OPT #5: Paralléliser full sync - 3 en parallèle au lieu de séquentiel
                         if [[ ${#missing_profiles[@]} -gt 0 ]]; then
-                            log "INFO" "🔄 Triggering FULL SYNC (no time limit) for ${#missing_profiles[@]} HEX pubkeys without profiles..."
+                            log "INFO" "🔄 Triggering PARALLEL FULL SYNC (no time limit) for ${#missing_profiles[@]} HEX pubkeys without profiles..."
                             
-                            # Get all peers for full sync
+                            # Get all peers for full sync (reuse cache if available)
                             local discovered_peers
+                            if [[ -f "$PEERS_CACHE_FILE" ]]; then
+                                discovered_peers=$(cat "$PEERS_CACHE_FILE")
+                                log "INFO" "Using cached peers for full sync"
+                            else
                             discovered_peers=$(discover_constellation_peers 2>/dev/null)
+                            fi
                             
                             if [[ -n "$discovered_peers" ]]; then
                                 local peers_array=()
                                 mapfile -t peers_array <<< "$discovered_peers"
                                 log "INFO" "Found ${#peers_array[@]} peers for full sync"
                                 
-                                # Process each missing profile
+                                # Extract only routable peers (skip P2P for parallel sync)
+                                local routable_peers=()
+                                for peer in "${peers_array[@]}"; do
+                                    if [[ "$peer" =~ ^routable:(.+)$ ]]; then
+                                        routable_peers+=("${BASH_REMATCH[1]}")
+                                    fi
+                                done
+                                
+                                if [[ ${#routable_peers[@]} -eq 0 ]]; then
+                                    log "WARN" "No routable peers available for parallel full sync"
+                                else
+                                    log "INFO" "Using ${#routable_peers[@]} routable peers for parallel sync"
+                                    
+                                    # Parallel sync with max 3 concurrent
+                                    local MAX_PARALLEL=3
+                                    local parallel_count=0
+                                    local sync_success_count=0
+                                    
+                                    local start_parallel=$(date +%s%3N)
+                                    
                                 for missing_hex in "${missing_profiles[@]}"; do
                                     log "INFO" "  🔄 FULL SYNC for ${missing_hex:0:8}... (all messages, no time limit)"
                                     
+                                        # Launch in background if < MAX_PARALLEL
+                                        (
                                     local sync_success=false
                                     
-                                    # Try each peer until successful
-                                    for peer in "${peers_array[@]}"; do
-                                        # Extract relay URL from peer info
-                                        local relay_url=""
-                                        if [[ "$peer" =~ ^routable:(.+)$ ]]; then
-                                            relay_url="${BASH_REMATCH[1]}"
-                                        elif [[ "$peer" =~ ^localhost:([^:]+):(.+)$ ]]; then
-                                            # For P2P tunnels, skip for now (complex setup)
-                                            continue
-                                        else
-                                            continue
-                                        fi
-                                        
-                                        log "INFO" "    📡 Syncing from: $relay_url"
+                                            # Try each routable peer until successful
+                                            for relay_url in "${routable_peers[@]}"; do
+                                                log "INFO" "    📡 Syncing ${missing_hex:0:8} from: $relay_url"
                                         
                                         # Execute full backfill for this HEX (since=0 means all messages)
                                         if execute_backfill_websocket_single_hex "$relay_url" "0" "$missing_hex"; then
@@ -1193,13 +1217,32 @@ main() {
                                     
                                     if [[ "$sync_success" == "false" ]]; then
                                         log "ERROR" "  ❌ Failed to sync ${missing_hex:0:8} from all peers"
-                                    fi
+                                                exit 1
+                                            fi
+                                            exit 0
+                                        ) &
+                                        
+                                        ((parallel_count++))
+                                        
+                                        # Wait if we reached MAX_PARALLEL
+                                        if [[ $parallel_count -ge $MAX_PARALLEL ]]; then
+                                            wait -n  # Wait for one process to finish
+                                            [[ $? -eq 0 ]] && ((sync_success_count++))
+                                            ((parallel_count--))
+                                        fi
+                                    done
                                     
-                                    # Small delay between HEX pubkeys
-                                    sleep 2
-                                done
-                                
-                                log "INFO" "✅ Full sync completed for missing profiles"
+                                    # Wait for remaining processes
+                                    while [[ $parallel_count -gt 0 ]]; do
+                                        wait -n
+                                        [[ $? -eq 0 ]] && ((sync_success_count++))
+                                        ((parallel_count--))
+                                    done
+                                    
+                                    local end_parallel=$(date +%s%3N)
+                                    log "PERF" "Parallel full sync: $((end_parallel - start_parallel))ms for ${#missing_profiles[@]} HEX"
+                                    log "INFO" "✅ Parallel full sync completed: $sync_success_count/${#missing_profiles[@]} successful"
+                                fi
                             else
                                 log "WARN" "No peers available for full sync"
                             fi
