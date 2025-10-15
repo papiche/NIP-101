@@ -548,26 +548,49 @@ execute_backfill_websocket() {
     
     log "INFO" "Executing backfill in ${#batches_array[@]} batches"
     
-    # Process each batch
+    # Process each batch with retry logic
     local total_events=0
     local batch_number=1
+    local MAX_RETRIES=3  # Maximum retry attempts per batch
     
     for batch in "${batches_array[@]}"; do
         log "INFO" "Processing batch $batch_number/${#batches_array[@]}"
         
-        if execute_backfill_websocket_batch "$peer" "$since_timestamp" "$batch"; then
-            local batch_events=$?
-            total_events=$((total_events + batch_events))
-            log "INFO" "Batch $batch_number completed with $batch_events events"
-        else
-            log "WARN" "Batch $batch_number failed"
-        fi
+        local batch_success=false
+        local retry_count=0
+        local batch_events=0
+        
+        # Retry logic for failed batches
+        while [[ $retry_count -lt $MAX_RETRIES && "$batch_success" == "false" ]]; do
+            if [[ $retry_count -gt 0 ]]; then
+                log "INFO" "Retry attempt $retry_count/$MAX_RETRIES for batch $batch_number"
+                sleep $((retry_count * 2))  # Exponential backoff: 2s, 4s, 6s
+            fi
+            
+            if execute_backfill_websocket_batch "$peer" "$since_timestamp" "$batch"; then
+                batch_events=$?
+                batch_success=true
+                total_events=$((total_events + batch_events))
+                if [[ $retry_count -gt 0 ]]; then
+                    log "INFO" "✅ Batch $batch_number succeeded on retry $retry_count with $batch_events events"
+                else
+                    log "INFO" "✅ Batch $batch_number completed with $batch_events events"
+                fi
+            else
+                ((retry_count++))
+                if [[ $retry_count -lt $MAX_RETRIES ]]; then
+                    log "WARN" "❌ Batch $batch_number failed (attempt $retry_count/$MAX_RETRIES), retrying..."
+                else
+                    log "ERROR" "❌ Batch $batch_number failed after $MAX_RETRIES attempts, giving up"
+                fi
+            fi
+        done
         
         ((batch_number++))
         
         # OPT #7: Sleep conditionnel - ne sleep que s'il reste des batches
         if [[ $batch_number -lt ${#batches_array[@]} ]]; then
-        sleep 1
+            sleep 1
         fi
     done
     
@@ -682,32 +705,54 @@ execute_backfill_websocket_batch() {
     local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
     local response_file="$HOME/.zen/strfry/backfill-response-${RANDOM}.json"
     
-    # Execute the Python WebSocket script and capture the number of events
+    # Execute the Python WebSocket script with retry logic
     local python_output
-    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 30 2>/dev/null)
-    local python_exit_code=$?
+    local python_exit_code=1
+    local websocket_retry_count=0
+    local MAX_WEBSOCKET_RETRIES=2  # Maximum retry attempts for WebSocket connection
     
-    if [[ $python_exit_code -eq 0 ]]; then
-        # Extract the number of events from the output
-        local events_count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+    while [[ $websocket_retry_count -le $MAX_WEBSOCKET_RETRIES && $python_exit_code -ne 0 ]]; do
+        if [[ $websocket_retry_count -gt 0 ]]; then
+            log "INFO" "WebSocket retry attempt $websocket_retry_count/$MAX_WEBSOCKET_RETRIES for $peer"
+            sleep $((websocket_retry_count * 3))  # Exponential backoff: 3s, 6s
+        fi
         
-        log "INFO" "WebSocket backfill completed successfully"
-        log "INFO" "Response saved to: $response_file"
-        log "INFO" "Collected $events_count events in this batch"
+        python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 30 2>/dev/null)
+        python_exit_code=$?
         
-        # Process the response and import events to local strfry
-        process_and_import_events "$response_file"
-        
-        # Clean up response file only (keep script)
-        rm -f "$response_file"
-        
-        # Return the number of events collected
-        return "$events_count"
-    else
-        log "ERROR" "WebSocket backfill failed"
-        rm -f "$response_file"
-        return 0
-    fi
+        if [[ $python_exit_code -eq 0 ]]; then
+            # Extract the number of events from the output
+            local events_count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+            
+            if [[ $websocket_retry_count -gt 0 ]]; then
+                log "INFO" "✅ WebSocket backfill succeeded on retry $websocket_retry_count"
+            else
+                log "INFO" "WebSocket backfill completed successfully"
+            fi
+            log "INFO" "Response saved to: $response_file"
+            log "INFO" "Collected $events_count events in this batch"
+            
+            # Process the response and import events to local strfry
+            process_and_import_events "$response_file"
+            
+            # Clean up response file only (keep script)
+            rm -f "$response_file"
+            
+            # Return the number of events collected
+            return "$events_count"
+        else
+            ((websocket_retry_count++))
+            if [[ $websocket_retry_count -le $MAX_WEBSOCKET_RETRIES ]]; then
+                log "WARN" "❌ WebSocket connection failed (attempt $websocket_retry_count/$MAX_WEBSOCKET_RETRIES), retrying..."
+            else
+                log "ERROR" "❌ WebSocket backfill failed after $MAX_WEBSOCKET_RETRIES attempts"
+            fi
+        fi
+    done
+    
+    # If we reach here, all retries failed
+    rm -f "$response_file"
+    return 0
 }
 
 # Function to process and import events from WebSocket response
@@ -1001,20 +1046,45 @@ main() {
             
             log "INFO" "Processing localhost relay via P2P tunnel: $ipfsnodeid"
             
-            # Create P2P tunnel
-            if create_p2p_tunnel "$ipfsnodeid" "$x_strfry_script"; then
-                # Wait a moment for tunnel to be ready
-                sleep 3
-                
-                # Execute WebSocket backfill via P2P tunnel
-                if execute_p2p_websocket_backfill "$ipfsnodeid" "$since_timestamp" "$hex_pubkeys"; then
-                    log "INFO" "✅ P2P WebSocket backfill successful for $ipfsnodeid"
-                    backfill_success=true
-                else
-                    log "ERROR" "❌ P2P WebSocket backfill failed for $ipfsnodeid"
+            # Create P2P tunnel with retry logic
+            local tunnel_success=false
+            local tunnel_retry_count=0
+            local MAX_TUNNEL_RETRIES=2
+            
+            while [[ $tunnel_retry_count -le $MAX_TUNNEL_RETRIES && "$tunnel_success" == "false" ]]; do
+                if [[ $tunnel_retry_count -gt 0 ]]; then
+                    log "INFO" "P2P tunnel retry attempt $tunnel_retry_count/$MAX_TUNNEL_RETRIES for $ipfsnodeid"
+                    sleep $((tunnel_retry_count * 5))  # Exponential backoff: 5s, 10s
                 fi
-            else
-                log "ERROR" "Failed to create P2P tunnel for $ipfsnodeid"
+                
+                if create_p2p_tunnel "$ipfsnodeid" "$x_strfry_script"; then
+                    # Wait a moment for tunnel to be ready
+                    sleep 3
+                    
+                    # Execute WebSocket backfill via P2P tunnel
+                    if execute_p2p_websocket_backfill "$ipfsnodeid" "$since_timestamp" "$hex_pubkeys"; then
+                        log "INFO" "✅ P2P WebSocket backfill successful for $ipfsnodeid"
+                        backfill_success=true
+                        tunnel_success=true
+                    else
+                        log "ERROR" "❌ P2P WebSocket backfill failed for $ipfsnodeid"
+                        ((tunnel_retry_count++))
+                        if [[ $tunnel_retry_count -le $MAX_TUNNEL_RETRIES ]]; then
+                            log "WARN" "Retrying P2P tunnel for $ipfsnodeid..."
+                        fi
+                    fi
+                else
+                    ((tunnel_retry_count++))
+                    if [[ $tunnel_retry_count -le $MAX_TUNNEL_RETRIES ]]; then
+                        log "WARN" "❌ Failed to create P2P tunnel for $ipfsnodeid (attempt $tunnel_retry_count/$MAX_TUNNEL_RETRIES), retrying..."
+                    else
+                        log "ERROR" "❌ Failed to create P2P tunnel for $ipfsnodeid after $MAX_TUNNEL_RETRIES attempts"
+                    fi
+                fi
+            done
+            
+            if [[ "$tunnel_success" == "false" ]]; then
+                log "ERROR" "❌ All P2P tunnel attempts failed for $ipfsnodeid, skipping this peer"
                 continue
             fi
         else
@@ -1260,6 +1330,25 @@ main() {
         else
             log "WARN" "No HEX pubkeys found in constellation"
         fi
+    fi
+    
+    # Send synchronization report to CAPTAINEMAIL
+    if [[ -n "$CAPTAINEMAIL" ]]; then
+        log "INFO" "📧 Sending synchronization report to $CAPTAINEMAIL..."
+        
+        # Get the directory of this script
+        local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local sync_report_script="$SCRIPT_DIR/sync_report.sh"
+        
+        if [[ -x "$sync_report_script" ]]; then
+            # Run the sync report script in background to avoid blocking
+            "$sync_report_script" &
+            log "INFO" "📤 Synchronization report queued for delivery"
+        else
+            log "WARN" "❌ sync_report.sh not found or not executable"
+        fi
+    else
+        log "WARN" "❌ CAPTAINEMAIL not set, skipping report"
     fi
     
     if [[ $success_count -eq $total_peers ]]; then

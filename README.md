@@ -398,6 +398,15 @@ The synchronization process includes several performance optimizations:
 - **Permanent Scripts:** 
   - Reusable Python WebSocket script (`nostr_websocket_backfill.py`)
   - Eliminates temporary script creation/deletion overhead
+- **Retry Logic:**
+  - **Batch Retry:** Up to 3 retry attempts per failed batch with exponential backoff (2s, 4s, 6s)
+  - **WebSocket Retry:** Up to 2 retry attempts for failed WebSocket connections (3s, 6s backoff)
+  - **P2P Tunnel Retry:** Up to 2 retry attempts for failed P2P tunnel creation (5s, 10s backoff)
+- **Email Reporting:**
+  - **Automatic Reports:** Detailed HTML reports sent to CAPTAINEMAIL after each sync
+  - **Rich Statistics:** Peers, events, profiles, performance metrics, retry counts
+  - **Visual Dashboard:** Beautiful HTML formatting with success/error indicators
+  - **Background Delivery:** Reports sent asynchronously to avoid blocking sync process
 
 #### 3. P2P Tunnel Integration
 
