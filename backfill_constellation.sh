@@ -331,7 +331,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, blog, calendar
+            "kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, blog, calendar, DID documents
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -363,13 +363,14 @@ EOF
     local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
     
     # Build kinds array based on INCLUDE_DMS setting
-    local kinds_array="[0, 1, 3, 5, 6, 7, 30023, 30024]"  # Base kinds
+    local kinds_array="[0, 1, 3, 5, 6, 7, 30023, 30024, 30311]"  # Base kinds + DID
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        kinds_array="[0, 1, 3, 4, 5, 6, 7, 30023, 30024]"  # Include DMs
+        kinds_array="[0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311]"  # Include DMs + DID
         log "INFO" "Including direct messages (DMs) in synchronization"
     else
         log "INFO" "Excluding direct messages (DMs) from synchronization"
     fi
+    log "INFO" "Including kind 30311 (DID documents) in synchronization"
     
     cat > "$temp_config" <<EOF
 # Temporary backfill configuration for $peer (targeted)
@@ -493,9 +494,9 @@ execute_backfill_websocket_single_hex() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024], '  # Include DMs
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311], '  # Include DMs + DID
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024], '  # Exclude DMs
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024, 30311], '  # Exclude DMs + DID
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -621,9 +622,9 @@ execute_backfill_websocket_batch() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024], '  # Include DMs
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311], '  # Include DMs + DID
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024], '  # Exclude DMs
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024, 30311], '  # Exclude DMs + DID
     fi
     
     req_message+="\"since\": $since_timestamp, "

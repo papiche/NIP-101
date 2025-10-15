@@ -44,6 +44,94 @@ UPlanet's core innovation lies in its "Twin-Key" mechanism, which inextricably l
     -   If the `npub` does not match (i.e., it's a "foreign drive"), write operations are strictly disallowed. However, users can "sync" files from a foreign drive to their *own* authenticated drive, effectively copying public content.
 -   **Structured IPFS Content:** Unlike general blob storage, UPlanet organizes files into a hierarchical structure within the IPFS drive (`Images/`, `Music/`, `Videos/`, `Documents/`), and generates a human-readable web interface (`_index.html`) for exploration. This provides a user-friendly "drive" experience rather than just raw blob access.
 
+### Decentralized Identity Documents (DID) via Kind 30311
+
+UPlanet implements W3C-compliant Decentralized Identifiers (DIDs) using Nostr as the source of truth, replacing traditional centralized identity systems with a fully decentralized, censorship-resistant approach.
+
+#### DID Document Storage on Nostr
+
+-   **Event Type:** DID documents are stored as Nostr `kind:30311` events (Parameterized Replaceable Events, as defined in [NIP-33](https://github.com/nostr-protocol/nips/blob/master/33.md)).
+-   **Automatic Replacement:** New DID updates automatically replace previous versions on relays, ensuring only the latest version is maintained without manual deletion.
+-   **Standard Tags:**
+    -   `["d", "did"]` - The identifier tag that makes DIDs replaceable per author
+    -   `["t", "uplanet"]` - Application namespace tag
+    -   `["t", "did-document"]` - Document type tag
+
+#### DID Document Structure
+
+Each UPlanet user's DID document follows the W3C DID Core specification and includes:
+
+```json
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:nostr:<hex_pubkey>",
+  "verificationMethod": [
+    {
+      "id": "did:nostr:<hex_pubkey>#key-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:nostr:<hex_pubkey>",
+      "publicKeyMultibase": "z<base58btc_encoded_key>"
+    }
+  ],
+  "service": [
+    {
+      "id": "did:nostr:<hex_pubkey>#ipfs-drive",
+      "type": "IPFSDrive",
+      "serviceEndpoint": "ipns://<ipfs_key>/<email>/APP"
+    },
+    {
+      "id": "did:nostr:<hex_pubkey>#g1-wallet",
+      "type": "Ğ1Wallet",
+      "serviceEndpoint": "g1:<g1_pubkey>"
+    }
+  ],
+  "metadata": {
+    "email": "user@example.com",
+    "contractStatus": "active",
+    "created": "2024-01-01T12:00:00Z",
+    "updated": "2024-01-15T14:30:00Z"
+  }
+}
+```
+
+#### Integration with UPlanet Identity System
+
+-   **DID Resolution:** The `did:nostr:<hex_pubkey>` identifier directly maps to a user's Nostr public key, enabling instant resolution without centralized registries.
+-   **Multi-Chain Identity:** DID documents link together:
+    -   Nostr public key (identity)
+    -   IPFS/IPNS drive (storage)
+    -   Ğ1 wallet address (economy)
+    -   Bitcoin addresses (legacy crypto)
+-   **Local Cache:** While Nostr is the source of truth, local caches (`did.json.cache`) improve performance and offline access.
+-   **IPNS Publication:** DID documents are also published to IPFS for web-based access at standard endpoints:
+    -   `{myIPFS}/ipns/{NOSTRNS}/{EMAIL}/.well-known/did.json`
+
+#### DID Management Workflow
+
+1.  **Creation:** When a new MULTIPASS identity is created via `make_NOSTRCARD.sh`, a DID document is generated and immediately published to Nostr relays.
+2.  **Updates:** The `did_manager_nostr.sh` script manages DID lifecycle:
+    -   Fetches current DID from Nostr
+    -   Updates metadata (contracts, transactions, services)
+    -   Validates against W3C standards
+    -   Publishes updated version to Nostr (replaces previous)
+    -   Syncs to local cache
+    -   Republishes to IPNS
+3.  **Synchronization:** The `backfill_constellation.sh` script ensures DID documents (kind:30311) are replicated across the UPlanet constellation of relays.
+
+#### Benefits of Nostr-Native DIDs
+
+-   **Decentralization:** No single point of failure or central authority
+-   **Censorship Resistance:** Multiple relays ensure availability
+-   **Self-Sovereign:** Users control their identity through their private key
+-   **Interoperability:** W3C-compliant DIDs work with standard DID resolvers
+-   **Verifiability:** All identity claims are cryptographically signed
+-   **Persistence:** Replaceable events ensure historical versions don't clutter relays
+
+This DID system forms the foundation of trust and identity verification across the entire UPlanet ecosystem, enabling secure authentication, ownership verification, and inter-user interactions.
+
 ### Comparison to Generic Blob Storage (e.g., Blossom)
 
 While sharing the fundamental use of Nostr for authentication, UPlanet differentiates itself from more generic Nostr-based blob storage specifications like [Blossom](https://github.com/hzrd149/blossom) (BUDs) in its scope and approach:
@@ -367,8 +455,13 @@ This NIP is compatible with existing Nostr concepts:
 ## References
 
 -   NIP-01: Basic protocol flow description
+-   NIP-07: Nostr extension for browsers
 -   NIP-10: Conventions for use of `e` and `p` tags in text events
+-   NIP-11: Relay information document
+-   NIP-33: Parameterized Replaceable Events (kind:30311 for DID documents)
+-   NIP-42: Authentication of clients to relays
 -   *(Implied)*: secp256k1, SHA256
+-   W3C DID Core Specification: https://www.w3.org/TR/did-core/
 
 ## Documentation en Français
 
