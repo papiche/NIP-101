@@ -265,11 +265,12 @@ get_constellation_hex_pubkeys() {
             while IFS= read -r line; do
                 local pubkey=$(echo "$line" | tr -d '[:space:]')
                 # Strict validation: exactly 64 hex characters
-                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
+                # Also reject lines that look like log messages (contain brackets or "INFO", "DEBUG", "Connected", etc.)
+                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ && ! "$line" =~ \[|INFO|DEBUG|Connected|Sent|Received|Found ]]; then
                     hex_pubkeys+=("$pubkey")
                     echo "DEBUG: Found amisOfAmis pubkey: ${pubkey:0:8}..." >&2
-                elif [[ -n "$pubkey" ]]; then
-                    echo "WARN: Invalid amisOfAmis pubkey (length=${#pubkey}): ${pubkey:0:16}..." >&2
+                elif [[ -n "$pubkey" && ${#pubkey} -ne 64 ]]; then
+                    echo "DEBUG: Skipping non-hex line (length=${#pubkey}): ${line:0:50}..." >&2
                 fi
             done < <(cat "$swarm_dir"/*/amisOfAmis.txt 2>/dev/null)
         fi
@@ -605,7 +606,6 @@ execute_backfill_websocket() {
         
         local batch_success=false
         local retry_count=0
-        local batch_events=0
         
         # Retry logic for failed batches
         while [[ $retry_count -lt $MAX_RETRIES && "$batch_success" == "false" ]]; do
@@ -614,14 +614,15 @@ execute_backfill_websocket() {
                 sleep $((retry_count * 2))  # Exponential backoff: 2s, 4s, 6s
             fi
             
+            # Store result in a variable to check exit code properly
             if execute_backfill_websocket_batch "$peer" "$since_timestamp" "$batch"; then
-                batch_events=$?
+                local batch_exit_code=$?
                 batch_success=true
-                total_events=$((total_events + batch_events))
+                # Exit code 0 means success, even if no events collected
                 if [[ $retry_count -gt 0 ]]; then
-                    log "INFO" "✅ Batch $batch_number succeeded on retry $retry_count with $batch_events events"
+                    log "INFO" "✅ Batch $batch_number succeeded on retry $retry_count"
                 else
-                    log "INFO" "✅ Batch $batch_number completed with $batch_events events"
+                    log "INFO" "✅ Batch $batch_number completed successfully"
                 fi
             else
                 ((retry_count++))
@@ -636,12 +637,12 @@ execute_backfill_websocket() {
         ((batch_number++))
         
         # OPT #7: Sleep conditionnel - ne sleep que s'il reste des batches
-        if [[ $batch_number -lt ${#batches_array[@]} ]]; then
+        if [[ $batch_number -le ${#batches_array[@]} ]]; then
             sleep 1
         fi
     done
     
-    log "INFO" "Total events collected across all batches: $total_events"
+    log "INFO" "Completed processing ${#batches_array[@]} batches"
     return 0
 }
 
@@ -802,13 +803,17 @@ execute_backfill_websocket_batch() {
             log "INFO" "Collected $events_count events in this batch"
             
             # Process the response and import events to local strfry
-            process_and_import_events "$response_file"
-            
-            # Clean up response file only (keep script)
-            rm -f "$response_file"
-            
-            # Return the number of events collected
-            return "$events_count"
+            if process_and_import_events "$response_file"; then
+                # Clean up response file only (keep script)
+                rm -f "$response_file"
+                
+                # Return 0 for success (not event count)
+                return 0
+            else
+                log "ERROR" "Failed to process and import events"
+                rm -f "$response_file"
+                return 1
+            fi
         else
             ((websocket_retry_count++))
             if [[ $websocket_retry_count -le $MAX_WEBSOCKET_RETRIES ]]; then
@@ -821,7 +826,7 @@ execute_backfill_websocket_batch() {
     
     # If we reach here, all retries failed
     rm -f "$response_file"
-    return 0
+    return 1
 }
 
 # Function to process and import events from WebSocket response
@@ -850,10 +855,11 @@ process_and_import_events() {
     log "INFO" "Filtering out 'Hello NOSTR visitor.' messages..."
     
     # Filter out events containing "Hello NOSTR visitor." in their content
-    jq -r '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
+    # Use -c for compact output (one JSON object per line)
+    jq -c '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
     
-    # Count events after filtering (total_events already calculated above)
-    local filtered_events=$(wc -l < "$filtered_file" 2>/dev/null || echo "0")
+    # Count events after filtering using jq (more reliable than wc -l)
+    local filtered_events=$(jq -s 'length' "$filtered_file" 2>/dev/null || echo "0")
     local removed_events=$((total_events - filtered_events))
     
     log "INFO" "Total events: $total_events"
@@ -871,7 +877,8 @@ process_and_import_events() {
     local import_file="${response_file%.json}_import.ndjson"
     
     log "INFO" "Converting to strfry import format..."
-    jq -c '.[]' "$filtered_file" > "$import_file" 2>/dev/null
+    # Filtered file is already NDJSON (one JSON object per line), just copy it
+    cp "$filtered_file" "$import_file"
     
     # Import events to strfry with optional verification
     local import_cmd="./strfry import"
