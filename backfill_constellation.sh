@@ -11,10 +11,11 @@ source ~/.zen/Astroport.ONE/tools/my.sh
 
 # Configuration
 BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
+BACKFILL_ERROR_LOG="$HOME/.zen/strfry/constellation-backfill.error.log"
 BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
 LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
 
-# Log rotation settings
+# Log rotation settings (for error log only)
 MAX_LOG_SIZE_MB=10  # Rotate when log exceeds 10MB
 MAX_LOG_FILES=5     # Keep 5 rotated log files
 
@@ -190,8 +191,13 @@ log() {
         echo "[$timestamp] [$level] $message"
     fi
     
-    # Always log to file
+    # Always log to main file
     echo "[$timestamp] [$level] $message" >> "$BACKFILL_LOG"
+    
+    # Also log errors and warnings to error log
+    if [[ "$level" == "ERROR" || "$level" == "WARN" ]]; then
+        echo "[$timestamp] [$level] $message" >> "$BACKFILL_ERROR_LOG"
+    fi
 }
 
 # Function to check if backfill is already running
@@ -962,8 +968,13 @@ execute_backfill() {
 
 # Main execution
 main() {
-    # Rotate logs before starting (check at beginning of each run)
-    rotate_logs "$BACKFILL_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
+    # Reset main log for this run (keep only current sync data)
+    echo "# Constellation Backfill Log - $(date '+%Y-%m-%d %H:%M:%S')" > "$BACKFILL_LOG"
+    echo "# This log contains only the latest synchronization run" >> "$BACKFILL_LOG"
+    echo "" >> "$BACKFILL_LOG"
+    
+    # Rotate error log before starting (keep historical errors)
+    rotate_logs "$BACKFILL_ERROR_LOG" "$MAX_LOG_SIZE_MB" "$MAX_LOG_FILES"
     
     log "INFO" "Starting Astroport constellation backfill process"
     
