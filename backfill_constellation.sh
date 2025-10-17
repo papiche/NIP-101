@@ -238,9 +238,12 @@ get_constellation_hex_pubkeys() {
         if ls "$nostr_dir"/*/HEX >/dev/null 2>&1; then
             while IFS= read -r pubkey; do
                 pubkey=$(echo "$pubkey" | tr -d '[:space:]')
-                if [[ -n "$pubkey" && ${#pubkey} -eq 64 ]]; then
+                # Strict validation: exactly 64 hex characters
+                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
                     hex_pubkeys+=("$pubkey")
                     echo "DEBUG: Found HEX pubkey: ${pubkey:0:8}..." >&2
+                elif [[ -n "$pubkey" ]]; then
+                    echo "WARN: Invalid HEX pubkey (length=${#pubkey}): ${pubkey:0:16}..." >&2
                 fi
             done < <(cat "$nostr_dir"/*/HEX 2>/dev/null)
         fi
@@ -255,9 +258,12 @@ get_constellation_hex_pubkeys() {
         if ls "$swarm_dir"/*/amisOfAmis.txt >/dev/null 2>&1; then
             while IFS= read -r line; do
                 local pubkey=$(echo "$line" | tr -d '[:space:]')
-                if [[ -n "$pubkey" && ${#pubkey} -eq 64 ]]; then
+                # Strict validation: exactly 64 hex characters
+                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
                     hex_pubkeys+=("$pubkey")
                     echo "DEBUG: Found amisOfAmis pubkey: ${pubkey:0:8}..." >&2
+                elif [[ -n "$pubkey" ]]; then
+                    echo "WARN: Invalid amisOfAmis pubkey (length=${#pubkey}): ${pubkey:0:16}..." >&2
                 fi
             done < <(cat "$swarm_dir"/*/amisOfAmis.txt 2>/dev/null)
         fi
@@ -483,7 +489,14 @@ split_hex_pubkeys_into_batches() {
     local hex_pubkeys="$1"
     local batch_size="${2:-100}"  # Default batch size of 100
     
-    local authors_array=($(echo "$hex_pubkeys"))
+    # Convert to array for proper counting
+    local authors_array=()
+    while IFS= read -r pubkey; do
+        if [[ -n "$pubkey" ]]; then
+            authors_array+=("$pubkey")
+        fi
+    done <<< "$hex_pubkeys"
+    
     local total_authors=${#authors_array[@]}
     local batches=()
     
@@ -495,15 +508,15 @@ split_hex_pubkeys_into_batches() {
             batch+=("${authors_array[$j]}")
         done
         
-        # Convert batch array to space-separated string
-        local batch_string="${batch[*]}"
+        # Convert batch array to newline-separated string (better than space-separated)
+        local batch_string=$(printf '%s\n' "${batch[@]}")
         batches+=("$batch_string")
         
         log "DEBUG" "Created batch $((i/batch_size + 1)) with ${#batch[@]} pubkeys"
     done
     
-    # Return batches as array
-    printf '%s\n' "${batches[@]}"
+    # Return batches as array (newline-separated)
+    printf '%s\n---BATCH_SEPARATOR---\n' "${batches[@]}"
 }
 
 # Function to execute backfill using WebSocket connection with batching
@@ -542,9 +555,27 @@ execute_backfill_websocket() {
         return 1
     fi
     
-    # Convert to array
+    # Convert to array (split on ---BATCH_SEPARATOR---)
     local batches_array=()
-    mapfile -t batches_array <<< "$batches"
+    local current_batch=""
+    while IFS= read -r line; do
+        if [[ "$line" == "---BATCH_SEPARATOR---" ]]; then
+            if [[ -n "$current_batch" ]]; then
+                batches_array+=("$current_batch")
+                current_batch=""
+            fi
+        else
+            if [[ -n "$current_batch" ]]; then
+                current_batch+=$'\n'
+            fi
+            current_batch+="$line"
+        fi
+    done <<< "$batches"
+    
+    # Add the last batch if it exists
+    if [[ -n "$current_batch" ]]; then
+        batches_array+=("$current_batch")
+    fi
     
     log "INFO" "Executing backfill in ${#batches_array[@]} batches"
     
@@ -681,7 +712,14 @@ execute_backfill_websocket_batch() {
     
     # Add authors filter if hex_pubkeys are provided
     if [[ -n "$hex_pubkeys_batch" ]]; then
-        local authors_array=($(echo "$hex_pubkeys_batch"))
+        # Parse authors array from newline-separated batch string
+        local authors_array=()
+        while IFS= read -r author; do
+            if [[ -n "$author" ]]; then
+                authors_array+=("$author")
+            fi
+        done <<< "$hex_pubkeys_batch"
+        
         local authors_json="["
         for i in "${!authors_array[@]}"; do
             if [[ $i -gt 0 ]]; then
