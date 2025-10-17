@@ -495,18 +495,28 @@ split_hex_pubkeys_into_batches() {
     local hex_pubkeys="$1"
     local batch_size="${2:-100}"  # Default batch size of 100
     
-    # Convert to array for proper counting
+    # Convert to array for proper counting with strict validation
     local authors_array=()
     while IFS= read -r pubkey; do
-        if [[ -n "$pubkey" ]]; then
+        # Clean and validate each pubkey
+        pubkey=$(echo "$pubkey" | tr -d '[:space:]')
+        if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
             authors_array+=("$pubkey")
+        elif [[ -n "$pubkey" ]]; then
+            log "WARN" "Rejecting invalid hex in batch split (length=${#pubkey}): ${pubkey:0:16}..."
         fi
     done <<< "$hex_pubkeys"
     
     local total_authors=${#authors_array[@]}
+    
+    if [[ $total_authors -eq 0 ]]; then
+        log "ERROR" "No valid hex pubkeys to split into batches"
+        return 1
+    fi
+    
     local batches=()
     
-    log "INFO" "Splitting $total_authors HEX pubkeys into batches of $batch_size"
+    log "INFO" "Splitting $total_authors valid HEX pubkeys into batches of $batch_size"
     
     for ((i=0; i<total_authors; i+=batch_size)); do
         local batch=()
@@ -718,13 +728,23 @@ execute_backfill_websocket_batch() {
     
     # Add authors filter if hex_pubkeys are provided
     if [[ -n "$hex_pubkeys_batch" ]]; then
-        # Parse authors array from newline-separated batch string
+        # Parse authors array from newline-separated batch string with strict validation
         local authors_array=()
         while IFS= read -r author; do
-            if [[ -n "$author" ]]; then
+            # Clean whitespace and validate
+            author=$(echo "$author" | tr -d '[:space:]')
+            # Only add if exactly 64 hex characters (strict validation)
+            if [[ -n "$author" && ${#author} -eq 64 && "$author" =~ ^[0-9a-fA-F]{64}$ ]]; then
                 authors_array+=("$author")
+            elif [[ -n "$author" ]]; then
+                log "WARN" "Invalid hex pubkey in batch (length=${#author}): ${author:0:16}... - SKIPPING"
             fi
         done <<< "$hex_pubkeys_batch"
+        
+        if [[ ${#authors_array[@]} -eq 0 ]]; then
+            log "ERROR" "No valid authors in batch after validation"
+            return 1
+        fi
         
         local authors_json="["
         for i in "${!authors_array[@]}"; do
@@ -736,13 +756,18 @@ execute_backfill_websocket_batch() {
         authors_json+="]"
         req_message+=", \"authors\": $authors_json"
         
-        log "DEBUG" "Batch contains ${#authors_array[@]} authors"
+        log "DEBUG" "Batch contains ${#authors_array[@]} valid authors (filtered from input)"
     fi
     
     req_message+='}]'
     
     log "INFO" "Connecting to WebSocket: $peer"
     log "DEBUG" "Request size: ${#req_message} characters"
+    
+    # Log a sample of the request for debugging (first 200 chars + last 100 chars)
+    if [[ "$VERBOSE" == "true" ]]; then
+        log "DEBUG" "Request preview: ${req_message:0:200}...${req_message: -100}"
+    fi
     
     # OPT #2: Use permanent Python script instead of creating/destroying temp scripts
     local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
