@@ -501,10 +501,16 @@ split_hex_pubkeys_into_batches() {
     while IFS= read -r pubkey; do
         # Clean and validate each pubkey
         pubkey=$(echo "$pubkey" | tr -d '[:space:]')
+        # Strict validation: exactly 64 hex characters AND not a log line
         if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
-            authors_array+=("$pubkey")
-        elif [[ -n "$pubkey" ]]; then
-            log "WARN" "Rejecting invalid hex in batch split (length=${#pubkey}): ${pubkey:0:16}..."
+            # Additional check: reject if it looks like a timestamp or log pattern
+            if [[ ! "$pubkey" =~ ^[0-9]{8}[0-9a-fA-F]{56}$ ]] && [[ ! "$pubkey" =~ 202[0-9] ]]; then
+                authors_array+=("$pubkey")
+            else
+                log "DEBUG" "Rejecting timestamp-like hex (length=${#pubkey}): ${pubkey:0:16}..."
+            fi
+        elif [[ -n "$pubkey" && ${#pubkey} -gt 20 ]]; then
+            log "DEBUG" "Rejecting invalid hex in batch split (length=${#pubkey}): ${pubkey:0:16}..."
         fi
     done <<< "$hex_pubkeys"
     

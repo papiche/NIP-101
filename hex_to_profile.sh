@@ -12,9 +12,9 @@ source ~/.zen/Astroport.ONE/tools/my.sh
 # Configuration
 SCRIPT_DIR="$HOME/.zen/workspace/NIP-101"
 LOG_FILE="$HOME/.zen/strfry/hex-to-profile.log"
-OUTPUT_DIR="$HOME/.zen/tmp/hex-profiles"
-JSON_OUTPUT="$OUTPUT_DIR/profiles.json"
-CSV_OUTPUT="$OUTPUT_DIR/profiles.csv"
+OUTPUT_DIR="$HOME/.zen/tmp/coucou"  # Long-term cache directory
+JSON_OUTPUT="$OUTPUT_DIR/_NIP101.profiles.json"
+CSV_OUTPUT="$OUTPUT_DIR/_NIP101.profiles.csv"
 
 # Parse command line arguments
 HEX_INPUT=""
@@ -197,6 +197,35 @@ convert_to_csv() {
 # Function to display profile summary
 display_profile_summary() {
     local json_file="$1"
+    
+    # Validate JSON file exists and is valid
+    if [[ ! -f "$json_file" ]]; then
+        echo "📊 Profile Summary:"
+        echo "==================="
+        echo "Total profiles: 0 (file not found)"
+        echo "With names: 0"
+        echo "With relays: 0"
+        echo ""
+        echo "🔍 Sample Profiles:"
+        echo "==================="
+        echo "(none)"
+        return 1
+    fi
+    
+    # Validate JSON syntax
+    if ! jq empty "$json_file" 2>/dev/null; then
+        echo "📊 Profile Summary:"
+        echo "==================="
+        echo "Total profiles: 0 (invalid JSON)"
+        echo "With names: 0"
+        echo "With relays: 0"
+        echo ""
+        echo "🔍 Sample Profiles:"
+        echo "==================="
+        echo "(invalid JSON file)"
+        return 1
+    fi
+    
     local total_profiles=$(jq -r 'length' "$json_file" 2>/dev/null || echo "0")
     local profiles_with_names=$(jq -r '[.[] | select(.profile.name != null and .profile.name != "")] | length' "$json_file" 2>/dev/null || echo "0")
     local profiles_with_relays=$(jq -r '[.[] | select(.relays | length > 0)] | length' "$json_file" 2>/dev/null || echo "0")
@@ -211,7 +240,11 @@ display_profile_summary() {
     # Show sample profiles
     echo "🔍 Sample Profiles:"
     echo "==================="
-    jq -r '.[] | select(.profile.name != null and .profile.name != "") | "\(.hex[0:8])... - \(.profile.name) (\(.profile.display_name // "no display name"))"' "$json_file" | head -10
+    if [[ $profiles_with_names -gt 0 ]]; then
+        jq -r '.[] | select(.profile.name != null and .profile.name != "") | "\(.hex[0:8])... - \(.profile.name) (\(.profile.display_name // "no display name"))"' "$json_file" 2>/dev/null | head -10
+    else
+        echo "(no profiles with names)"
+    fi
 }
 
 # Main execution
