@@ -1223,7 +1223,7 @@ main() {
             echo "$hex_pubkeys" > "$hex_file"
             
             # Extract profiles using hex_to_profile.sh
-            local hex_to_profile_script="$HOME/.zen/workspace/NIP-101/hex_to_profile.sh"
+            local hex_to_profile_script="$HOME/.zen/Astroport.ONE/tools/nostr_hex_to_profile.sh"
             if [[ -x "$hex_to_profile_script" ]]; then
                 log "INFO" "Converting HEX pubkeys to profiles..."
                 
