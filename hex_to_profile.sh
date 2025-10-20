@@ -11,7 +11,7 @@ source ~/.zen/Astroport.ONE/tools/my.sh
 
 # Configuration
 SCRIPT_DIR="$HOME/.zen/workspace/NIP-101"
-LOG_FILE="$HOME/.zen/strfry/hex-to-profile.log"
+LOG_FILE="$HOME/.zen/tmp/hex-to-profile.log"
 OUTPUT_DIR="$HOME/.zen/tmp/coucou"  # Long-term cache directory
 JSON_OUTPUT="$OUTPUT_DIR/_NIP101.profiles.json"
 CSV_OUTPUT="$OUTPUT_DIR/_NIP101.profiles.csv"

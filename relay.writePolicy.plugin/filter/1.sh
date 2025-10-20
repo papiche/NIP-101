@@ -320,6 +320,7 @@ Your devoted Astroport Captain.
         cd -
         echo "$pubkey" >> "$BLACKLIST_FILE"
         rm -f "$warning_file"
+        rm -f "$count_file"
     fi
     return 0
 }
