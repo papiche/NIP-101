@@ -34,6 +34,7 @@ BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 WARNING_MESSAGES_DIR="$HOME/.zen/strfry/warning_messages"
 MESSAGE_LIMIT=3
+VISITOR_MESSAGE_EXPIRY=86400  # 24 hours in seconds for visitor messages
 
 # Variables pour la gestion de la file d'attente des traitements #BRO or #BOT
 QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
@@ -259,12 +260,16 @@ Your devoted Astroport Captain.
 #UPlanet:$ORIGIN:
 "
 
-            # Envoyer le message d'avertissement
+            # Calculate expiration timestamp (current time + expiry duration)
+            EXPIRY_TIMESTAMP=$(($(date +%s) + VISITOR_MESSAGE_EXPIRY))
+            log_uplanet "⏰ Visitor message will expire at: $(date -d "@$EXPIRY_TIMESTAMP") (${VISITOR_MESSAGE_EXPIRY}s from now)"
+            
+            # Envoyer le message d'avertissement avec expiration
             WARNING_MSG_OUTPUT=$(nostpy-cli send_event \
               -privkey "$NPRIV_HEX" \
               -kind 1 \
               -content "$RESPN" \
-              -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning']]" \
+              -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning'], ['expiration', '$EXPIRY_TIMESTAMP']]" \
               --relay "$myRELAY" 2>&1)
 
             # Extraire l'ID du message d'avertissement
