@@ -269,7 +269,7 @@ send_sync_report() {
     
     # Use the existing mailjet.sh script to send the report
     if [[ -x "$HOME/.zen/Astroport.ONE/tools/mailjet.sh" ]]; then
-        "$HOME/.zen/Astroport.ONE/tools/mailjet.sh" --expire 24h "$captain_email" "$temp_html" "$report_title"
+        "$HOME/.zen/Astroport.ONE/tools/mailjet.sh" --expire 1h "$captain_email" "$temp_html" "$report_title"
         local mail_exit_code=$?
         
         # Clean up temporary file
