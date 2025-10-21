@@ -149,24 +149,33 @@ cleanup_warning_messages() {
     local current_time=$(date +%s)
     local cutoff_time=$((current_time - WARNING_MESSAGE_TTL))
 
-    # Source CAPTAIN's pubkey
-    local CAPTAIN_PUBKEY=""
-    if [[ -f "$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr" ]]; then
-        source "$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr"
-        CAPTAIN_PUBKEY="$HEX"
+    # Use UMAP 0.00,0.00 pubkey for cleanup
+    local UMAP_PUBKEY=""
+    local UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" -s)
+    if [[ -n "$UMAPNSEC" ]]; then
+        UMAP_PUBKEY=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+        if [[ -z "$UMAP_PUBKEY" ]]; then
+            log_uplanet "Warning: Failed to convert UMAP NSEC to HEX for cleanup"
+            return 1
+        fi
+    else
+        log_uplanet "Warning: Failed to generate UMAP NSEC for cleanup"
+        return 1
     fi
 
-    if [[ -n "$CAPTAIN_PUBKEY" ]]; then
-        log_uplanet "Cleaning up old 'Hello NOSTR visitor' messages sent by Captain: $CAPTAIN_PUBKEY (older than $(date -d "@$cutoff_time"))"
+    if [[ -n "$UMAP_PUBKEY" ]]; then
+        log_uplanet "Cleaning up old visitor messages sent by UMAP 0.00,0.00: $UMAP_PUBKEY (older than $(date -d "@$cutoff_time"))"
 
         cd "$HOME/.zen/strfry"
+        # Search for both "Hello NOSTR visitor" and BRO response messages from UMAP 0.00,0.00
         local messages_48h_json=$(./strfry scan \
-            '{"authors":["'"$CAPTAIN_PUBKEY"'"], "until":'"$cutoff_time"', "kinds":[1]}' \
+            '{"authors":["'"$UMAP_PUBKEY"'"], "until":'"$cutoff_time"', "kinds":[1]}' \
             2>/dev/null)
 
         local message_ids=()
         if echo "$messages_48h_json" | jq -e '.id' >/dev/null 2>&1; then
-            message_ids=($(echo "$messages_48h_json" | jq -r 'select(.content | contains("Hello NOSTR visitor")) | .id'))
+            # Find messages containing "Hello NOSTR visitor" or BRO responses
+            message_ids=($(echo "$messages_48h_json" | jq -r 'select(.content | contains("Hello NOSTR visitor") or (.tags[] | select(.[0] == "t" and .[1] == "BRO"))) | .id'))
         fi
         cd - >/dev/null
 
@@ -177,16 +186,16 @@ cleanup_warning_messages() {
             done
             ids_string=${ids_string%,} # Remove trailing comma
 
-            log_uplanet "Deleting old 'Hello NOSTR visitor' messages by ID: $ids_string"
+            log_uplanet "Deleting old visitor messages by ID: $ids_string"
 
             cd "$HOME/.zen/strfry"
             ./strfry delete --filter "{\"ids\":[$ids_string]}" >> "$HOME/.zen/tmp/nostr_kind1_messages.log" 2>&1
             cd - >/dev/null
         else
-            log_uplanet "No old 'Hello NOSTR visitor' messages from Captain found to delete."
+            log_uplanet "No old visitor messages from UMAP 0.00,0.00 found to delete."
         fi
     else
-        log_uplanet "Warning: CAPTAIN_PUBKEY not found/set. Skipping global warning message cleanup."
+        log_uplanet "Warning: UMAP 0.00,0.00 key not found/set. Skipping visitor message cleanup."
     fi
 
     # Cleanup of individual warning tracking files (if older than TTL)
@@ -235,29 +244,38 @@ handle_visitor_message() {
 
     if [[ "$next_count" -le "$MESSAGE_LIMIT" ]]; then
         (
-        source $HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr ## CAPTAIN SPEAKING
-        if [[ "$pubkey" != "$HEX" && "$NSEC" != "" ]]; then
-            NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NSEC")
-            log_uplanet "Notice: Astroport Relay Anonymous Usage"
+        # Use UMAP 0.00,0.00 key for visitor messages instead of captain key
+        UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" -s)
+        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+        if [[ "$pubkey" != "$NPRIV_HEX" && "$UMAPNSEC" != "" ]]; then
+            log_uplanet "Notice: Astroport Relay Anonymous Usage (UMAP 0.00,0.00)"
             
             local ORIGIN="ORIGIN"
             [[ "$UPLANETNAME" != "EnfinLibre" ]] && ORIGIN=${UPLANETG1PUB:0:8}
             
             nprofile=$($HOME/.zen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$pubkey" 2>/dev/null)
+            # Get captain nprofile once to avoid repeated calls
+            CAPTAIN_NPROFILE=$($HOME/.zen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$CAPTAINHEX" 2>/dev/null)
+            if [[ -z "$CAPTAIN_NPROFILE" ]]; then
+                log_uplanet "Warning: Failed to get captain nprofile for $CAPTAINHEX"
+                CAPTAIN_NPROFILE="unknown_captain"
+            fi
             RESPN="Hello NOSTR visitor.
 
 $nprofile, we noticed that you're using our Relay without being registered on our #Ğ1 Web of Trust.
 
 You have $remaining_messages message(s) left before being automatically blocked. Please join our self-sovereign community to avoid interruption.
 
+🌍 UMAP 0.00,0.00 - Global Meeting Point
+This message comes from the global UMAP (0.00,0.00), the meeting point for users without GPS coordinates who cannot benefit from localized UMAP journals. This is where non-geolocated messages are collected and shared.
+
 Take place on #UPlanet : $myIPFS/ipns/copylaradio.com
-Get a #MULTIPASS
+Get a #MULTIPASS to access localized content
 
-Your devoted Astroport Captain.
-
-#CopyLaRadio #mem
+#UMAP_0.00_0.00
+#UPlanet:$ORIGIN
+#Captain:$CAPTAIN_NPROFILE
 #♥️BOX [$myRELAY]
-#UPlanet:$ORIGIN:
 "
 
             # Calculate expiration timestamp (current time + expiry duration)
@@ -299,12 +317,27 @@ Your devoted Astroport Captain.
                       2>/dev/null)
                 fi
                 
-                # Fallback if AI response fails
-                if [[ -z "$BRO_RESPONSE_CONTENT" || "$BRO_RESPONSE_CONTENT" == *"ERROR"* ]]; then
-                    BRO_RESPONSE_CONTENT="Hello visitor! I'm AstroBot, UPlanet AI assistant. I noticed you're new here. Would you like to learn more about our community? Feel free to ask me anything about #UPlanet, #CopyLaRadio, or how to get started!"
+                # Add captain reference and UMAP explanation to AI-generated response
+                if [[ -n "$BRO_RESPONSE_CONTENT" && "$BRO_RESPONSE_CONTENT" != *"ERROR"* ]]; then
+                    BRO_RESPONSE_CONTENT="$BRO_RESPONSE_CONTENT
+
+🌍 I'm speaking from UMAP_0.00_0.00 - the global meeting point for users without GPS coordinates.
+
+#Captain:$CAPTAIN_NPROFILE
+#UMAP_0.00_0.00"
                 fi
                 
-                # Send BRO response as CAPTAIN
+                # Fallback if AI response fails
+                if [[ -z "$BRO_RESPONSE_CONTENT" || "$BRO_RESPONSE_CONTENT" == *"ERROR"* ]]; then
+                    BRO_RESPONSE_CONTENT="Hello visitor! I'm AstroBot, UPlanet AI assistant. I noticed you're new here. Would you like to learn more about our community? Feel free to ask me anything about #UPlanet, #CopyLaRadio, or how to get started!
+
+🌍 I'm speaking from UMAP_0.00_0.00 - the global meeting point for users without GPS coordinates. This is where non-geolocated messages are collected and shared.
+
+#Captain:$CAPTAIN_NPROFILE
+#UMAP_0.00_0.00"
+                fi
+                
+                # Send BRO response as UMAP 0.00,0.00
                 BRO_MSG_OUTPUT=$(nostpy-cli send_event \
                   -privkey "$NPRIV_HEX" \
                   -kind 1 \
