@@ -308,50 +308,274 @@ class AstroBotVisitorResponder:
             self.logger.error(f"Error retrieving profile: {e}")
             return None
     
-    def get_recent_messages(self, pubkey: str, limit: int = 10) -> List[Dict]:
-        """Récupère les derniers messages d'un utilisateur depuis strfry"""
-        self.logger.info(f"Fetching {limit} recent messages for pubkey: {pubkey[:10]}...")
+    def get_user_favorite_relays(self, pubkey: str) -> List[str]:
+        """Récupère les relais favoris d'un utilisateur depuis les plateformes publiques"""
+        self.logger.info(f"Fetching favorite relays for pubkey: {pubkey[:10]}...")
+        relays = []
+        
         try:
-            # Utiliser strfry scan pour récupérer les derniers messages
-            strfry_path = os.path.join(self.base_path, "strfry")
-            if not os.path.exists(strfry_path):
-                self.logger.warning("strfry not found, cannot fetch recent messages")
+            # Essayer d'abord avec nostr-tools pour récupérer les relais
+            try:
+                cmd = f"nostr-tools query --authors {pubkey} --kinds 3 --limit 1"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            try:
+                                contact_data = json.loads(line)
+                                if contact_data.get('kind') == 3:  # Contact list
+                                    tags = contact_data.get('tags', [])
+                                    for tag in tags:
+                                        if len(tag) >= 2 and tag[0] == 'r':  # Relay tag
+                                            relay_url = tag[1]
+                                            if relay_url.startswith('wss://') or relay_url.startswith('ws://'):
+                                                relays.append(relay_url)
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    if relays:
+                        self.logger.info(f"Found {len(relays)} favorite relays using nostr-tools")
+                        return self._optimize_relay_selection(relays)
+            except Exception as e:
+                self.logger.debug(f"nostr-tools relay query failed: {e}")
+            
+            # Fallback: essayer avec les APIs publiques pour récupérer les relais
+            try:
+                # API nostr.band pour les relais
+                api_url = f"https://api.nostr.band/v0/relays/{pubkey}"
+                response = requests.get(api_url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'relays' in data:
+                        for relay_info in data['relays']:
+                            relay_url = relay_info.get('url', '')
+                            if relay_url.startswith('wss://') or relay_url.startswith('ws://'):
+                                relays.append(relay_url)
+                        
+                        if relays:
+                            self.logger.info(f"Found {len(relays)} favorite relays using nostr.band API")
+                            return self._optimize_relay_selection(relays)
+            except Exception as e:
+                self.logger.debug(f"nostr.band relays API failed: {e}")
+            
+            # Si aucun relais spécifique trouvé, utiliser les relais par défaut
+            self.logger.info("No specific relays found, using default public relays")
+            return self._optimize_relay_selection(self.nostr_relays)
+            
+        except Exception as e:
+            self.logger.error(f"Error retrieving user relays: {e}")
+            return self._optimize_relay_selection(self.nostr_relays)  # Fallback sur les relais par défaut
+    
+    def get_recent_messages(self, pubkey: str, limit: int = 10) -> List[Dict]:
+        """Récupère les derniers messages d'un utilisateur depuis ses relais favoris"""
+        self.logger.info(f"Fetching {limit} recent messages for pubkey: {pubkey[:10]}...")
+        
+        # Récupérer d'abord les relais favoris de l'utilisateur
+        user_relays = self.get_user_favorite_relays(pubkey)
+        self.logger.info(f"Using {len(user_relays)} user-specific relays: {user_relays}")
+        
+        # Timeout global pour éviter que la récupération prenne trop de temps
+        start_time = time.time()
+        max_total_time = 30  # 30 secondes maximum pour toute la récupération
+        
+        try:
+            # Vérifier le timeout global
+            if time.time() - start_time > max_total_time:
+                self.logger.warning("Global timeout reached, stopping message retrieval")
                 return []
             
-            # Construire la commande strfry scan
-            scan_filter = json.dumps({
-                "authors": [pubkey],
-                "kinds": [1],
-                "limit": limit
-            })
+            # Essayer d'abord avec nostr-tools sur les relais spécifiques de l'utilisateur
+            try:
+                # Construire la commande avec les relais spécifiques
+                relay_args = " ".join([f"--relay {relay}" for relay in user_relays])
+                cmd = f"nostr-tools query {relay_args} --authors {pubkey} --kinds 1 --limit {limit}"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+                if result.returncode == 0 and result.stdout.strip():
+                    messages = []
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            try:
+                                message_data = json.loads(line)
+                                if message_data.get('kind') == 1:
+                                    messages.append({
+                                        'content': message_data.get('content', ''),
+                                        'created_at': message_data.get('created_at', 0),
+                                        'id': message_data.get('id', '')
+                                    })
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    if messages:
+                        self.logger.info(f"Retrieved {len(messages)} recent messages using nostr-tools on user relays")
+                        return messages
+            except Exception as e:
+                self.logger.debug(f"nostr-tools query on user relays failed: {e}")
             
-            cmd = [os.path.join(strfry_path, "strfry"), "scan", scan_filter]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            
-            if result.returncode == 0 and result.stdout.strip():
-                messages = []
-                for line in result.stdout.strip().split('\n'):
-                    if line.strip():
-                        try:
-                            message_data = json.loads(line)
-                            if message_data.get('kind') == 1:
-                                messages.append({
-                                    'content': message_data.get('content', ''),
-                                    'created_at': message_data.get('created_at', 0),
-                                    'id': message_data.get('id', '')
-                                })
-                        except json.JSONDecodeError:
-                            continue
-                
-                self.logger.info(f"Retrieved {len(messages)} recent messages")
-                return messages
-            else:
-                self.logger.debug(f"strfry scan failed: {result.stderr}")
+            # Vérifier le timeout global avant de continuer
+            if time.time() - start_time > max_total_time:
+                self.logger.warning("Global timeout reached, stopping message retrieval")
                 return []
+            
+            # Fallback: utiliser les APIs publiques
+            try:
+                # Essayer avec l'API nostr.band
+                api_url = f"https://api.nostr.band/v0/notes/{pubkey}?limit={limit}"
+                response = requests.get(api_url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'notes' in data and data['notes']:
+                        messages = []
+                        for note in data['notes'][:limit]:
+                            messages.append({
+                                'content': note.get('content', ''),
+                                'created_at': note.get('created_at', 0),
+                                'id': note.get('id', '')
+                            })
+                        self.logger.info(f"Retrieved {len(messages)} recent messages using nostr.band API")
+                        return messages
+            except Exception as e:
+                self.logger.debug(f"nostr.band API failed: {e}")
+            
+            # Vérifier le timeout global avant de continuer
+            if time.time() - start_time > max_total_time:
+                self.logger.warning("Global timeout reached, stopping message retrieval")
+                return []
+            
+            # Fallback: essayer avec snort.social API
+            try:
+                api_url = f"https://api.snort.social/v1/notes/{pubkey}?limit={limit}"
+                response = requests.get(api_url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        messages = []
+                        for note in data[:limit]:
+                            messages.append({
+                                'content': note.get('content', ''),
+                                'created_at': note.get('created_at', 0),
+                                'id': note.get('id', '')
+                            })
+                        self.logger.info(f"Retrieved {len(messages)} recent messages using snort.social API")
+                        return messages
+            except Exception as e:
+                self.logger.debug(f"snort.social API failed: {e}")
+            
+            # Vérifier le timeout global avant de continuer
+            if time.time() - start_time > max_total_time:
+                self.logger.warning("Global timeout reached, stopping message retrieval")
+                return []
+            
+            # Fallback: essayer avec l'API de damus.io
+            try:
+                api_url = f"https://api.damus.io/v1/notes/{pubkey}?limit={limit}"
+                response = requests.get(api_url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        messages = []
+                        for note in data[:limit]:
+                            messages.append({
+                                'content': note.get('content', ''),
+                                'created_at': note.get('created_at', 0),
+                                'id': note.get('id', '')
+                            })
+                        self.logger.info(f"Retrieved {len(messages)} recent messages using damus.io API")
+                        return messages
+            except Exception as e:
+                self.logger.debug(f"damus.io API failed: {e}")
+            
+            # Vérifier le timeout global avant le dernier fallback
+            if time.time() - start_time > max_total_time:
+                self.logger.warning("Global timeout reached, stopping message retrieval")
+                return []
+            
+            # Dernier fallback: essayer avec les relais NOSTR directement
+            try:
+                messages = self._query_nostr_relays_directly(pubkey, limit, user_relays)
+                if messages:
+                    self.logger.info(f"Retrieved {len(messages)} recent messages using direct relay queries")
+                    return messages
+            except Exception as e:
+                self.logger.debug(f"Direct relay queries failed: {e}")
+            
+            # Si aucune méthode n'a fonctionné
+            self.logger.warning("No recent messages found from any public source")
+            return []
                 
         except Exception as e:
             self.logger.error(f"Error retrieving recent messages: {e}")
             return []
+    
+    def _query_nostr_relays_directly(self, pubkey: str, limit: int, user_relays: List[str] = None) -> List[Dict]:
+        """Interroge directement les relais NOSTR via WebSocket"""
+        self.logger.info("Trying direct relay queries as last resort")
+        messages = []
+        
+        # Utiliser les relais spécifiques de l'utilisateur ou les relais par défaut
+        relays_to_query = user_relays if user_relays else self.nostr_relays
+        relays_to_query = relays_to_query[:3]  # Limiter à 3 relais pour éviter les timeouts
+        
+        for relay in relays_to_query:
+            try:
+                cmd = f"nostr-tools query --relay {relay} --authors {pubkey} --kinds 1 --limit {limit}"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            try:
+                                message_data = json.loads(line)
+                                if message_data.get('kind') == 1:
+                                    messages.append({
+                                        'content': message_data.get('content', ''),
+                                        'created_at': message_data.get('created_at', 0),
+                                        'id': message_data.get('id', '')
+                                    })
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    if messages:
+                        self.logger.info(f"Found {len(messages)} messages from user relay {relay}")
+                        break
+            except Exception as e:
+                self.logger.debug(f"User relay {relay} failed: {e}")
+                continue
+        
+        return messages[:limit]  # Limiter le nombre de messages retournés
+    
+    def _optimize_relay_selection(self, relays: List[str]) -> List[str]:
+        """Optimise la sélection des relais en privilégiant les plus fiables et rapides"""
+        self.logger.info("Optimizing relay selection for better performance")
+        
+        # Relais connus pour être fiables et rapides
+        preferred_relays = [
+            "wss://relay.damus.io",
+            "wss://nos.lol", 
+            "wss://relay.snort.social",
+            "wss://relay.nostr.band",
+            "wss://relay.damus.io",
+            "wss://relay.nostr.info"
+        ]
+        
+        # Mélanger les relais de l'utilisateur avec les relais préférés
+        optimized_relays = []
+        
+        # D'abord, ajouter les relais préférés qui sont aussi dans la liste de l'utilisateur
+        for preferred in preferred_relays:
+            if preferred in relays and preferred not in optimized_relays:
+                optimized_relays.append(preferred)
+        
+        # Ensuite, ajouter les autres relais de l'utilisateur
+        for relay in relays:
+            if relay not in optimized_relays:
+                optimized_relays.append(relay)
+        
+        # Enfin, ajouter des relais préférés qui ne sont pas dans la liste de l'utilisateur
+        for preferred in preferred_relays:
+            if preferred not in optimized_relays and len(optimized_relays) < 5:
+                optimized_relays.append(preferred)
+        
+        self.logger.info(f"Optimized relay selection: {optimized_relays[:5]}")
+        return optimized_relays[:5]  # Limiter à 5 relais maximum
     
     def extract_themes_from_profile_and_messages(self, profile: Dict, messages: List[Dict], current_message: str) -> List[str]:
         """Extrait les thèmes pertinents du profil, des messages récents et du message actuel"""
