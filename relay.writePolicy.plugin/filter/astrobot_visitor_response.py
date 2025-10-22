@@ -55,6 +55,88 @@ class AstroBotVisitorResponder:
         )
         self.logger = logging.getLogger('AstroBotVisitorResponder')
         
+    def _extract_image_urls(self, content: str) -> List[str]:
+        """
+        Extract image URLs from message content.
+        
+        Args:
+            content (str): The message content to analyze
+            
+        Returns:
+            List[str]: List of image URLs found in the content
+        """
+        # Regex pattern to match image URLs
+        image_pattern = r'https?://[^\s]+\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg)(?:\?[^\s]*)?'
+        matches = re.findall(image_pattern, content, re.IGNORECASE)
+        
+        # Reconstruct full URLs
+        image_urls = []
+        for match in matches:
+            # Find the full URL that contains this extension
+            url_pattern = r'https?://[^\s]*\.' + re.escape(match) + r'(?:\?[^\s]*)?'
+            url_matches = re.findall(url_pattern, content, re.IGNORECASE)
+            image_urls.extend(url_matches)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_urls = []
+        for url in image_urls:
+            if url not in seen:
+                seen.add(url)
+                unique_urls.append(url)
+        
+        self.logger.info(f"Found {len(unique_urls)} image URLs: {unique_urls}")
+        return unique_urls
+    
+    def _analyze_image_with_ai(self, image_url: str) -> Optional[str]:
+        """
+        Analyze an image using describe_image.py script.
+        
+        Args:
+            image_url (str): URL of the image to analyze
+            
+        Returns:
+            Optional[str]: Description of the image, or None if analysis fails
+        """
+        self.logger.info(f"Analyzing image: {image_url}")
+        
+        # Vérification rapide de l'URL avant analyse
+        if not image_url or not image_url.startswith(('http://', 'https://')):
+            self.logger.warning(f"Invalid image URL: {image_url}")
+            return None
+        
+        try:
+            # Get the path to describe_image.py
+            describe_script = os.path.join(self.base_path, "Astroport.ONE", "IA", "describe_image.py")
+            
+            if not os.path.exists(describe_script):
+                self.logger.error(f"describe_image.py not found at {describe_script}")
+                return None
+            
+            # Call describe_image.py with the image URL (timeout réduit pour éviter le spam)
+            cmd = ['python3', describe_script, image_url, '--json']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    response = json.loads(result.stdout)
+                    description = response.get('description', '')
+                    self.logger.info(f"Image analysis successful: {description[:100]}...")
+                    return description
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Failed to parse image analysis JSON: {e}")
+                    return None
+            else:
+                self.logger.warning(f"Image analysis failed: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            self.logger.error("Image analysis timed out (30s)")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error analyzing image: {e}")
+            return None
+
     def _extract_json_from_markdown(self, text: str) -> str:
         """
         Extract JSON from markdown code blocks if present.
@@ -846,7 +928,7 @@ Important: Return ONLY the JSON, no other text."""
         
         return best_slot, bank_scores[best_slot]['bank']
     
-    def generate_persona_prompt(self, persona: Dict, visitor_message: str, visitor_themes: List[str], recent_messages: List[Dict]) -> str:
+    def generate_persona_prompt(self, persona: Dict, visitor_message: str, visitor_themes: List[str], recent_messages: List[Dict], image_descriptions: List[str] = None) -> str:
         """Génère un prompt personnalisé basé sur le persona sélectionné"""
         persona_name = persona.get('name', 'AstroBot')
         persona_description = persona.get('description', '')
@@ -862,6 +944,13 @@ Important: Return ONLY the JSON, no other text."""
             for i, msg in enumerate(recent_messages[:5], 1):  # Limiter à 5 messages
                 recent_context += f"{i}. {msg.get('content', '')[:300]}...\n"
         
+        # Préparer le contexte des images
+        image_context = ""
+        if image_descriptions:
+            image_context = "\nImages partagées par le visiteur (analysées par IA):\n"
+            for i, description in enumerate(image_descriptions, 1):
+                image_context += f"{i}. {description[:200]}...\n"
+        
         # Créer le prompt
         prompt = f"""Tu es {persona_name}, un assistant IA d'Astroport Captain.
 
@@ -875,14 +964,15 @@ Le visiteur a écrit: "{visitor_message}"
 
 Thèmes détectés chez le visiteur: {', '.join(visitor_themes) if visitor_themes else 'Aucun thème spécifique détecté'}
 
-{recent_context}
+{recent_context}{image_context}
 
 Génère une réponse accueillante et personnalisée qui:
 1. Accueille le visiteur chaleureusement
 2. Répond à son message de manière pertinente
-3. Utilise le ton et le vocabulaire appropriés à ton persona
-4. Mentionne brièvement UPlanet et CopyLaRadio
-5. Termine par les hashtags: #UPlanet #CopyLaRadio #AstroBot
+3. Si des images sont partagées, commente-les de manière pertinente selon ton persona
+4. Utilise le ton et le vocabulaire appropriés à ton persona
+5. Mentionne brièvement UPlanet et CopyLaRadio
+6. Termine par les hashtags: #UPlanet #CopyLaRadio #AstroBot
 
 Réponse:"""
         
@@ -899,6 +989,26 @@ Réponse:"""
             if os.path.exists(ollama_script):
                 self.logger.info("Starting Ollama service")
                 subprocess.run([ollama_script], capture_output=True, timeout=10)
+            
+            # Détecter et analyser la première image dans le message (limitation anti-spam)
+            image_descriptions = []
+            image_urls = self._extract_image_urls(visitor_message)
+            
+            if image_urls:
+                # Limiter à la première image pour éviter le spam
+                first_image_url = image_urls[0]
+                self.logger.info(f"Found {len(image_urls)} images in message, analyzing only the first one: {first_image_url}")
+                
+                description = self._analyze_image_with_ai(first_image_url)
+                if description:
+                    image_descriptions.append(description)
+                    self.logger.info(f"Image analyzed: {description[:100]}...")
+                else:
+                    self.logger.warning(f"Failed to analyze image: {first_image_url}")
+                
+                # Log si d'autres images ont été ignorées
+                if len(image_urls) > 1:
+                    self.logger.info(f"Ignored {len(image_urls) - 1} additional images to prevent spam")
             
             # Récupérer le profil NOSTR
             profile = self.get_nostr_profile(pubkey)
@@ -920,8 +1030,8 @@ Réponse:"""
             # Extraire les thèmes pour le prompt de génération (optionnel, pour le contexte)
             themes = self.extract_themes_from_profile_and_messages(profile, recent_messages, visitor_message)
             
-            # Générer le prompt personnalisé
-            prompt = self.generate_persona_prompt(selected_persona, visitor_message, themes, recent_messages)
+            # Générer le prompt personnalisé avec contexte d'images
+            prompt = self.generate_persona_prompt(selected_persona, visitor_message, themes, recent_messages, image_descriptions)
             
             # Utiliser la méthode _query_ia pour générer la réponse dans la langue détectée
             response = self._query_ia(prompt, target_language=target_language)
@@ -930,23 +1040,30 @@ Réponse:"""
                 return response
             else:
                 self.logger.warning("AI response generation failed, using fallback")
-                return self._generate_fallback_response(selected_persona, visitor_message, target_language)
+                return self._generate_fallback_response(selected_persona, visitor_message, target_language, image_descriptions)
             
         except Exception as e:
             self.logger.error(f"Error generating response: {e}")
             return self._generate_fallback_response(self.banks_config['banks']['3'], visitor_message, 'fr')
     
-    def _generate_fallback_response(self, persona: Dict, visitor_message: str, target_language: str = 'fr') -> str:
+    def _generate_fallback_response(self, persona: Dict, visitor_message: str, target_language: str = 'fr', image_descriptions: List[str] = None) -> str:
         """Génère une réponse de fallback si l'IA échoue"""
         self.logger.info("Generating fallback response")
         persona_name = persona.get('name', 'AstroBot')
         tone = persona.get('corpus', {}).get('tone', 'amical et professionnel')
         
+        # Préparer le contexte des images pour les réponses de fallback
+        image_context = ""
+        if image_descriptions:
+            image_context = f"\n\nJ'ai également analysé les images que vous avez partagées :\n"
+            for i, description in enumerate(image_descriptions, 1):
+                image_context += f"{i}. {description[:150]}...\n"
+        
         # Réponses de fallback multilingues
         fallback_responses = {
             'fr': f"""Bonjour ! Je suis {persona_name}, l'assistant IA d'Astroport Captain.
 
-J'ai reçu votre message : "{visitor_message}"
+J'ai reçu votre message : "{visitor_message}"{image_context}
 
 Bienvenue dans notre communauté ! Je serais ravi de vous aider à découvrir UPlanet et CopyLaRadio, notre écosystème numérique souverain.
 
@@ -956,7 +1073,7 @@ N'hésitez pas à me poser des questions sur nos projets, notre technologie ou n
             
             'en': f"""Hello! I am {persona_name}, Astroport Captain's AI assistant.
 
-I received your message: "{visitor_message}"
+I received your message: "{visitor_message}"{image_context}
 
 Welcome to our community! I would be happy to help you discover UPlanet and CopyLaRadio, our sovereign digital ecosystem.
 
@@ -966,7 +1083,7 @@ Feel free to ask me questions about our projects, technology, or community!
             
             'es': f"""¡Hola! Soy {persona_name}, el asistente IA del Capitán Astroport.
 
-Recibí tu mensaje: "{visitor_message}"
+Recibí tu mensaje: "{visitor_message}"{image_context}
 
 ¡Bienvenido a nuestra comunidad! Me encantaría ayudarte a descubrir UPlanet y CopyLaRadio, nuestro ecosistema digital soberano.
 
@@ -976,7 +1093,7 @@ Recibí tu mensaje: "{visitor_message}"
             
             'de': f"""Hallo! Ich bin {persona_name}, der KI-Assistent von Astroport Captain.
 
-Ich habe deine Nachricht erhalten: "{visitor_message}"
+Ich habe deine Nachricht erhalten: "{visitor_message}"{image_context}
 
 Willkommen in unserer Community! Ich helfe dir gerne dabei, UPlanet und CopyLaRadio, unser souveränes digitales Ökosystem, zu entdecken.
 
@@ -986,7 +1103,7 @@ Zögere nicht, mich Fragen zu unseren Projekten, Technologie oder Community zu s
             
             'it': f"""Ciao! Sono {persona_name}, l'assistente IA del Capitano Astroport.
 
-Ho ricevuto il tuo messaggio: "{visitor_message}"
+Ho ricevuto il tuo messaggio: "{visitor_message}"{image_context}
 
 Benvenuto nella nostra comunità! Sarei felice di aiutarti a scoprire UPlanet e CopyLaRadio, il nostro ecosistema digitale sovrano.
 
@@ -996,7 +1113,7 @@ Non esitare a farmi domande sui nostri progetti, tecnologia o comunità!
             
             'pt': f"""Olá! Sou {persona_name}, o assistente IA do Capitão Astroport.
 
-Recebi sua mensagem: "{visitor_message}"
+Recebi sua mensagem: "{visitor_message}"{image_context}
 
 Bem-vindo à nossa comunidade! Ficaria feliz em ajudá-lo a descobrir UPlanet e CopyLaRadio, nosso ecossistema digital soberano.
 
