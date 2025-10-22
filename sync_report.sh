@@ -109,13 +109,23 @@ generate_html_report() {
         fi
     fi
     
+    # Determine report type based on activity
+    local report_type="Sync Report"
+    if [[ "$IMPORTED_EVENTS" -gt 0 && "$BATCH_FAILURES" -gt 0 ]]; then
+        report_type="Sync Report (Activity + Errors)"
+    elif [[ "$IMPORTED_EVENTS" -gt 0 ]]; then
+        report_type="Sync Report (Activity)"
+    elif [[ "$BATCH_FAILURES" -gt 0 || "$WEBSOCKET_FAILURES" -gt 0 || "$TUNNEL_FAILURES" -gt 0 ]]; then
+        report_type="Sync Report (Errors)"
+    fi
+    
     # Generate HTML report
     cat << EOF
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>UPlanet Constellation Sync Report</title>
+    <title>UPlanet Constellation $report_type</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -136,7 +146,7 @@ generate_html_report() {
 <body>
     <div class="container">
         <div class="header">
-            <h1>🌍 UPlanet Constellation Sync Report</h1>
+            <h1>🌍 UPlanet Constellation $report_type</h1>
             <p>Node: $node_info</p>
             <p>Sync Time: $SYNC_START_TIME → $SYNC_END_TIME ($duration)</p>
         </div>
@@ -230,6 +240,35 @@ generate_html_report() {
 EOF
 }
 
+# Function to check if report should be sent
+should_send_report() {
+    local stats="$1"
+    
+    # Source the statistics
+    eval "$stats"
+    
+    # Check if there are imported events (synchronized messages)
+    local has_imported_events=false
+    if [[ -n "$IMPORTED_EVENTS" && "$IMPORTED_EVENTS" -gt 0 ]]; then
+        has_imported_events=true
+    fi
+    
+    # Check if there are any errors
+    local has_errors=false
+    if [[ -n "$BATCH_FAILURES" && "$BATCH_FAILURES" -gt 0 ]] || \
+       [[ -n "$WEBSOCKET_FAILURES" && "$WEBSOCKET_FAILURES" -gt 0 ]] || \
+       [[ -n "$TUNNEL_FAILURES" && "$TUNNEL_FAILURES" -gt 0 ]]; then
+        has_errors=true
+    fi
+    
+    # Send report only if there are synchronized messages or errors
+    if [[ "$has_imported_events" == true || "$has_errors" == true ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Function to send email report
 send_sync_report() {
     local captain_email="$1"
@@ -246,6 +285,12 @@ send_sync_report() {
     if [[ $? -ne 0 ]]; then
         echo "❌ Failed to extract sync statistics"
         return 1
+    fi
+    
+    # Check if report should be sent
+    if ! should_send_report "$stats"; then
+        echo "ℹ️  No synchronized messages or errors detected - skipping report"
+        return 0
     fi
     
     # Get node information
