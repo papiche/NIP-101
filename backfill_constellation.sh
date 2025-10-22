@@ -424,7 +424,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, blog, calendar, DID documents
+            "kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, videos (short/long), blog, calendar, DID documents
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -456,14 +456,15 @@ EOF
     local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
     
     # Build kinds array based on INCLUDE_DMS setting
-    local kinds_array="[0, 1, 3, 5, 6, 7, 30023, 30024, 30311]"  # Base kinds + DID
+    local kinds_array="[0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311]"  # Base kinds + videos + DID
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        kinds_array="[0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311]"  # Include DMs + DID
-        log "INFO" "Including direct messages (DMs) in synchronization"
+        kinds_array="[0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311]"  # Include DMs + videos + DID
+        log "INFO" "Including direct messages (DMs) and video events (kind 21/22) in synchronization"
     else
-        log "INFO" "Excluding direct messages (DMs) from synchronization"
+        log "INFO" "Excluding direct messages (DMs) but including video events (kind 21/22) in synchronization"
     fi
     log "INFO" "Including kind 30311 (DID documents) in synchronization"
+    log "INFO" "Including kind 21/22 (video events from process_youtube.sh) in synchronization"
     
     cat > "$temp_config" <<EOF
 # Temporary backfill configuration for $peer (targeted)
@@ -665,9 +666,9 @@ execute_backfill_websocket_single_hex() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311], '  # Include DMs + DID
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Include DMs + videos + DID
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024, 30311], '  # Exclude DMs + DID
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Exclude DMs but include videos + DID
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -725,9 +726,9 @@ execute_backfill_websocket_batch() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 30023, 30024, 30311], '  # Include DMs + DID
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Include DMs + videos + DID
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 30023, 30024, 30311], '  # Exclude DMs + DID
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Exclude DMs but include videos + DID
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -835,6 +836,69 @@ execute_backfill_websocket_batch() {
     return 1
 }
 
+# Function to process video events and extract video metadata
+process_video_events() {
+    local response_file="$1"
+    local video_events_file="${response_file%.json}_videos.json"
+    
+    if [[ ! -s "$response_file" ]]; then
+        return 0
+    fi
+    
+    # Extract video events (kind 21 and 22) to process them separately
+    jq -c '.[] | select(.kind == 21 or .kind == 22)' "$response_file" > "$video_events_file" 2>/dev/null
+    
+    if [[ -s "$video_events_file" ]]; then
+        local video_count=$(wc -l < "$video_events_file")
+        log "INFO" "Found $video_count video events (kind 21/22) from process_youtube.sh"
+        
+        # Log sample video events for debugging
+        if [[ "$VERBOSE" == "true" && $video_count -gt 0 ]]; then
+            log "DEBUG" "Sample video events:"
+            head -3 "$video_events_file" | while IFS= read -r video_event; do
+                local video_title=$(echo "$video_event" | jq -r '.content // "No title"' 2>/dev/null | head -c 50)
+                local video_kind=$(echo "$video_event" | jq -r '.kind' 2>/dev/null)
+                local video_url=$(echo "$video_event" | jq -r '.tags[]? | select(.[0] == "url") | .[1]' 2>/dev/null | head -1)
+                log "DEBUG" "  Kind $video_kind: $video_title... (URL: ${video_url:0:30}...)"
+            done
+        fi
+    fi
+    
+    echo "$video_events_file"
+}
+
+# Function to process deletion events and extract deleted message IDs
+process_deletion_events() {
+    local deletion_events_file="$1"
+    local deleted_message_ids=()
+    
+    if [[ ! -s "$deletion_events_file" ]]; then
+        echo "${deleted_message_ids[@]}"
+        return 0
+    fi
+    
+    log "INFO" "Processing deletion events to identify deleted message IDs..."
+    
+    # Extract all deleted message IDs from deletion events
+    while IFS= read -r deletion_event; do
+        if [[ -n "$deletion_event" && "$deletion_event" != "null" ]]; then
+            # Extract event IDs from tags (e.g., ["e", "event_id"])
+            local deleted_ids=$(echo "$deletion_event" | jq -r '.tags[]? | select(.[0] == "e") | .[1]' 2>/dev/null)
+            if [[ -n "$deleted_ids" ]]; then
+                while IFS= read -r deleted_id; do
+                    if [[ -n "$deleted_id" && "$deleted_id" != "null" ]]; then
+                        deleted_message_ids+=("$deleted_id")
+                        log "DEBUG" "Marked for deletion: ${deleted_id:0:16}..."
+                    fi
+                done <<< "$deleted_ids"
+            fi
+        fi
+    done < "$deletion_events_file"
+    
+    log "INFO" "Identified ${#deleted_message_ids[@]} messages to exclude from import"
+    echo "${deleted_message_ids[@]}"
+}
+
 # Function to process and import events from WebSocket response
 process_and_import_events() {
     local response_file="$1"
@@ -848,21 +912,59 @@ process_and_import_events() {
     fi
     
     # OPT #4: Fusionner appels jq - 1 seul appel au lieu de 3
-    read total_events dm_events public_events < <(
-        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length)] | @tsv' \
-        "$response_file" 2>/dev/null || echo "0 0 0"
+    read total_events dm_events public_events deletion_events video_events did_events < <(
+        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length), ([.[] | select(.kind == 5)] | length), ([.[] | select(.kind == 21 or .kind == 22)] | length), ([.[] | select(.kind == 30311)] | length)] | @tsv' \
+        "$response_file" 2>/dev/null || echo "0 0 0 0 0 0"
     )
     
-    log "INFO" "Event breakdown: $total_events total ($dm_events DMs, $public_events public)"
+    log "INFO" "Event breakdown: $total_events total ($dm_events DMs, $public_events public, $deletion_events deletions, $video_events videos, $did_events DID)"
     
-    # Create a filtered file without "Hello NOSTR visitor." messages
+    # Create a filtered file without "Hello NOSTR visitor." messages and process deletion events
     local filtered_file="${response_file%.json}_filtered.json"
+    local deletion_events_file="${response_file%.json}_deletions.json"
     
-    log "INFO" "Filtering out 'Hello NOSTR visitor.' messages..."
+    log "INFO" "Processing video events (kind 21/22) from process_youtube.sh..."
     
-    # Filter out events containing "Hello NOSTR visitor." in their content
+    # Process video events first (kind 21 and 22)
+    local video_events_file
+    video_events_file=$(process_video_events "$response_file")
+    
+    log "INFO" "Processing deletion events (kind 5) to prevent re-importing deleted messages..."
+    
+    # Extract deletion events (kind 5) to process them separately
+    # NOSTR kind 5 events contain tags with "e" entries that reference deleted message IDs
+    jq -c '.[] | select(.kind == 5)' "$response_file" > "$deletion_events_file" 2>/dev/null
+    
+    # Process deletion events to identify deleted message IDs
+    local deleted_message_ids=()
+    if [[ -s "$deletion_events_file" ]]; then
+        log "INFO" "Found $deletion_events deletion events, processing..."
+        mapfile -t deleted_message_ids < <(process_deletion_events "$deletion_events_file")
+    fi
+    
+    log "INFO" "Filtering out 'Hello NOSTR visitor.' messages and deleted messages..."
+    
+    # Filter out events containing "Hello NOSTR visitor." in their content AND deleted messages
     # Use -c for compact output (one JSON object per line)
-    jq -c '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
+    if [[ ${#deleted_message_ids[@]} -gt 0 ]]; then
+        # Create a jq filter to exclude deleted message IDs
+        # This prevents re-importing messages that have been marked for deletion
+        local deletion_filter=""
+        for deleted_id in "${deleted_message_ids[@]}"; do
+            if [[ -n "$deletion_filter" ]]; then
+                deletion_filter+=" and .id != \"$deleted_id\""
+            else
+                deletion_filter=".id != \"$deleted_id\""
+            fi
+        done
+        
+        # Apply both filters: exclude "Hello NOSTR visitor." and deleted messages
+        # This ensures we don't re-import messages that users have explicitly deleted
+        jq -c ".[] | select((.content | test(\"Hello NOSTR visitor.\") | not) and ($deletion_filter))" "$response_file" > "$filtered_file" 2>/dev/null
+    else
+        # Only filter out "Hello NOSTR visitor." messages
+        jq -c '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
+    fi
     
     # Count events after filtering using jq (more reliable than wc -l)
     local filtered_events=$(jq -s 'length' "$filtered_file" 2>/dev/null || echo "0")
@@ -870,12 +972,12 @@ process_and_import_events() {
     
     log "INFO" "Total events: $total_events"
     log "INFO" "Events after filtering: $filtered_events"
-    log "INFO" "Removed 'Hello NOSTR visitor.' messages: $removed_events"
+    log "INFO" "Removed events: $removed_events (including 'Hello NOSTR visitor.' messages and deleted messages)"
     
     # Check if we have events to import
     if [[ ! -s "$filtered_file" ]]; then
         log "WARN" "No events remaining after filtering"
-        rm -f "$filtered_file"
+        rm -f "$filtered_file" "$deletion_events_file" "$video_events_file"
         return 0
     fi
     
@@ -904,12 +1006,12 @@ process_and_import_events() {
         fi
     else
         log "ERROR" "❌ Failed to import events to strfry"
-        rm -f "$filtered_file" "$import_file"
+        rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"
         return 1
     fi
     
     # Clean up temporary files
-    rm -f "$filtered_file" "$import_file"
+    rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"
     
     log "INFO" "Import process completed successfully"
 }

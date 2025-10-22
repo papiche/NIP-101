@@ -37,6 +37,22 @@ extract_sync_stats() {
     local total_events=$(grep "Total events collected across all batches:" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
     local imported_events=$(grep "Successfully imported.*events to strfry" "$log_file" | tail -1 | grep -o '[0-9]*' | head -1)
     
+    # Count message types from event breakdown logs
+    local dm_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* DMs' | grep -o '[0-9]*' | head -1)
+    local public_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* public' | grep -o '[0-9]*' | head -1)
+    local deletion_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* deletions' | grep -o '[0-9]*' | head -1)
+    local video_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* videos' | grep -o '[0-9]*' | head -1)
+    
+    # Count DID events (kind 30311) from did_manager_nostr.sh
+    local did_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* DID' | grep -o '[0-9]*' | head -1)
+    
+    # Set default values if not found
+    [[ -z "$dm_events" ]] && dm_events="0"
+    [[ -z "$public_events" ]] && public_events="0"
+    [[ -z "$deletion_events" ]] && deletion_events="0"
+    [[ -z "$video_events" ]] && video_events="0"
+    [[ -z "$did_events" ]] && did_events="0"
+    
     # Count HEX pubkeys processed
     local hex_count=$(grep "Found.*HEX pubkeys in constellation" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
     
@@ -68,6 +84,11 @@ TOTAL_PEERS="$total_peers"
 SUCCESS_PEERS="$success_peers"
 TOTAL_EVENTS="$total_events"
 IMPORTED_EVENTS="$imported_events"
+DM_EVENTS="$dm_events"
+PUBLIC_EVENTS="$public_events"
+DELETION_EVENTS="$deletion_events"
+VIDEO_EVENTS="$video_events"
+DID_EVENTS="$did_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -109,6 +130,38 @@ generate_html_report() {
         fi
     fi
     
+    # Calculate message type percentages
+    local total_message_events=0
+    local public_percent="0"
+    local dm_percent="0"
+    local video_percent="0"
+    local deletion_percent="0"
+    local did_percent="0"
+    
+    if [[ -n "$PUBLIC_EVENTS" && "$PUBLIC_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + PUBLIC_EVENTS))
+    fi
+    if [[ -n "$DM_EVENTS" && "$DM_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + DM_EVENTS))
+    fi
+    if [[ -n "$VIDEO_EVENTS" && "$VIDEO_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + VIDEO_EVENTS))
+    fi
+    if [[ -n "$DELETION_EVENTS" && "$DELETION_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + DELETION_EVENTS))
+    fi
+    if [[ -n "$DID_EVENTS" && "$DID_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + DID_EVENTS))
+    fi
+    
+    if [[ $total_message_events -gt 0 ]]; then
+        public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        dm_percent=$(echo "scale=1; $DM_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+    fi
+    
     # Determine report type based on activity
     local report_type="Sync Report"
     if [[ "$IMPORTED_EVENTS" -gt 0 && "$BATCH_FAILURES" -gt 0 ]]; then
@@ -140,6 +193,11 @@ generate_html_report() {
         .performance { background: #e8f5e8; }
         .retry-info { background: #fff3cd; }
         .error-info { background: #f8d7da; }
+        .message-types { background: #e3f2fd; }
+        .video-events { background: #f3e5f5; }
+        .dm-events { background: #e8f5e8; }
+        .deletion-events { background: #ffebee; }
+        .did-events { background: #fff3e0; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
     </style>
 </head>
@@ -171,6 +229,29 @@ generate_html_report() {
         </div>
         
         <div class="stats-grid">
+            <div class="stat-card message-types">
+                <div class="stat-value">$PUBLIC_EVENTS</div>
+                <div class="stat-label">Public Messages ($public_percent%)</div>
+            </div>
+            <div class="stat-card dm-events">
+                <div class="stat-value">$DM_EVENTS</div>
+                <div class="stat-label">Direct Messages ($dm_percent%)</div>
+            </div>
+            <div class="stat-card video-events">
+                <div class="stat-value">$VIDEO_EVENTS</div>
+                <div class="stat-label">Video Events ($video_percent%)</div>
+            </div>
+            <div class="stat-card deletion-events">
+                <div class="stat-value">$DELETION_EVENTS</div>
+                <div class="stat-label">Deletion Events ($deletion_percent%)</div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card did-events">
+                <div class="stat-value">$DID_EVENTS</div>
+                <div class="stat-label">DID Documents ($did_percent%)</div>
+            </div>
             <div class="stat-card performance">
                 <div class="stat-value">$PROFILES_FOUND</div>
                 <div class="stat-label">Profiles Found</div>
@@ -183,13 +264,17 @@ generate_html_report() {
                 <div class="stat-value">$BATCH_RETRIES</div>
                 <div class="stat-label">Batch Retries</div>
             </div>
+        </div>
+        
+        <div class="stats-grid">
             <div class="stat-card retry-info">
                 <div class="stat-value">$WEBSOCKET_RETRIES</div>
                 <div class="stat-label">WebSocket Retries</div>
             </div>
-        </div>
-        
-        <div class="stats-grid">
+            <div class="stat-card retry-info">
+                <div class="stat-value">$TUNNEL_RETRIES</div>
+                <div class="stat-label">Tunnel Retries</div>
+            </div>
             <div class="stat-card performance">
                 <div class="stat-value">$HEX_CACHE_TIME</div>
                 <div class="stat-label">HEX Cache Time</div>
@@ -198,6 +283,9 @@ generate_html_report() {
                 <div class="stat-value">$PEERS_TIME</div>
                 <div class="stat-label">Peers Discovery</div>
             </div>
+        </div>
+        
+        <div class="stats-grid">
             <div class="stat-card performance">
                 <div class="stat-value">$BATCH_SCAN_TIME</div>
                 <div class="stat-label">Batch Scan Time</div>
@@ -206,9 +294,6 @@ generate_html_report() {
                 <div class="stat-value">$PARALLEL_SYNC_TIME</div>
                 <div class="stat-label">Parallel Sync Time</div>
             </div>
-        </div>
-        
-        <div class="stats-grid">
             <div class="stat-card error-info">
                 <div class="stat-value error">$BATCH_FAILURES</div>
                 <div class="stat-label">Batch Failures</div>
@@ -217,6 +302,9 @@ generate_html_report() {
                 <div class="stat-value error">$WEBSOCKET_FAILURES</div>
                 <div class="stat-label">WebSocket Failures</div>
             </div>
+        </div>
+        
+        <div class="stats-grid">
             <div class="stat-card error-info">
                 <div class="stat-value error">$TUNNEL_FAILURES</div>
                 <div class="stat-label">Tunnel Failures</div>
@@ -225,6 +313,28 @@ generate_html_report() {
                 <div class="stat-value">$TUNNEL_RETRIES</div>
                 <div class="stat-label">Tunnel Retries</div>
             </div>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+            <h3 style="margin-top: 0; color: #2c3e50;">📊 Message Type Summary</h3>
+            <p style="margin: 10px 0; color: #555;">
+                <strong>Total Message Events:</strong> $total_message_events
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Public Messages:</strong> $PUBLIC_EVENTS ($public_percent%) - Notes, articles, and public communications
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Direct Messages:</strong> $DM_EVENTS ($dm_percent%) - Private conversations between users
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Video Events:</strong> $VIDEO_EVENTS ($video_percent%) - YouTube videos (kind 21/22) from process_youtube.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Deletion Events:</strong> $DELETION_EVENTS ($deletion_percent%) - Messages marked for deletion (kind 5)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>DID Documents:</strong> $DID_EVENTS ($did_percent%) - Identity documents (kind 30311) from did_manager_nostr.sh
+            </p>
         </div>
         
         <div class="footer">
