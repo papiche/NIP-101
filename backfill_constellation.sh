@@ -917,7 +917,7 @@ process_and_import_events() {
         "$response_file" 2>/dev/null || echo "0 0 0 0 0 0"
     )
     
-    log "INFO" "Event breakdown: $total_events total ($dm_events DMs, $public_events public, $deletion_events deletions, $video_events videos, $did_events DID)"
+    log "INFO" "SYNC_STATS: events=$total_events dms=$dm_events public=$public_events deletions=$deletion_events videos=$video_events did=$did_events"
     
     # Create a filtered file without "Hello NOSTR visitor." messages and process deletion events
     local filtered_file="${response_file%.json}_filtered.json"
@@ -1000,9 +1000,9 @@ process_and_import_events() {
     cd ~/.zen/strfry
     if $import_cmd < "$import_file" 2>/dev/null; then
         if [[ "$NO_VERIFY" == "true" ]]; then
-            log "INFO" "✅ Successfully imported $filtered_events events to strfry (no-verify mode)"
+            log "INFO" "SYNC_IMPORT: events=$filtered_events mode=no-verify"
         else
-            log "INFO" "✅ Successfully imported $filtered_events events to strfry (verified mode)"
+            log "INFO" "SYNC_IMPORT: events=$filtered_events mode=verified"
         fi
     else
         log "ERROR" "❌ Failed to import events to strfry"
@@ -1306,7 +1306,7 @@ main() {
     
     # Summary
     log "INFO" "Backfill process completed"
-    log "INFO" "Success: $success_count/$total_peers peers"
+    log "INFO" "SYNC_PEERS: success=$success_count total=$total_peers"
     
     # Extract profiles from constellation HEX pubkeys if backfill was successful and profiles extraction is enabled
     if [[ $success_count -gt 0 && "$EXTRACT_PROFILES" == "true" ]]; then
@@ -1318,7 +1318,7 @@ main() {
         
         if [[ -n "$hex_pubkeys" ]]; then
             local hex_count=$(echo "$hex_pubkeys" | wc -l)
-            log "INFO" "Found $hex_count HEX pubkeys in constellation"
+            log "INFO" "SYNC_HEX: count=$hex_count"
             
             # Create temporary HEX file
             local hex_file="$HOME/.zen/tmp/constellation_hex_$(date +%s).txt"
@@ -1412,8 +1412,7 @@ main() {
                             fi
                         done < "$hex_file"
                         
-                        log "INFO" "📊 Found $recent_hex_count HEX pubkeys with profiles"
-                        log "INFO" "📊 Found ${#missing_profiles[@]} HEX pubkeys WITHOUT profiles"
+                        log "INFO" "SYNC_PROFILES: found=$recent_hex_count missing=${#missing_profiles[@]}"
                         
                         # OPT #5: Paralléliser full sync - 3 en parallèle au lieu de séquentiel
                         if [[ ${#missing_profiles[@]} -gt 0 ]]; then

@@ -29,36 +29,41 @@ extract_sync_stats() {
     local start_time=$(grep "Starting Astroport constellation backfill process" "$log_file" | head -1 | sed 's/.*\[\([0-9-]* [0-9:]*\)\].*/\1/')
     local end_time=$(grep "Backfill process completed" "$log_file" | head -1 | sed 's/.*\[\([0-9-]* [0-9:]*\)\].*/\1/')
     
-    # Count peers processed
-    local total_peers=$(grep "Found.*peers from swarm" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
-    local success_peers=$(grep "Success:" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
+    # Extract standardized sync data using simple key=value parsing
+    local sync_stats=$(grep "SYNC_STATS:" "$log_file" | tail -1 | sed 's/.*SYNC_STATS: //')
+    local sync_hex=$(grep "SYNC_HEX:" "$log_file" | tail -1 | sed 's/.*SYNC_HEX: //')
+    local sync_profiles=$(grep "SYNC_PROFILES:" "$log_file" | tail -1 | sed 's/.*SYNC_PROFILES: //')
+    local sync_peers=$(grep "SYNC_PEERS:" "$log_file" | tail -1 | sed 's/.*SYNC_PEERS: //')
+    local sync_import=$(grep "SYNC_IMPORT:" "$log_file" | tail -1 | sed 's/.*SYNC_IMPORT: //')
     
-    # Count events processed
-    local total_events=$(grep "Total events collected across all batches:" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
-    local imported_events=$(grep "Successfully imported.*events to strfry" "$log_file" | tail -1 | grep -o '[0-9]*' | head -1)
+    # Parse key=value pairs
+    local total_events=$(echo "$sync_stats" | grep -o 'events=[0-9]*' | cut -d= -f2)
+    local dm_events=$(echo "$sync_stats" | grep -o 'dms=[0-9]*' | cut -d= -f2)
+    local public_events=$(echo "$sync_stats" | grep -o 'public=[0-9]*' | cut -d= -f2)
+    local deletion_events=$(echo "$sync_stats" | grep -o 'deletions=[0-9]*' | cut -d= -f2)
+    local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
+    local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
     
-    # Count message types from event breakdown logs
-    local dm_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* DMs' | grep -o '[0-9]*' | head -1)
-    local public_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* public' | grep -o '[0-9]*' | head -1)
-    local deletion_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* deletions' | grep -o '[0-9]*' | head -1)
-    local video_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* videos' | grep -o '[0-9]*' | head -1)
-    
-    # Count DID events (kind 30311) from did_manager_nostr.sh
-    local did_events=$(grep "Event breakdown:" "$log_file" | tail -1 | grep -o '[0-9]* DID' | grep -o '[0-9]*' | head -1)
+    local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
+    local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
+    local profiles_missing=$(echo "$sync_profiles" | grep -o 'missing=[0-9]*' | cut -d= -f2)
+    local success_peers=$(echo "$sync_peers" | grep -o 'success=[0-9]*' | cut -d= -f2)
+    local total_peers=$(echo "$sync_peers" | grep -o 'total=[0-9]*' | cut -d= -f2)
+    local imported_events=$(echo "$sync_import" | grep -o 'events=[0-9]*' | cut -d= -f2)
     
     # Set default values if not found
+    [[ -z "$total_events" ]] && total_events="0"
     [[ -z "$dm_events" ]] && dm_events="0"
     [[ -z "$public_events" ]] && public_events="0"
     [[ -z "$deletion_events" ]] && deletion_events="0"
     [[ -z "$video_events" ]] && video_events="0"
     [[ -z "$did_events" ]] && did_events="0"
-    
-    # Count HEX pubkeys processed
-    local hex_count=$(grep "Found.*HEX pubkeys in constellation" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
-    
-    # Count profiles extracted
-    local profiles_found=$(grep "Found.*HEX pubkeys with profiles" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
-    local profiles_missing=$(grep "Found.*HEX pubkeys WITHOUT profiles" "$log_file" | head -1 | grep -o '[0-9]*' | head -1)
+    [[ -z "$hex_count" ]] && hex_count="0"
+    [[ -z "$profiles_found" ]] && profiles_found="0"
+    [[ -z "$profiles_missing" ]] && profiles_missing="0"
+    [[ -z "$success_peers" ]] && success_peers="0"
+    [[ -z "$total_peers" ]] && total_peers="0"
+    [[ -z "$imported_events" ]] && imported_events="0"
     
     # Count retry attempts
     local batch_retries=$(grep "Retry attempt.*for batch" "$log_file" | wc -l)
