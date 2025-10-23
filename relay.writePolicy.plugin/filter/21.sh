@@ -13,13 +13,25 @@ event_json="$1"
 extract_event_data "$event_json"
 
 # Extract video-specific tags
-extract_tags "$event_json" "title" "imeta" "duration" "published_at" "g" "location"
+extract_tags "$event_json" "title" "imeta" "duration" "published_at" "g" "location" "application" "url" "latitude" "longitude"
 title="$title"
 imeta="$imeta"
 duration="$duration"
 published_at="$published_at"
 g="$g"
 location="$location"
+application="$application"
+url="$url"
+latitude="$latitude"
+longitude="$longitude"
+
+# Extract coordinates from "g" tag if latitude/longitude not directly provided
+# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
+if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
+    latitude=$(echo "$g" | cut -d',' -f1 | xargs)
+    longitude=$(echo "$g" | cut -d',' -f2 | xargs)
+    log_video "Extracted coordinates from 'g' tag: lat=$latitude, lon=$longitude"
+fi
 
 # Initialize full_content with content if not already set
 [[ -z "$full_content" ]] && full_content="$content"
@@ -260,6 +272,73 @@ local longitude=$(echo "$coords" | cut -d'|' -f2)
 
 # Process video event
 process_nostr_video_event "$pubkey" "$event_id" "$title" "$content" "$duration" "$latitude" "$longitude"
+
+# UMAP Follow functionality for video events
+activate_umap_follow_for_video() {
+    local pubkey="$1"
+    local latitude="$2"
+    local longitude="$3"
+    local application="$4"
+    local url="$5"
+    
+    # Only activate UMAP follow for videos with location data
+    if [[ -n "$latitude" && -n "$longitude" && "$latitude" != "0.00" && "$longitude" != "0.00" ]]; then
+        log_video "UMAP_FOLLOW: Activating UMAP follow for video at $latitude,$longitude"
+        
+        # Get UMAP coordinates (rounded to 0.01° precision)
+        local umap_lat=$(printf "%.2f" "$latitude")
+        local umap_lon=$(printf "%.2f" "$longitude")
+        
+        # Generate UMAP NSEC for this location
+        local umap_nsec=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${umap_lat}" "${UPLANETNAME}${umap_lon}" -s)
+        
+        if [[ -n "$umap_nsec" ]]; then
+            # Get UMAP pubkey
+            local umap_pubkey=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$umap_nsec")
+            
+            if [[ -n "$umap_pubkey" ]]; then
+                log_video "UMAP_FOLLOW: UMAP pubkey for $umap_lat,$umap_lon: $umap_pubkey"
+                
+                # Follow the UMAP from the video publisher
+                if [[ -n "$pubkey" && "$pubkey" != "$umap_pubkey" ]]; then
+                    # Get publisher's NSEC (if available in MULTIPASS)
+                    local publisher_nsec=""
+                    local publisher_email=$(get_key_email "$pubkey")
+                    
+                    if [[ -n "$publisher_email" ]]; then
+                        publisher_nsec=$(cat "$KEY_DIR/$publisher_email/NSEC" 2>/dev/null)
+                    fi
+                    
+                    if [[ -n "$publisher_nsec" ]]; then
+                        log_video "UMAP_FOLLOW: Following UMAP $umap_pubkey from publisher $pubkey"
+                        
+                        # Use nostr_follow.sh to follow the UMAP
+                        $HOME/.zen/Astroport.ONE/tools/nostr_follow.sh "$publisher_nsec" "$umap_pubkey" "$myRELAY" 2>/dev/null
+                        
+                        if [[ $? -eq 0 ]]; then
+                            log_video "UMAP_FOLLOW: Successfully followed UMAP $umap_pubkey"
+                        else
+                            log_video "UMAP_FOLLOW: Failed to follow UMAP $umap_pubkey"
+                        fi
+                    else
+                        log_video "UMAP_FOLLOW: No NSEC found for publisher $pubkey, cannot follow UMAP"
+                    fi
+                else
+                    log_video "UMAP_FOLLOW: Publisher is the same as UMAP, no follow needed"
+                fi
+            else
+                log_video "UMAP_FOLLOW: Failed to get UMAP pubkey for $umap_lat,$umap_lon"
+            fi
+        else
+            log_video "UMAP_FOLLOW: Failed to generate UMAP NSEC for $umap_lat,$umap_lon"
+        fi
+    else
+        log_video "UMAP_FOLLOW: No location data, skipping UMAP follow"
+    fi
+}
+
+# Activate UMAP follow for this video event
+activate_umap_follow_for_video "$pubkey" "$latitude" "$longitude" "$application" "$url"
 
 log_video "=== VIDEO EVENT PROCESSING END ==="
 
