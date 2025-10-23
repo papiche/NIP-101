@@ -80,17 +80,22 @@ get_key_directory_with_gps() {
 ######################################################
 ## CLASSIFY MESSAGE INCOMER
 ## CHECK if Nobody, Nostr Player Card, CAPTAIN or UPlanet Geo key
-if ! get_key_directory_with_gps "$pubkey"; then
+## First check if it's a local NOSTR account (MULTIPASS)
+if get_key_directory_with_gps "$pubkey"; then
+    # Local NOSTR account found
+    if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
+        check="player"
+        log_uplanet "Local NOSTR player account: $KNAME"
+    else
+        check="uplanet"
+        log_uplanet "Local NOSTR UPlanet account: $KNAME"
+    fi
+else
+    # Not a local account, check amisOfAmis
     check="nobody"
     if check_amis_of_amis "$pubkey"; then
         check="uplanet"
         log_uplanet "Pubkey $pubkey is in amisOfAmis.txt, setting check to uplanet"
-    fi
-else
-    if [[ $KNAME =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ || $KNAME == "CAPTAIN" ]]; then
-        check="player"
-    else
-        check="uplanet"
     fi
 fi
 
