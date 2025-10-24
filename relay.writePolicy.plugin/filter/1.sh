@@ -477,6 +477,7 @@ else
     content_length=${#content}
     if [[ $content_length -le 50 ]]; then
         log_uplanet "Message from nobody ($pubkey) too short ($content_length chars), rejecting without response"
+        log_uplanet "Short message content: '$content'"
         exit 1  # Reject message without responding
     fi
     
