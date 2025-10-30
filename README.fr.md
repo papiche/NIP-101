@@ -1,370 +1,682 @@
-# NIP-101 : Clés Géographiques Hiérarchiques UPlanet et Système de Tags
+# NIP-101 : Protocole d'Identité Décentralisée et Coordination Géographique UPlanet
 
 `brouillon` `optionnel`
 
-Ce NIP décrit une méthode pour générer des paires de clés Nostr de manière déterministe basée sur des coordonnées géographiques et un espace de noms, créant des "GeoKeys" hiérarchiques. Il spécifie également les tags d'événements utilisés par l'application UPlanet pour associer des notes à des emplacements et niveaux de grille spécifiques.
+**Auteurs :** Contributeurs Astroport.ONE  
+**Statut :** Brouillon pour Revue Communautaire  
+**Version :** 2.0  
+**Dépôt :** [github.com/papiche/NIP-101](https://github.com/papiche/NIP-101)
+
+---
 
 ## Résumé
 
-UPlanet étend Nostr en permettant une communication géographiquement localisée. Il y parvient grâce à :
+NIP-101 définit un protocole complet pour la **gestion d'identité décentralisée**, la **coordination géographique** et les **crédentials vérifiables** sur Nostr. Il étend le protocole Nostr avec quatre systèmes intégrés :
 
-1.  **GeoKeys Hiérarchiques :** Les paires de clés Nostr (`npub`/`nsec`) sont dérivées d'une combinaison d'une chaîne d'espace de noms fixe (ex : "UPlanetV1") et de coordonnées géographiques formatées à des niveaux de précision spécifiques (ex : 0.01°, 0.1°, 1.0°). Cela crée des identités distinctes pour différentes cellules de grille géographique.
-2.  **Tags Géographiques :** Les événements publiés en utilisant ces GeoKeys, ou référençant un emplacement, incluent des tags spécifiques (`latitude`, `longitude`) pour indiquer le point d'intérêt précis.
-3.  **Tag d'Application :** Un tag `application` identifie les événements spécifiquement destinés à ou générés par le système UPlanet.
+1. **GeoKeys Hiérarchiques** - Paires de clés Nostr dérivées de coordonnées géographiques
+2. **Identité Décentralisée (DID)** - Identités conformes W3C stockées comme événements Nostr (kind 30311)
+3. **Système Oracle** - Gestion de permis multi-signature utilisant la Web of Trust (kinds 30500-30503)
+4. **Système ORE** - Obligations environnementales attachées aux cellules géographiques (kinds 30400-30402)
 
-Cela permet aux utilisateurs et applications de s'abonner aux messages pertinents pour des zones géographiques spécifiques en connaissant le `npub` GeoKey correspondant ou en filtrant les événements basés sur les tags de localisation dans un certain rayon.
+Ce NIP permet la **communication géographiquement localisée**, l'**identité auto-souveraine**, les **crédentials validés par les pairs** et le **suivi des engagements écologiques** sur un réseau totalement décentralisé.
+
+---
+
+## Table des Matières
+
+- [Motivation](#motivation)
+- [Spécification](#spécification)
+  - [1. GeoKeys Hiérarchiques](#1-geokeys-hiérarchiques)
+  - [2. Identité Décentralisée (DID)](#2-identité-décentralisée-did)
+  - [3. Système Oracle (Permis)](#3-système-oracle-permis)
+  - [4. Système ORE (Obligations Environnementales)](#4-système-ore-obligations-environnementales)
+  - [5. Tags d'Événements](#5-tags-dévénements)
+- [Implémentation](#implémentation)
+  - [Synchronisation de Constellation](#synchronisation-de-constellation)
+  - [Authentification (NIP-42)](#authentification-nip-42)
+  - [Gestion des Clés](#gestion-des-clés)
+- [Cas d'Usage](#cas-dusage)
+- [Considérations de Sécurité](#considérations-de-sécurité)
+- [Références](#références)
+
+---
 
 ## Motivation
 
--   **Flux Localisés :** Créer des flux Nostr pertinents uniquement pour des quartiers spécifiques (UMAP), secteurs (SECTOR), ou régions (REGION).
--   **Géo-clôture :** Permettre aux applications de filtrer ou réagir aux événements se produisant dans des limites géographiques définies.
--   **Intégration Cartographique :** Fournir une couche d'événements Nostr qui peut être facilement affichée sur des cartes.
--   **Services Décentralisés Basés sur la Localisation :** Permettre la découverte et l'interaction basées sur la proximité sans dépendre de serveurs centralisés.
--   **Contexte Spécifique à l'Application :** Le tag `application` permet de distinguer les messages UPlanet du trafic Nostr général.
-
-## Modèle d'Identité et de Stockage Unifié d'UPlanet
-
-Ce NIP décrit comment UPlanet intègre les identités Nostr avec le stockage IPFS, en s'appuyant sur la dérivation de clés géographiques.
-
-### Authentification via NIP-42
-
-Les services UPassport (`54321.py`) utilisent Nostr pour l'authentification des utilisateurs pour les opérations privilégiées telles que le téléchargement, la suppression et la synchronisation de fichiers. Cela est réalisé par :
-
-1.  **Événement d'Authentification Côté Client :** Lorsqu'un utilisateur tente une action privilégiée, son interface web UPlanet (ou client) interagit avec une extension Nostr ([NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md)) ou directement avec son `nsec` pour signer un événement de `kind: 22242` ([NIP-42: Authentification](https://github.com/nostr-protocol/nips/blob/master/42.md)). Cet événement affirme la clé publique de l'utilisateur (`pubkey`) et inclut typiquement un tag `relay` indiquant le relais auquel il a été envoyé, et un tag `challenge`.
-2.  **Vérification Côté Serveur :** Le backend UPlanet UPassport (`54321.py`) se connecte à un relais Nostr local (ex : `ws://127.0.0.1:7777`). En recevant une requête authentifiée d'un utilisateur (`npub`), le backend interroge le relais pour les événements `kind: 22242` récents (ex : dernières 24 heures) créés par ce `npub`. Si un événement valide et récent est trouvé, l'identité de l'utilisateur est authentifiée. Ce mécanisme garantit que l'utilisateur est bien le propriétaire du `npub` sans que le serveur ne détienne jamais la clé privée.
-
-### Mécanisme de Clés Jumelles et Propriété du Drive IPFS
-
-L'innovation principale d'UPlanet réside dans son mécanisme "Clés Jumelles", qui lie inextricablement l'identité Nostr d'un utilisateur à son drive IPFS personnel et autres actifs numériques (G1, clés Bitcoin, comme décrit dans la Spécification 1: Dérivation GeoKey).
-
--   **Association Déterministe du Drive :** Chaque utilisateur UPlanet est associé à un drive IPFS unique situé dans son répertoire personnel (ex : `~/.zen/game/nostr/<user_email>/APP`). Le fichier `manifest.json` dans ce drive enregistre explicitement l'`owner_hex_pubkey`.
--   **Application de la Propriété :**
-    -   Lorsqu'un utilisateur tente de modifier son drive IPFS (téléchargement, suppression de fichiers), le backend UPlanet vérifie que son `npub` Nostr authentifié (converti en `hex_pubkey`) correspond à l'`owner_hex_pubkey` déclaré dans le `manifest.json` du drive cible.
-    -   Si le `npub` correspond, l'opération se poursuit et le drive IPFS est régénéré, produisant un nouveau CID.
-    -   Si le `npub` ne correspond pas (c'est-à-dire un "drive étranger"), les opérations d'écriture sont strictement interdites. Cependant, les utilisateurs peuvent "synchroniser" des fichiers d'un drive étranger vers leur *propre* drive authentifié, copiant effectivement le contenu public.
--   **Contenu IPFS Structuré :** Contrairement au stockage de blobs générique, UPlanet organise les fichiers dans une structure hiérarchique dans le drive IPFS (`Images/`, `Music/`, `Videos/`, `Documents/`), et génère une interface web lisible par l'homme (`_index.html`) pour l'exploration. Cela fournit une expérience "drive" conviviale plutôt qu'un simple accès aux blobs bruts.
-
-### Comparaison avec le Stockage de Blobs Générique (ex : Blossom)
-
-Bien qu'il partage l'utilisation fondamentale de Nostr pour l'authentification, UPlanet se différencie des spécifications de stockage de blobs basées sur Nostr plus génériques comme [Blossom](https://github.com/hzrd149/blossom) (BUDs) dans sa portée et son approche :
-
--   **Blossom :** Se concentre sur une API HTTP de bas niveau pour stocker et récupérer des "blobs" arbitraires adressés par des hachages SHA256 sur des serveurs de médias. C'est un bloc de construction fondamental pour la distribution de contenu sur Nostr.
--   **UPlanet :** Opère à un niveau d'application plus élevé. C'est un système de "Drive IPFS Personnel" structuré qui *utilise* IPFS pour le stockage et *utilise* Nostr pour l'identité et l'authentification. Son mécanisme "Clés Jumelles" (GeoKeys NIP-101 et autres clés associées) fournit une identité holistique et unifiée à travers les données géographiques, le contenu IPFS, et potentiellement d'autres actifs blockchain. Il fournit une expérience utilisateur complète avec une interface web pré-construite et des fonctionnalités spécifiques comme les mises à jour incrémentales et l'organisation de contenu structuré.
-
-### Relais Nostr Dédié avec Strfry et Filtres Personnalisés
-
-UPlanet utilise un relais Nostr `strfry` dédié, configuré avec des politiques d'écriture personnalisées pour s'intégrer de manière transparente à l'écosystème UPlanet, permettant des actions authentifiées et des réponses pilotées par l'IA.
-
-#### 1. Compilation et Installation de Strfry (`install_strfry.sh`)
-
-Le script `install_strfry.sh` automatise la configuration du relais Nostr `strfry` :
-
-*   **Installation des Dépendances :** Il s'assure que toutes les dépendances système nécessaires (ex : `git`, `g++`, `make`, `libssl-dev`, `liblmdb-dev`) sont installées sur les systèmes basés sur Debian/Ubuntu.
-*   **Gestion des Sources :** Le script clone le dépôt `strfry` depuis GitHub dans `~/.zen/workspace/strfry` ou le met à jour s'il est déjà présent.
-*   **Compilation :** Il compile `strfry` depuis les sources, garantissant les dernières fonctionnalités et optimisations.
-*   **Installation :** Le binaire `strfry` compilé et sa configuration `strfry.conf` par défaut sont copiés dans `~/.zen/strfry/`, avec la configuration adaptée pour un accès réseau plus large (`bind = "0.0.0.0"`). Cette configuration permet à `strfry` d'être un relais local dédié à l'instance UPlanet.
-
-#### 2. Installation et Configuration Systemd (`setup.sh`)
-
-Après la compilation de `strfry`, le script `setup.sh` configure le relais `strfry` et le prépare pour la gestion Systemd :
-
-*   **Génération de Configuration :** Il génère dynamiquement le fichier `strfry.conf` dans `~/.zen/strfry/strfry.conf` basé sur les variables de l'environnement UPlanet (ex : `UPLANETG1PUB`, `IPFSNODEID`, `CAPTAINHEX`, `CAPTAINEMAIL`).
-*   **Informations du Relais :** Le `strfry.conf` inclut les métadonnées NIP-11 telles que le `name` du relais (ex : "♥️BOX `IPFSNODEID`"), la `description` (soulignant son rôle dans UPlanet), la `pubkey` (la clé publique du Capitaine UPlanet pour l'administration), et une URL d'`icon`.
-*   **Plugin de Politique d'Écriture :** Crucialement, il définit le paramètre `writePolicy.plugin` dans `strfry.conf` pour pointer vers `"$HOME/.zen/workspace/NIP-101/relay.writePolicy.plugin/all_but_blacklist.sh"`. Cela délègue la logique d'acceptation/rejet d'événements à un script personnalisé, permettant les règles de filtrage spécifiques d'UPlanet.
-
-#### 3. Filtres Spécifiques et Intégration IA
-
-Le relais d'UPlanet implémente plusieurs couches de filtrage pour gérer les événements et déclencher des réponses IA :
-
-*   **`relay.writePolicy.plugin/all_but_blacklist.sh` (Politique d'Écriture Principale) :**
-    *   C'est le script principal exécuté par `strfry` pour chaque événement entrant.
-    *   Sa fonction principale est d'implémenter une politique "liste blanche par défaut, avec exceptions de liste noire" : il accepte tous les événements sauf si la `pubkey` de l'auteur de l'événement est trouvée dans `~/.zen/strfry/blacklist.txt`.
-    *   Pour les événements `kind 1` (texte), il appelle dynamiquement `filter/1.sh` pour appliquer une logique plus spécifique liée à UPlanet.
-    *   Les événements de clés publiques blacklistées sont immédiatement rejetés.
-
-*   **`relay.writePolicy.plugin/filter/1.sh` (Filtre d'Événements Kind 1) :**
-    *   Ce script gère spécifiquement les événements Nostr `kind 1`, qui sont principalement des notes de texte.
-    *   **Gestion des Visiteurs :** Pour les `pubkey` non enregistrées comme "joueurs" UPlanet, il implémente un mécanisme "Hello NOSTR visitor". Les nouveaux visiteurs reçoivent un message d'avertissement de la clé du Capitaine UPlanet, expliquant le système et limitant le nombre de messages qu'ils peuvent envoyer avant d'être blacklistés. Cela encourage les utilisateurs à rejoindre la Web of Trust UPlanet.
-    *   **Gestion de la Mémoire :** Il utilise `short_memory.py` pour stocker l'historique des conversations pour les joueurs Nostr, permettant à l'IA de maintenir le contexte.
-    *   **Déclenchement IA :** Il agit comme un orchestrateur pour le script `UPlanet_IA_Responder.sh`. Si `UPlanet_IA_Responder.sh` est déjà en cours d'exécution, il met en file d'attente les messages entrants (surtout ceux avec les tags `#BRO` ou `#BOT`) pour éviter de submerger l'IA. Si l'IA n'est pas active, il invoque directement `UPlanet_IA_Responder.sh` avec un timeout.
-
-*   **`Astroport.ONE/IA/UPlanet_IA_Responder.sh` (Backend IA) :**
-    *   C'est le script de logique IA principal, responsable de générer des réponses basées sur les messages `kind 1` entrants, typiquement déclenchés par `filter/1.sh`.
-    *   **Actions Basées sur les Tags :** Il analyse des hashtags spécifiques dans le contenu du message pour déclencher diverses fonctionnalités IA :
-        *   `#search` : Intègre avec un moteur de recherche (ex : Perplexica) pour récupérer des informations.
-        *   `#image` : Commande une IA de génération d'images (ex : ComfyUI) pour créer des images basées sur le prompt.
-        *   `#video` : Utilise des modèles texte-vers-vidéo (ex : ComfyUI) pour générer de courts clips vidéo.
-        *   `#music` : Déclenche la génération de musique.
-        *   `#youtube` : Télécharge des vidéos YouTube (ou extrait l'audio avec le tag `#mp3`) via `process_youtube.sh`.
-        *   `#pierre` / `#amelie` : Convertit le texte en parole en utilisant des modèles de voix spécifiques (ex : Orpheus TTS).
-        *   `#mem` : Affiche l'historique de conversation actuel.
-        *   `#reset` : Efface la mémoire de conversation de l'utilisateur.
-    *   **Intégration Ollama :** Pour les questions générales sans tags spécifiques, il utilise Ollama avec un script `question.py` conscient du contexte pour générer des réponses IA conversationnelles, exploitant la mémoire stockée.
-    *   **Publication des Réponses :** Les réponses générées par l'IA sont signées par la clé du Capitaine UPlanet (ou la clé `KNAME` si spécifiée et disponible) et publiées de retour sur le relais Nostr comme événements `kind 1`, taguant spécifiquement l'événement original et la clé publique pour maintenir le contexte de fil (`tags `e` et `p`).
-
-Ce système intégré permet à UPlanet de fournir une expérience dynamique et interactive où les actions et requêtes des utilisateurs sur Nostr peuvent déclencher des opérations IA complexes et la génération de contenu, tout en maintenant l'intégrité et le modèle de propriété des drives IPFS.
-
-### Tags de Contrôle de Mémoire
-
-UPlanet implémente un système de mémoire conscient de la vie privée où les utilisateurs ont un contrôle explicite sur ce qui est stocké dans leur historique de conversation IA :
-
--   **`#rec` (Enregistrer) :** Ce tag est **requis** pour que tout message soit stocké dans la mémoire IA. Les messages sans ce tag sont traités normalement mais ne sont pas enregistrés pour le contexte futur. Cela fournit aux utilisateurs un contrôle granulaire sur leur vie privée et l'utilisation du stockage.
-
--   **`#mem` (Mémoire) :** Affiche l'historique de conversation actuel sans enregistrer le message actuel. Cela permet aux utilisateurs de consulter leurs conversations stockées sans ajouter de nouvelles entrées.
-
--   **`#reset` (Réinitialiser) :** Efface la mémoire de conversation de l'utilisateur, fournissant un nouveau départ pour les interactions IA.
-
-**Exemple d'Utilisation :**
-```
-# Message sera traité mais PAS stocké en mémoire
-"Bonjour, comment allez-vous ?"
-
-# Message sera traité ET stocké en mémoire pour le contexte futur
-"Bonjour, comment allez-vous ? #rec"
-
-# Message affichera la mémoire actuelle sans enregistrer ce message
-"Montre-moi notre historique de conversation #mem"
-
-# Message effacera toute la mémoire stockée
-"Efface notre conversation #reset"
-```
-
-Cette approche garantit que les utilisateurs maintiennent un contrôle total sur leur empreinte numérique tout en bénéficiant d'interactions IA contextuelles quand ils le souhaitent.
-
-### Utilisation de la Mémoire dans les Réponses IA
-
-Le script `UPlanet_IA_Responder.sh` utilise la mémoire stockée de plusieurs façons pour fournir des réponses IA contextuelles :
-
-#### 1. Affichage de la Mémoire (tag `#mem`)
-Lorsqu'un utilisateur inclut le tag `#mem`, le script :
-- Charge l'historique de conversation de l'utilisateur depuis `~/.zen/strfry/uplanet_memory/pubkey/{pubkey}.json`
-- Formate les 30 derniers messages avec des timestamps et du contenu nettoyé (suppression des tags #BOT/#BRO)
-- Retourne un historique de conversation lisible par l'homme sans enregistrer le message actuel
-
-#### 2. Réinitialisation de la Mémoire (tag `#reset`)
-Lorsqu'un utilisateur inclut le tag `#reset`, le script :
-- Supprime complètement le fichier de mémoire de l'utilisateur
-- Retourne un message de bienvenue expliquant les fonctionnalités IA disponibles
-- Fournit un nouveau départ pour les interactions IA
-
-#### 3. Réponses IA Contextuelles (Comportement par défaut)
-Pour les questions générales sans tags spécifiques, le script :
-- Appelle `question.py` avec le paramètre `pubkey` de l'utilisateur
-- `question.py` charge l'historique de conversation depuis le fichier de mémoire de l'utilisateur
-- Construit un prompt conscient du contexte incluant les messages précédents
-- Envoie le prompt amélioré à Ollama pour la génération de réponse IA
-- Enregistre à la fois le prompt et la réponse dans `~/.zen/tmp/IA.log`
-
-#### 4. Structure et Accès à la Mémoire
-Le système de mémoire fournit deux types de contexte :
-
-**Mémoire Utilisateur (`pubkey/{pubkey}.json`) :**
-```json
-{
-  "pubkey": "clé_publique_utilisateur",
-  "messages": [
-    {
-      "timestamp": "2024-01-01T12:00:00Z",
-      "event_id": "hash_événement",
-      "latitude": "48.8534",
-      "longitude": "-2.3412",
-      "content": "Contenu du message utilisateur"
-    }
-  ]
-}
-```
-
-**Mémoire UMAP (`{latitude}_{longitude}.json`) :**
-```json
-{
-  "latitude": "48.8534",
-  "longitude": "-2.3412",
-  "messages": [
-    {
-      "timestamp": "2024-01-01T12:00:00Z",
-      "event_id": "hash_événement",
-      "pubkey": "clé_publique_utilisateur",
-      "content": "Contenu du message à cet emplacement"
-    }
-  ]
-}
-```
-
-#### 5. Intégration du Contexte dans les Prompts IA
-Le script `question.py` améliore les réponses IA en :
-- Chargeant l'historique de conversation pertinent (jusqu'à 50 messages)
-- Formatant les messages précédents comme contexte
-- Incluant les informations de localisation quand disponibles
-- Construisant un prompt complet pour Ollama
-- Maintenant la continuité de conversation à travers les sessions
-
-Ce système de mémoire permet à l'IA de fournir des réponses personnalisées et conscientes du contexte tout en respectant la vie privée des utilisateurs grâce au consentement explicite via le tag `#rec`.
-
-### Économie Zen et Paiements Basés sur les Réactions
-
-UPlanet implémente un système économique unique où les interactions sociales (réactions/likes) déclenchent des micro-paiements automatiques dans la devise Ğ1, créant une économie circulaire au sein de l'écosystème.
-
-#### 1. Traitement des Réactions (`filter/7.sh`)
-
-Le script `filter/7.sh` gère les événements Nostr de kind:7 (réactions/likes) et implémente l'économie Zen :
-
-**Types de Réactions :**
-- **Réactions Positives :** `+`, `👍`, `❤️`, `♥️` (le contenu vide est traité comme positif)
-- **Réactions Négatives :** `-`, `👎`, `💔`
-- **Réactions Personnalisées :** Tout autre emoji ou contenu
-
-**Flux de Traitement :**
-1. **Vérification d'Autorisation :** Vérifie que l'expéditeur de la réaction est un joueur UPlanet autorisé ou dans `amisOfAmis.txt`
-2. **Détection de Membre UPlanet :** Utilise `search_for_this_hex_in_uplanet.sh` pour vérifier si l'auteur réagi fait partie d'UPlanet
-3. **Paiement Automatique :** Si les deux conditions sont remplies, déclenche un paiement de 0.1 Ğ1 du réacteur vers le créateur de contenu
-
-**Implémentation du Paiement :**
-```bash
-# Extraire G1PUBNOSTR pour l'auteur réagi
-G1PUBNOSTR=$(~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh $reacted_author_pubkey)
-
-# Envoyer 0.1 Ğ1 si les deux utilisateurs sont membres UPlanet
-if [[ -n "$G1PUBNOSTR" && -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
-    ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${PLAYER_DIR}/.secret.dunikey" "0.1" "$G1PUBNOSTR" "_like_${reacted_event_id}_from_${pubkey}"
-fi
-```
-
-#### 2. Écosystème Économique (`ZEN.ECONOMY.sh`)
-
-Le script `ZEN.ECONOMY.sh` gère le système économique plus large :
-
-**Acteurs et Soldes :**
-- **UPlanet :** "Banque centrale" coopérative gérant l'écosystème
-- **Node :** Serveur physique (PC Gamer ou RPi5) hébergeant le relais
-- **Captain :** Gestionnaire et administrateur du Node
-
-**Coûts Hebdomadaires :**
-- **Carte NOSTR :** 1 Ẑen/semaine (utilisateurs avec cartes Nostr)
-- **Carte ZEN :** 4 Ẑen/semaine (utilisateurs avec cartes ZEN)
-- **PAF (Participation Aux Frais) :** 14 Ẑen/semaine (coûts opérationnels)
-
-**Logique de Paiement :**
-```bash
-# Calcul PAF quotidien
-DAILYPAF=$(echo "$PAF / 7" | bc -l)  # 2 Ẑen/jour
-
-# Captain paie PAF si solde suffisant, sinon UPlanet paie
-if [[ $CAPTAINZEN > $DAILYPAF ]]; then
-    # Captain paie Node (économie positive)
-    PAYforSURE.sh "$CAPTAIN_DUNIKEY" "$DAILYG1" "$NODEG1PUB" "PAF"
-else
-    # UPlanet paie Node (économie négative)
-    PAYforSURE.sh "$UPLANET_DUNIKEY" "$DAILYG1" "$NODEG1PUB" "PAF"
-fi
-```
-
-#### 3. Incitations Économiques
-
-**Incitations à la Création de Contenu :**
-- **Micro-paiements :** Chaque réaction positive génère 0.1 Ğ1 pour les créateurs de contenu
-- **Contenu de Qualité :** Encourage les contributions précieuses à l'écosystème
-- **Construction de Communauté :** Récompense l'engagement et l'interaction
-
-**Soutien à l'Infrastructure :**
-- **Durabilité du Node :** PAF assure que les serveurs relais restent opérationnels
-- **Compensation du Captain :** Les captains sont incités à maintenir une infrastructure de qualité
-- **Stabilité UPlanet :** Le modèle coopératif distribue les coûts à travers l'écosystème
-
-**Flux Économique :**
-```
-Utilisateur A publie du contenu → Utilisateur B like le contenu → Paiement 0.1 Ğ1 à Utilisateur A
-                                                                        ↓
-Node fournit service relais → Captain paie PAF → Node reçoit financement opérationnel
-                                                                        ↓
-Coopérative UPlanet → Gère l'écosystème → Distribue coûts et bénéfices
-```
-
-Ce modèle économique crée un écosystème auto-suffisant où les interactions sociales financent directement l'infrastructure et récompensent les créateurs de contenu, favorisant une économie circulaire au sein du réseau UPlanet.
+### Problèmes Résolus
+
+Les implémentations Nostr actuelles manquent :
+- **Contexte géographique** pour la communication basée sur la localisation
+- **Documents d'identité standardisés** pour l'identité auto-souveraine
+- **Crédentials vérifiables** pour la compétence et l'autorité
+- **Mécanismes de responsabilité environnementale**
+
+### Solution UPlanet
+
+**NIP-101** fournit un protocole unifié qui :
+- ✅ Crée des **flux Nostr localisés** (UMAP, SECTOR, REGION)
+- ✅ Implémente des **DIDs conformes W3C** sur Nostr (pas de registres centralisés)
+- ✅ Permet la **certification par les pairs** (permis de conduire, certifications professionnelles)
+- ✅ Suit les **engagements environnementaux** avec des incitations économiques
+- ✅ Supporte la **synchronisation de constellation** entre plusieurs relais
+
+---
 
 ## Spécification
 
-### 1. Dérivation GeoKey
+### 1. GeoKeys Hiérarchiques
 
-Une paire de clés Nostr (secp256k1) est dérivée de manière déterministe d'une chaîne de graine. La graine est construite en concaténant :
+Les paires de clés Nostr sont **dérivées de manière déterministe** à partir de coordonnées géographiques et d'une chaîne d'espace de noms.
 
-1.  `UPLANETNAME` : Une chaîne secrète identifiant l'application et utilisée comme ```~/.ipfs/swarm.key``` et crée l'essaim IPFS privé dédié à l'Application UPlanet.
-2.  `FORMATTED_LATITUDE` : La latitude, formatée comme une chaîne à un nombre spécifique de décimales correspondant au niveau de grille souhaité.
-3.  `FORMATTED_LONGITUDE` : La longitude, formatée comme une chaîne au même nombre de décimales que la latitude, correspondant au niveau de grille.
+#### Dérivation de Clés
 
-**Format de Graine :** `"{UPLANETNAME}_{FORMATTED_LATITUDE}" "{UPLANETNAME}_{FORMATTED_LONGITUDE}"` utilisé comme sel et poivre [libsodium](https://doc.libsodium.org/libsodium_users)
-**Génération de Clés :** Implémenter la logique de génération de clés déterministes spécifiée ([accès au code de l'outil `keygen`](https://github.com/papiche/Astroport.ONE/blob/master/tools/keygen)).
+**Format de Graine :**
+```
+"{UPLANETNAME}_{LATITUDE_FORMATÉE}" "{UPLANETNAME}_{LONGITUDE_FORMATÉE}"
+```
 
-**Niveaux de Grille et Formatage :**
+Utilisé comme sel et poivre [libsodium](https://doc.libsodium.org/) pour la génération de clés déterministe.
 
-UPlanet définit les niveaux de grille initiaux suivants :
+#### Niveaux de Grille
 
--   **UMAP (Micro-Zone) :** Précision 0.01°.
-    -   Formatage Latitude/Longitude : Représentation en chaîne avec exactement **deux** décimales (ex : `sprintf("%.2f", coordinate)` en C, ou équivalent). Les coordonnées devraient probablement être tronquées ou arrondies de manière cohérente *avant* le formatage.
-    -   Exemple de Graine : `"UPlanetV148.85-2.34"` (pour Lat 48.853, Lon -2.341)
--   **SECTOR :** Précision 0.1°.
-    -   Formatage Latitude/Longitude : Représentation en chaîne avec exactement **une** décimale.
-    -   Exemple de Graine : `"UPlanetV148.8-2.3"` (pour Lat 48.853, Lon -2.341)
--   **REGION :** Précision 1.0°.
-    -   Formatage Latitude/Longitude : Représentation en chaîne avec exactement **zéro** décimales (partie entière).
-    -   Exemple de Graine : `"UPlanetV148-2"` (pour Lat 48.853, Lon -2.341)
+| Niveau | Précision | Taille Zone | Exemple de Graine |
+|--------|-----------|-------------|-------------------|
+| **UMAP** | 0.01° | ~1,2 km² | `"UPlanetV148.85-2.34"` |
+| **SECTOR** | 0.1° | ~100 km² | `"UPlanetV148.8-2.3"` |
+| **REGION** | 1.0° | ~10 000 km² | `"UPlanetV148-2"` |
 
-**Algorithme de Génération de Clés :**
-L'algorithme spécifique utilisé par l'outil `keygen` utilisé dans `IA_UPlanet.sh` est l'outil "Astroport", fournissant une méthode déterministe pour dériver une paire de clés secp256k1 d'une chaîne de graine unique (et autres clés jumelles : IPFS, G1, Bitcoin). La méthode choisie EST cohérente à travers l'écosystème UPlanet.
+#### Algorithme de Génération de Clés
 
-### 2. Tags d'Événements
+Utilise l'outil `keygen` d'Astroport pour générer :
+- **Paire de clés NOSTR** (secp256k1)
+- **Clé IPFS** (ed25519)
+- **Portefeuille Ğ1** (ed25519)
+- **Adresse Bitcoin** (secp256k1)
 
-Les événements liés aux emplacements UPlanet DEVRAIENT inclure les tags suivants :
+Toutes à partir de la même graine, créant un mécanisme de **Clés Jumelles**.
 
--   **Tag Latitude :** `["latitude", "CHAINE_FLOAT"]`
-    -   Valeur : La latitude comme une chaîne, optionnellement avec une précision plus élevée (ex : 6+ décimales) que le niveau de grille GeoKey. Exemple : `"48.8534"`
--   **Tag Longitude :** `["longitude", "CHAINE_FLOAT"]`
-    -   Valeur : La longitude comme une chaîne, optionnellement avec une précision plus élevée. Exemple : `"-2.3412"`
--   **Tag Application :** `["application", "UPlanet*"]`
-    -   Valeur : Identifie l'événement comme appartenant au système UPlanet. Permet la différenciation (ex : `UPlanet_AppName`).
+---
 
-**Note :** Bien que les GeoKeys fournissent une identité pour les cellules de grille, les tags `latitude` et `longitude` spécifient le point d'intérêt précis *dans* ou lié à cette cellule. Les événements publiés *depuis* une GeoKey UMAP pourraient contenir des tags pointant vers une coordonnée très spécifique dans cette cellule 0.01°x0.01°.
+### 2. Identité Décentralisée (DID)
 
-### 3. Publication
+#### Type d'Événement : `kind:30311`
 
--   Pour poster **en tant que** une cellule de grille d'emplacement spécifique (ex : un bot automatisé rapportant pour une cellule UMAP), dériver la GeoKey `nsec` appropriée en utilisant la méthode de la Spécification 1 et publier un événement kind 1 signé avec elle. L'événement DEVRAIT inclure les tags `latitude`, `longitude`, et `application`.
--   Les utilisateurs réguliers postant *à propos* d'un emplacement ont un emplacement par défaut enregistré avec leur clé personnelle fournie lors de l'enregistrement Astroport. Cet emplacement est utilisé quand des données géo sont trouvées dans l'événement.
+Les DIDs sont stockés comme **Événements Remplaçables Paramétrés** ([NIP-33](https://github.com/nostr-protocol/nips/blob/master/33.md)).
 
-### 4. Abonnement et Filtrage
+#### Tags Standard
 
-Les clients peuvent découvrir le contenu UPlanet de plusieurs façons :
+```json
+{
+  "kind": 30311,
+  "tags": [
+    ["d", "did"],
+    ["t", "uplanet"],
+    ["t", "did-document"]
+  ],
+  "content": "{DOCUMENT_DID_JSON}"
+}
+```
 
--   **S'abonner par GeoKey :** S'abonner directement au `npub` de la GeoKey UMAP, SECTOR, ou REGION souhaitée(s).
--   **Filtrer par Tags :** S'abonner aux événements `kind: 1` filtrés par le tag `application` (`#a`: `["UPlanet"]`) et optionnellement filtrer côté client basé sur les tags `latitude` et `longitude` pour trouver les événements dans un rayon géographique spécifique.
--   **Filtrer par Référence Géographique :** S'abonner aux événements qui taguent (`#p`) des `npub` GeoKey spécifiques.
+#### Structure du Document DID
 
-## Guide d'Implémentation Client
+```json
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:nostr:<hex_pubkey>",
+  "verificationMethod": [{
+    "id": "did:nostr:<hex_pubkey>#key-1",
+    "type": "Ed25519VerificationKey2020",
+    "controller": "did:nostr:<hex_pubkey>",
+    "publicKeyMultibase": "z<clé_encodée_base58btc>"
+  }],
+  "service": [
+    {
+      "id": "#ipfs-drive",
+      "type": "IPFSDrive",
+      "serviceEndpoint": "ipns://<clé_ipfs>/<email>/APP"
+    },
+    {
+      "id": "#g1-wallet",
+      "type": "Ğ1Wallet",
+      "serviceEndpoint": "g1:<g1_pubkey>"
+    }
+  ],
+  "verifiableCredential": [
+    {
+      "@context": "https://www.w3.org/2018/credentials/v1",
+      "id": "urn:uuid:...",
+      "type": ["VerifiableCredential", "UPlanetLicense"],
+      "issuer": "did:nostr:<hex_autorité>",
+      "credentialSubject": {
+        "id": "did:nostr:<hex_sujet>",
+        "license": "PERMIT_ORE_V1"
+      }
+    }
+  ],
+  "metadata": {
+    "email": "user@example.com",
+    "contractStatus": "active",
+    "created": "2024-01-01T12:00:00Z",
+    "updated": "2025-10-30T14:30:00Z"
+  }
+}
+```
 
--   **Publication :** Lors de la publication, déterminer les coordonnées pertinentes. Inclure les tags `latitude`, `longitude`, et `application`. Optionnellement dériver et inclure les tags `p` pour les GeoKeys pertinentes. Si on poste *en tant qu* emplacement, utiliser la GeoKey `nsec` dérivée pour la signature.
--   **Réception :** Filtrer les événements entrants basés sur les GeoKeys souscrites ou les tags. Afficher les informations d'emplacement, potentiellement sur une carte. Parser les tags `latitude` et `longitude` pour le positionnement précis.
--   **Formatage des Coordonnées :** Respecter strictement les décimales spécifiées pour chaque niveau de grille lors de la dérivation des clés. Utiliser des fonctions standard pour le formatage (ex : `sprintf("%.2f", coord)`). La cohérence dans la troncature ou l'arrondi est cruciale.
+#### Résolution DID
 
-## Cas d'Usage Illustrés
+- **Format :** `did:nostr:<hex_pubkey>`
+- **Requête :** S'abonner aux événements `kind:30311` où `pubkey == <hex_pubkey>`
+- **Vérification :** Utiliser la `verificationMethod` embarquée pour vérifier les signatures
 
--   **Chat Local :** Alice poste depuis son téléphone en utilisant sa clé personnelle mais tag la GeoKey UMAP `npub` pour son bloc actuel et inclut les tags `latitude`/`longitude`. Bob, souscrit à cette GeoKey UMAP, voit son message.
--   **Alerte Météo Automatisée :** Un service automatisé dérive la GeoKey REGION pour Paris (`"UPlanetV1482"`), signe une alerte météo en utilisant la `nsec` de cette clé, et inclut des tags `latitude`/`longitude` précis pour le centre de la tempête. Les utilisateurs souscrits à la GeoKey REGION Paris reçoivent l'alerte.
--   **Répondeur IA :** Un service IA surveille les messages tagués avec `application: UPlanet`. Quand il voit un message d'un utilisateur (`pubkey_A`) tagué avec `latitude`/`longitude`, il dérive la GeoKey UMAP correspondante (`pubkey_UMAP`), génère une réponse, la signe avec la `nsec` de la GeoKey UMAP, et inclut les tags `e` et `p` référençant l'événement original (`event_id`) et l'utilisateur (`pubkey_A`).
+#### Avantages
 
-## Considérations de Sécurité et de Vie Privée
+- ✅ **Pas de registres centralisés** (les relais Nostr sont la source de vérité)
+- ✅ **Auto-souverain** (les utilisateurs contrôlent leur identité via clé privée)
+- ✅ **Conforme W3C** (fonctionne avec les résolveurs DID standards)
+- ✅ **Multi-chaîne** (lie NOSTR, IPFS, Ğ1, Bitcoin)
+- ✅ **Crédentials Vérifiables** (embarqués dans le document DID)
 
--   **Divulgation de Localisation :** Publier avec des tags `latitude`/`longitude` précis révèle la localisation. Les utilisateurs doivent en être conscients. Utiliser des clés de grille plus larges (SECTOR, REGION) pour poster offre moins de précision.
--   **Suivi :** L'utilisation cohérente de GeoKeys ou de tags pourrait permettre le suivi des mouvements des utilisateurs s'ils postent fréquemment depuis différents emplacements en utilisant leur clé personnelle avec des tags géo.
--   **Sécurité de l'Espace de Noms :** Le contrôle sur la chaîne `UPLANETNAME` est important. Si elle est compromise ou changée, cela pourrait perturber le système ou mener à l'usurpation d'emplacements.
--   **Gestion des Clés :** Gérer potentiellement 654 Millions de `nsec` GeoKey, le stockage Astroport peut choisir le nœud le plus proche.
+---
+
+### 3. Système Oracle (Permis)
+
+Le Système Oracle permet la **certification validée par les pairs** utilisant le modèle Web of Trust.
+
+#### Types d'Événements NOSTR
+
+| Kind | Nom | Description | Signé par | Remplaçabilité |
+|------|-----|-------------|-----------|----------------|
+| **30500** | Définition de Permis | Définition de type de licence | `UPLANETNAME.G1` | Paramétré Remplaçable |
+| **30501** | Demande de Permis | Demande d'un utilisateur | Demandeur | Paramétré Remplaçable |
+| **30502** | Attestation de Permis | Signature d'expert | Attesteur | Paramétré Remplaçable |
+| **30503** | Credential de Permis | VC final | `UPLANETNAME.G1` | Paramétré Remplaçable |
+
+#### Structure des Événements
+
+##### 30500 : Définition de Permis
+```json
+{
+  "kind": 30500,
+  "pubkey": "<UPLANETNAME_G1_hex>",
+  "tags": [
+    ["d", "PERMIT_ORE_V1"],
+    ["t", "uplanet"],
+    ["t", "permit-definition"]
+  ],
+  "content": "{
+    \"id\": \"PERMIT_ORE_V1\",
+    \"name\": \"Vérificateur Environnemental ORE\",
+    \"description\": \"Autorité pour vérifier les contrats ORE\",
+    \"min_attestations\": 5,
+    \"validity_years\": 3,
+    \"reward_zen\": 10
+  }"
+}
+```
+
+##### 30501 : Demande de Permis
+```json
+{
+  "kind": 30501,
+  "pubkey": "<hex_demandeur>",
+  "tags": [
+    ["d", "<id_demande>"],
+    ["permit", "PERMIT_ORE_V1"],
+    ["t", "uplanet"]
+  ],
+  "content": "{
+    \"statement\": \"J'ai une expertise en validation écologique\",
+    \"evidence\": \"https://ipfs.io/ipfs/Qm...\"
+  }"
+}
+```
+
+##### 30502 : Attestation de Permis
+```json
+{
+  "kind": 30502,
+  "pubkey": "<hex_attesteur>",
+  "tags": [
+    ["d", "<id_attestation>"],
+    ["e", "<id_événement_demande>"],
+    ["p", "<hex_demandeur>"],
+    ["permit", "PERMIT_ORE_V1"]
+  ],
+  "content": "{
+    \"statement\": \"J'atteste la compétence de ce demandeur\",
+    \"date\": \"2025-10-30T12:00:00Z\"
+  }"
+}
+```
+
+##### 30503 : Credential de Permis (VC)
+```json
+{
+  "kind": 30503,
+  "pubkey": "<UPLANETNAME_G1_hex>",
+  "tags": [
+    ["d", "<id_credential>"],
+    ["p", "<hex_détenteur>"],
+    ["permit", "PERMIT_ORE_V1"]
+  ],
+  "content": "{
+    \"@context\": \"https://www.w3.org/2018/credentials/v1\",
+    \"id\": \"urn:uuid:...\",
+    \"type\": [\"VerifiableCredential\", \"UPlanetLicense\"],
+    \"issuer\": \"did:nostr:<UPLANETNAME_G1_hex>\",
+    \"issuanceDate\": \"2025-10-30T12:00:00Z\",
+    \"expirationDate\": \"2028-10-30T12:00:00Z\",
+    \"credentialSubject\": {
+      \"id\": \"did:nostr:<hex_détenteur>\",
+      \"license\": \"PERMIT_ORE_V1\",
+      \"attestations\": 5
+    }
+  }"
+}
+```
+
+#### Bootstrap WoT ("Block 0")
+
+**Problème :** Comment initialiser un permis quand aucun détenteur n'existe encore ?
+
+**Solution :** Pour un permis nécessitant **N signatures**, enregistrer **N+1 membres MULTIPASS** sur la station.
+
+**Processus d'Attestation Croisée :**
+1. Chaque membre atteste tous les autres membres (sauf lui-même)
+2. Résultat : Chaque membre reçoit **N attestations**
+3. L'Oracle émet des credentials à tous les membres simultanément
+
+**Exemples :**
+- **PERMIT_ORE_V1** (5 signatures) → 6 membres (chacun reçoit 5 attestations)
+- **PERMIT_DRIVER** (12 signatures) → 13 membres (chacun reçoit 12 attestations)
+- **PERMIT_WOT_DRAGON** (3 signatures) → 4 membres (chacun reçoit 3 attestations)
+
+#### Cycle de Vie d'un Permis
+
+```mermaid
+graph LR
+    A[Demande Utilisateur] --> B[Attestation Experts]
+    B --> C[Seuil Atteint]
+    C --> D[Oracle Émet VC]
+    D --> E[VC Ajouté au DID]
+    E --> F[Récompense Économique]
+```
+
+#### Permis Disponibles
+
+| ID Permis | Nom | Attestations | Validité | Récompense |
+|-----------|-----|--------------|----------|------------|
+| PERMIT_ORE_V1 | Vérificateur ORE | 5 | 3 ans | 10 Ẑen |
+| PERMIT_DRIVER | Permis de Conduire | 12 | 15 ans | 5 Ẑen |
+| PERMIT_WOT_DRAGON | Autorité UPlanet | 3 | Illimitée | 50 Ẑen |
+| PERMIT_MEDICAL_FIRST_AID | Premiers Secours | 8 | 2 ans | 8 Ẑen |
+| PERMIT_BUILDING_ARTISAN | Artisan | 10 | 5 ans | 12 Ẑen |
+| PERMIT_EDUCATOR_COMPAGNON | Éducateur | 12 | Illimitée | 15 Ẑen |
+| PERMIT_FOOD_PRODUCER | Producteur Alimentaire | 6 | 3 ans | 8 Ẑen |
+| PERMIT_MEDIATOR | Médiateur | 15 | 5 ans | 20 Ẑen |
+
+---
+
+### 4. Système ORE (Obligations Environnementales)
+
+Le Système ORE attache des **obligations environnementales** aux cellules géographiques (UMAP), créant un registre écologique décentralisé.
+
+#### Types d'Événements NOSTR
+
+| Kind | Nom | Description | Signé par |
+|------|-----|-------------|-----------|
+| **30400** | Définition ORE | Contrat environnemental | DID UMAP |
+| **30401** | Validation ORE | Rapport de vérification | Expert ORE |
+| **30402** | Récompense ORE | Confirmation de paiement | UPLANETNAME.RnD |
+
+#### Structure des Événements
+
+##### 30400 : Définition ORE
+```json
+{
+  "kind": 30400,
+  "pubkey": "<UMAP_hex>",
+  "tags": [
+    ["d", "<id_contrat_ore>"],
+    ["latitude", "43.60"],
+    ["longitude", "1.44"],
+    ["t", "uplanet"],
+    ["t", "ore-contract"]
+  ],
+  "content": "{
+    \"contractId\": \"ORE-2025-001\",
+    \"description\": \"Maintenir 80% de couverture forestière\",
+    \"provider\": \"did:nostr:<hex_vérificateur>\",
+    \"reward\": \"10\",
+    \"validationMethod\": \"satellite\",
+    \"frequency\": \"annuel\"
+  }"
+}
+```
+
+##### 30401 : Validation ORE
+```json
+{
+  "kind": 30401,
+  "pubkey": "<hex_expert>",
+  "tags": [
+    ["d", "<id_validation>"],
+    ["e", "<id_événement_contrat_ore>"],
+    ["permit", "PERMIT_ORE_V1"],
+    ["latitude", "43.60"],
+    ["longitude", "1.44"]
+  ],
+  "content": "{
+    \"result\": \"conforme\",
+    \"evidence\": \"ipfs://Qm...\",
+    \"method\": \"imagerie_satellite\",
+    \"date\": \"2025-10-30T12:00:00Z\",
+    \"notes\": \"Couverture forestière : 82%\"
+  }"
+}
+```
+
+##### 30402 : Récompense ORE
+```json
+{
+  "kind": 30402,
+  "pubkey": "<UPLANETNAME_RnD_hex>",
+  "tags": [
+    ["d", "<id_récompense>"],
+    ["e", "<id_événement_validation>"],
+    ["p", "<UMAP_hex>"],
+    ["amount", "10"]
+  ],
+  "content": "{
+    \"transaction_id\": \"G1_TX_123...\",
+    \"amount\": \"10\",
+    \"currency\": \"ZEN\",
+    \"date\": \"2025-10-30T12:05:00Z\"
+  }"
+}
+```
+
+#### ORE dans les Documents DID
+
+Les obligations environnementales sont stockées dans le document DID de l'UMAP (kind 30311) :
+
+```json
+{
+  "id": "did:nostr:<UMAP_hex>",
+  "type": "UMAPGeographicCell",
+  "geographicMetadata": {
+    "coordinates": {"lat": 43.60, "lon": 1.44}
+  },
+  "environmentalObligations": {
+    "oreContract": {
+      "contractId": "ORE-2025-001",
+      "description": "Maintenir 80% de couverture forestière",
+      "provider": "did:nostr:<hex_vérificateur>",
+      "reward": "10"
+    },
+    "verificationStatus": "vérifié",
+    "lastVerification": "2025-10-30T12:00:00Z"
+  }
+}
+```
+
+#### Flux Économique
+
+```
+1. Contrat ORE → DID UMAP (kind 30311)
+2. Validation Expert → Événement NOSTR (kind 30401)
+3. Paiement Automatique → UPLANETNAME.RnD → Portefeuille UMAP (kind 30402)
+4. Redistribution UMAP → Gardiens/résidents locaux
+```
+
+#### Comparaison des Coûts
+
+| Aspect | ORE Traditionnel (Notarié) | ORE UPlanet (Décentralisé) |
+|--------|----------------------------|----------------------------|
+| **Frais de Notaire** | 1 500€ - 3 000€ | 0€ |
+| **Rédaction Juridique** | 2 000€ - 5 000€ | 0€ |
+| **Registre** | 500€ - 1 000€ | 0€ |
+| **Audit Annuel** | 1 000€ - 2 000€/an | Experts bénévoles |
+| **Vérification** | Visites sur place | Satellite + IoT + VDO.ninja |
+| **Total (5 ans)** | 9 500€ - 19 000€ | ~50€ (hébergement) |
+
+**Économies :** Réduction de coût de **99,7%** tout en augmentant la transparence et la participation.
+
+---
+
+### 5. Tags d'Événements
+
+Tous les événements UPlanet DEVRAIENT inclure ces tags :
+
+#### Tags Géographiques
+```json
+["latitude", "CHAÎNE_FLOAT"]
+["longitude", "CHAÎNE_FLOAT"]
+["application", "UPlanet"]
+```
+
+#### Tags d'Identité
+```json
+["did", "did:nostr:<hex_pubkey>"]
+["t", "uplanet"]
+```
+
+#### Tags de Permis (30501-30503)
+```json
+["permit", "ID_PERMIS"]
+["e", "<id_événement_lié>"]
+["p", "<pubkey_liée>"]
+```
+
+#### Tags ORE (30400-30402)
+```json
+["ore", "ID_CONTRAT_ORE"]
+["latitude", "CHAÎNE_FLOAT"]
+["longitude", "CHAÎNE_FLOAT"]
+```
+
+---
+
+## Implémentation
+
+### Synchronisation de Constellation
+
+Les relais UPlanet synchronisent tous les événements NIP-101 à travers le réseau de constellation.
+
+#### Types d'Événements Synchronisés
+
+| Catégorie | Kinds | Description |
+|-----------|-------|-------------|
+| **Base** | 0, 1, 3, 5, 6, 7 | Profils, notes, contacts, suppressions, reposts, réactions |
+| **Média** | 21, 22 | Vidéos (courte/longue forme) |
+| **Contenu** | 30023, 30024 | Articles, événements calendrier |
+| **Identité** | 30311 | Documents DID |
+| **Oracle** | 30500-30503 | Permis (définitions, demandes, attestations, credentials) |
+| **ORE** | 30400-30402 | Obligations environnementales (contrats, validations, récompenses) |
+
+**Total :** **19 types d'événements** synchronisés automatiquement
+
+#### Processus de Backfill
+
+```bash
+# Synchronisation quotidienne automatique (via _12345.sh)
+./backfill_constellation.sh --days 1
+
+# Synchronisation manuelle complète
+./backfill_constellation.sh --days 7 --verbose
+
+# Voir les statistiques de constellation
+./backfill_constellation.sh --stats
+```
+
+#### Exemple de Statistiques
+
+```log
+[2025-10-30 12:35:12] [INFO] SYNC_STATS: 
+  events=1523 
+  dms=45 
+  public=1478 
+  deletions=12 
+  videos=8 
+  did=34 
+  oracle=23 
+  ore=15
+```
+
+---
+
+### Authentification (NIP-42)
+
+Toutes les opérations API UPlanet nécessitent l'**authentification NIP-42**.
+
+#### Flux d'Authentification
+
+1. **Client** génère un événement d'auth (kind 22242)
+2. **Client** envoie l'événement d'auth au relais
+3. **Serveur** interroge le relais pour un événement d'auth récent
+4. **Serveur** vérifie la signature et le challenge
+5. **Serveur** autorise la requête
+
+---
+
+### Gestion des Clés
+
+#### Mécanisme de Clés Jumelles
+
+À partir d'une seule graine, générer :
+- **Paire de clés NOSTR** (identité)
+- **Clé IPFS** (stockage)
+- **Portefeuille Ğ1** (économie)
+- **Adresse Bitcoin** (interopérabilité)
+
+#### Partage de Secret Shamir (SSSS)
+
+Les clés privées sont divisées en **3 fragments** :
+- Fragment 1 → Stockage local
+- Fragment 2 → Sauvegarde chiffrée IPFS
+- Fragment 3 → Gardien de confiance
+
+**Reconstitution :** N'importe quels **2 fragments** peuvent restaurer la clé privée complète.
+
+---
+
+## Cas d'Usage
+
+### 1. Chat Communautaire Localisé
+
+**Scénario :** Alice poste depuis son quartier UMAP.
+
+### 2. Certification Vérificateur ORE
+
+**Scénario :** Carol veut devenir vérificateur ORE.
+
+### 3. Suivi des Engagements Environnementaux
+
+**Scénario :** L'UMAP de Dave s'engage à maintenir la couverture forestière.
+
+### 4. Alerte Météo Automatisée
+
+**Scénario :** Service automatisé publie des alertes météo pour la REGION Paris.
+
+### 5. Reconnaissance Multi-Station des Permis
+
+**Scénario :** Alice a un permis de la Station A, visite la Station B.
+
+---
+
+## Considérations de Sécurité
+
+### Divulgation de Localisation
+- **Risque :** Publication de coordonnées précises révèle la localisation
+- **Atténuation :** Utiliser des niveaux de grille plus larges (SECTOR, REGION)
+
+### Suivi
+- **Risque :** Posts géo-tagués fréquents permettent le suivi des mouvements
+- **Atténuation :** Rotation de nyms, utiliser GeoKey au lieu de clé personnelle
+
+### Fraude aux Permis
+- **Risque :** Fausses attestations ou falsification de credentials
+- **Atténuation :** Toutes signatures cryptographiques, validation Oracle multi-signature
+
+---
 
 ## Compatibilité
 
-Ce NIP est compatible avec les concepts Nostr existants :
--   Utilise des événements kind 1 standard.
--   Utilise les tags `e` et `p` standard pour les réponses et références utilisateur (NIP-10).
--   Peut être utilisé avec d'autres NIPs définissant du contenu ou des tags.
+### Compatibilité Nostr
+- ✅ Suit NIP-01, NIP-10, NIP-33, NIP-42
+- ✅ Compatible avec les clients Nostr existants (avec extensions)
+
+### Compatibilité W3C
+- ✅ DIDs suivent la Spécification W3C DID Core
+- ✅ Verifiable Credentials suivent le Modèle de Données W3C VC
+
+---
 
 ## Références
 
--   NIP-01 : Description du flux de protocole de base
--   NIP-10 : Conventions pour l'utilisation des tags `e` et `p` dans les événements texte
--   *(Impliqué)* : secp256k1, SHA256 
+### NIPs Nostr
+- [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) : Flux de protocole de base
+- [NIP-33](https://github.com/nostr-protocol/nips/blob/master/33.md) : Événements Remplaçables Paramétrés
+- [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md) : Authentification
+
+### Standards W3C
+- [Spécification DID Core](https://www.w3.org/TR/did-core/)
+- [Modèle de Données Verifiable Credentials](https://www.w3.org/TR/vc-data-model/)
+
+### Documentation UPlanet
+- **Dépôt Principal :** [github.com/papiche/Astroport.ONE](https://github.com/papiche/Astroport.ONE)
+- **Dépôt NIP-101 :** [github.com/papiche/NIP-101](https://github.com/papiche/NIP-101)
+- **Système Oracle :** [docs/ORACLE_SYSTEM.md](../Astroport.ONE/docs/ORACLE_SYSTEM.md)
+- **Système ORE :** [docs/ORE_SYSTEM.md](../Astroport.ONE/docs/ORE_SYSTEM.md)
+
+---
+
+## Statut d'Implémentation
+
+### ✅ Implémenté
+- GeoKeys hiérarchiques (UMAP, SECTOR, REGION)
+- Documents DID sur NOSTR (kind 30311)
+- Système de permis Oracle (kinds 30500-30503)
+- Contrats environnementaux ORE (kinds 30400-30402)
+- Synchronisation de constellation (backfill)
+- Authentification NIP-42
+- Interface web (`/oracle`)
+- Routes API (FastAPI)
+- Dérivation de Clés Jumelles
+
+### 🚧 En Cours
+- Intégration client mobile
+- Vérification ORE avancée (imagerie satellite)
+- Support multilingue
+
+---
+
+## Retour Communautaire
+
+Nous invitons la communauté Nostr à réviser et fournir des retours sur NIP-101.
+
+### Comment Contribuer
+- **Issues GitHub :** [github.com/papiche/NIP-101/issues](https://github.com/papiche/NIP-101/issues)
+- **Pull Requests :** Améliorations de la spec ou de l'implémentation
+- **Discussions :** [github.com/papiche/NIP-101/discussions](https://github.com/papiche/NIP-101/discussions)
+
+---
+
+## Licence
+
+Cette spécification est publiée sous **AGPL-3.0**.
+
+---
+
+<div align="center">
+
+**🌍 NIP-101 : Identité Décentralisée, Coordination Géographique & Responsabilité Écologique sur NOSTR**
+
+*Construit par la communauté, pour la communauté* 🤝
+
+[Site Web](https://ipfs.copylaradio.com/ipns/copylaradio.com) • [GitHub](https://github.com/papiche/NIP-101) • [Documentation](https://github.com/papiche/Astroport.ONE)
+
+</div>

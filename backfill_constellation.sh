@@ -424,7 +424,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, videos (short/long), blog, calendar, DID documents
+            "kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, videos (short/long), blog, calendar, DID documents, Oracle permits (30500-30503), ORE system (30400-30402)
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -456,15 +456,17 @@ EOF
     local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
     
     # Build kinds array based on INCLUDE_DMS setting
-    local kinds_array="[0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311]"  # Base kinds + videos + DID
+    local kinds_array="[0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402]"  # Base kinds + videos + DID + Oracle + ORE
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        kinds_array="[0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311]"  # Include DMs + videos + DID
+        kinds_array="[0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402]"  # Include DMs + videos + DID + Oracle + ORE
         log "INFO" "Including direct messages (DMs) and video events (kind 21/22) in synchronization"
     else
         log "INFO" "Excluding direct messages (DMs) but including video events (kind 21/22) in synchronization"
     fi
     log "INFO" "Including kind 30311 (DID documents) in synchronization"
     log "INFO" "Including kind 21/22 (video events from process_youtube.sh) in synchronization"
+    log "INFO" "Including kind 30500-30503 (Oracle permit system) in synchronization"
+    log "INFO" "Including kind 30400-30402 (ORE environmental obligations) in synchronization"
     
     cat > "$temp_config" <<EOF
 # Temporary backfill configuration for $peer (targeted)
@@ -666,9 +668,9 @@ execute_backfill_websocket_single_hex() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Include DMs + videos + DID
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402], '  # Include DMs + videos + DID + Oracle + ORE
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Exclude DMs but include videos + DID
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402], '  # Exclude DMs but include videos + DID + Oracle + ORE
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -726,9 +728,9 @@ execute_backfill_websocket_batch() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Include DMs + videos + DID
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402], '  # Include DMs + videos + DID + Oracle + ORE
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311], '  # Exclude DMs but include videos + DID
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 30023, 30024, 30311, 30500, 30501, 30502, 30503, 30400, 30401, 30402], '  # Exclude DMs but include videos + DID + Oracle + ORE
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -912,12 +914,12 @@ process_and_import_events() {
     fi
     
     # OPT #4: Fusionner appels jq - 1 seul appel au lieu de 3
-    read total_events dm_events public_events deletion_events video_events did_events < <(
-        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length), ([.[] | select(.kind == 5)] | length), ([.[] | select(.kind == 21 or .kind == 22)] | length), ([.[] | select(.kind == 30311)] | length)] | @tsv' \
-        "$response_file" 2>/dev/null || echo "0 0 0 0 0 0"
+    read total_events dm_events public_events deletion_events video_events did_events oracle_events ore_events < <(
+        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length), ([.[] | select(.kind == 5)] | length), ([.[] | select(.kind == 21 or .kind == 22)] | length), ([.[] | select(.kind == 30311)] | length), ([.[] | select(.kind >= 30500 and .kind <= 30503)] | length), ([.[] | select(.kind >= 30400 and .kind <= 30402)] | length)] | @tsv' \
+        "$response_file" 2>/dev/null || echo "0 0 0 0 0 0 0 0"
     )
     
-    log "INFO" "SYNC_STATS: events=$total_events dms=$dm_events public=$public_events deletions=$deletion_events videos=$video_events did=$did_events"
+    log "INFO" "SYNC_STATS: events=$total_events dms=$dm_events public=$public_events deletions=$deletion_events videos=$video_events did=$did_events oracle=$oracle_events ore=$ore_events"
     
     # Create a filtered file without "Hello NOSTR visitor." messages and process deletion events
     local filtered_file="${response_file%.json}_filtered.json"
