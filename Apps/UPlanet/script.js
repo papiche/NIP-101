@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let relays = []; // Array of { url: string, read: boolean, write: boolean }
     let nostrSubscriptions = {}; // To manage active subscriptions by ID
     let currentMessages = []; // For N1/N2 wall
-    let uPlanetData = null; // For map data
+    let UPlanetData = null; // For map data
     let leafletMap = null;
 
     // Default relays if NIP-07 or Kind 10002 don't provide any
@@ -768,13 +768,13 @@ document.addEventListener('DOMContentLoaded', () => {
              if (port === "8080") { port = "54321"; }
              else if (port) { /* keep port */ }
              else { port = ""; }
-            const uPlanetBase = protocol + "//" + uHost + (port ? (":" + port) : "");
-            const uPlanetDataURL = uPlanetBase + '/';
-            logToRelayOutput(`Fetching UPlanet data from: ${uPlanetDataURL}`, 'INFO');
+            const UPlanetBase = protocol + "//" + uHost + (port ? (":" + port) : "");
+            const UPlanetDataURL = UPlanetBase + '/';
+            logToRelayOutput(`Fetching UPlanet data from: ${UPlanetDataURL}`, 'INFO');
 
-            const response = await fetch(uPlanetDataURL);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status} for ${uPlanetDataURL}`);
-            uPlanetData = await response.json();
+            const response = await fetch(UPlanetDataURL);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status} for ${UPlanetDataURL}`);
+            UPlanetData = await response.json();
             logToRelayOutput('Données UPlanet chargées.', 'INFO');
             addUPlanetMarkers();
         } catch (err) {
@@ -784,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addUPlanetMarkers() {
-        if (!uPlanetData || !leafletMap) return;
+        if (!UPlanetData || !leafletMap) return;
 
         const playerIcon = L.icon({ // Example custom icon
             iconUrl: 'img/player-marker.png', // Provide your own marker image
@@ -795,8 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
             iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
         });
 
-        if (uPlanetData.PLAYERs) {
-            uPlanetData.PLAYERs.forEach(player => {
+        if (UPlanetData.PLAYERs) {
+            UPlanetData.PLAYERs.forEach(player => {
                 if (player.LAT && player.LON && player.HEX && player.ASTROMAIL) {
                     const lat = parseFloat(player.LAT);
                     const lon = parseFloat(player.LON);
@@ -808,8 +808,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        if (uPlanetData.UMAPs) {
-            uPlanetData.UMAPs.forEach(umap => {
+        if (UPlanetData.UMAPs) {
+            UPlanetData.UMAPs.forEach(umap => {
                 if (umap.LAT && umap.LON && umap.UMAPHEX) {
                      const lat = parseFloat(umap.LAT);
                     const lon = parseFloat(umap.LON);
@@ -825,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-         logToRelayOutput(`${(uPlanetData.PLAYERs?.length || 0) + (uPlanetData.UMAPs?.length || 0)} marqueurs ajoutés à la carte.`, 'INFO');
+         logToRelayOutput(`${(UPlanetData.PLAYERs?.length || 0) + (UPlanetData.UMAPs?.length || 0)} marqueurs ajoutés à la carte.`, 'INFO');
     }
 
 
