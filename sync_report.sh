@@ -453,30 +453,107 @@ send_sync_report() {
     local temp_html="/tmp/sync_report_$(date +%s).html"
     echo "$html_report" > "$temp_html"
     
-    # Send email using mailjet.sh
-    echo "📤 Sending synchronization report..."
+    # Send report using nostr_send_note.py
+    echo "📤 Sending synchronization report via NOSTR..."
     
     # Create a meaningful title for the report
     local report_title="Constellation Sync Report - $(date '+%Y-%m-%d %H:%M')"
     
-    # Use the existing mailjet.sh script to send the report
-    if [[ -x "$HOME/.zen/Astroport.ONE/tools/mailjet.sh" ]]; then
-        "$HOME/.zen/Astroport.ONE/tools/mailjet.sh" --expire 1h "$captain_email" "$temp_html" "$report_title"
-        local mail_exit_code=$?
-        
-        # Clean up temporary file
+    # Upload HTML report to IPFS (similar to mailjet.sh)
+    echo "📤 Uploading report to IPFS..."
+    local report_ipfs=$(ipfs add -q "$temp_html" 2>/dev/null)
+    
+    if [[ -z "$report_ipfs" ]]; then
+        echo "❌ Failed to upload report to IPFS"
         rm -f "$temp_html"
-        
-        if [[ $mail_exit_code -eq 0 ]]; then
-            echo "✅ Synchronization report sent successfully to $captain_email"
+        return 1
+    fi
+    
+    echo "✅ Report uploaded to IPFS: /ipfs/$report_ipfs"
+    
+    # Get IPFS gateway URL
+    local ipfs_url="$(myIpfsGw)/ipfs/$report_ipfs"
+    
+    # Prepare NOSTR message content
+    eval "$stats"
+    local nostr_content="📊 ${report_title}
+
+🔗 Full Report: ${ipfs_url}
+/ipfs/${report_ipfs}
+
+📈 Summary:
+• Peers: ${SUCCESS_PEERS}/${TOTAL_PEERS} successful
+• Events: ${TOTAL_EVENTS} collected, ${IMPORTED_EVENTS} imported
+• HEX Pubkeys: ${HEX_PUBKEYS}
+• Profiles: ${PROFILES_FOUND} found, ${PROFILES_MISSING} missing
+
+📨 Message Types:
+• Public: ${PUBLIC_EVENTS}
+• DMs: ${DM_EVENTS}
+• Videos: ${VIDEO_EVENTS}
+• Deletions: ${DELETION_EVENTS}
+• DID: ${DID_EVENTS}
+• Oracle: ${ORACLE_EVENTS}
+• ORE: ${ORE_EVENTS}
+
+⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
+❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
+
+⏰ Sync Time: ${SYNC_START_TIME} → ${SYNC_END_TIME}
+🌐 Node: ${IPFSNODEID}"
+
+    # Find captain's NOSTR keyfile
+    local captain_keyfile="$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr"
+    
+    if [[ ! -s "$captain_keyfile" ]]; then
+        echo "❌ Captain's NOSTR keyfile not found: $captain_keyfile"
+        rm -f "$temp_html"
+        return 1
+    fi
+    
+    # Get default relay from environment (myRELAY) or use default
+    local nostr_relay="${myRELAY:-ws://127.0.0.1:7777}"
+    
+    # Send via NOSTR using nostr_send_note.py
+    local nostr_script="$HOME/.zen/Astroport.ONE/tools/nostr_send_note.py"
+    
+    if [[ ! -x "$nostr_script" ]]; then
+        echo "❌ nostr_send_note.py not found or not executable: $nostr_script"
+        rm -f "$temp_html"
+        return 1
+    fi
+    
+    echo "🚀 Sending NOSTR note via $nostr_relay..."
+    
+    # Call nostr_send_note.py with ephemeral flag (1h = 3600 seconds)
+    python3 "$nostr_script" \
+        --keyfile "$captain_keyfile" \
+        --content "$nostr_content" \
+        --relays "$nostr_relay" \
+        --ephemeral 3600 \
+        --json > /tmp/nostr_result.json 2>&1
+    
+    local nostr_exit_code=$?
+    local nostr_result=$(cat /tmp/nostr_result.json 2>/dev/null)
+    
+    # Clean up temporary files
+    rm -f "$temp_html" /tmp/nostr_result.json
+    
+    # Check result
+    if [[ $nostr_exit_code -eq 0 ]] && echo "$nostr_result" | grep -q '"success":\s*true'; then
+        local event_id=$(echo "$nostr_result" | grep -o '"event_id":\s*"[^"]*"' | grep -o '[a-f0-9]\{64\}' | head -n 1)
+        if [[ -n "$event_id" ]]; then
+            echo "✅ Synchronization report sent successfully via NOSTR"
+            echo "   Event ID: ${event_id:0:16}..."
+            echo "   IPFS: /ipfs/$report_ipfs"
             return 0
         else
-            echo "❌ Failed to send synchronization report"
-            return 1
+            echo "✅ Synchronization report sent via NOSTR (no event ID returned)"
+            return 0
         fi
     else
-        echo "❌ mailjet.sh not found or not executable"
-        rm -f "$temp_html"
+        echo "❌ Failed to send synchronization report via NOSTR"
+        echo "   Error output: $nostr_result"
         return 1
     fi
 }
