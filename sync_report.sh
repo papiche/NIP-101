@@ -472,7 +472,7 @@ send_sync_report() {
     echo "✅ Report uploaded to IPFS: /ipfs/$report_ipfs"
     
     # Get IPFS gateway URL
-    local ipfs_url="$(myIpfsGw)/ipfs/$report_ipfs"
+    local ipfs_url="$(myLIBRA)/ipfs/$report_ipfs"
     
     # Prepare NOSTR message content
     eval "$stats"
