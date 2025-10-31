@@ -43,6 +43,8 @@ extract_sync_stats() {
     local deletion_events=$(echo "$sync_stats" | grep -o 'deletions=[0-9]*' | cut -d= -f2)
     local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
+    local oracle_events=$(echo "$sync_stats" | grep -o 'oracle=[0-9]*' | cut -d= -f2)
+    local ore_events=$(echo "$sync_stats" | grep -o 'ore=[0-9]*' | cut -d= -f2)
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
@@ -58,6 +60,8 @@ extract_sync_stats() {
     [[ -z "$deletion_events" ]] && deletion_events="0"
     [[ -z "$video_events" ]] && video_events="0"
     [[ -z "$did_events" ]] && did_events="0"
+    [[ -z "$oracle_events" ]] && oracle_events="0"
+    [[ -z "$ore_events" ]] && ore_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -94,6 +98,8 @@ PUBLIC_EVENTS="$public_events"
 DELETION_EVENTS="$deletion_events"
 VIDEO_EVENTS="$video_events"
 DID_EVENTS="$did_events"
+ORACLE_EVENTS="$oracle_events"
+ORE_EVENTS="$ore_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -142,6 +148,8 @@ generate_html_report() {
     local video_percent="0"
     local deletion_percent="0"
     local did_percent="0"
+    local oracle_percent="0"
+    local ore_percent="0"
     
     if [[ -n "$PUBLIC_EVENTS" && "$PUBLIC_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PUBLIC_EVENTS))
@@ -158,6 +166,12 @@ generate_html_report() {
     if [[ -n "$DID_EVENTS" && "$DID_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DID_EVENTS))
     fi
+    if [[ -n "$ORACLE_EVENTS" && "$ORACLE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + ORACLE_EVENTS))
+    fi
+    if [[ -n "$ORE_EVENTS" && "$ORE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + ORE_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -165,6 +179,8 @@ generate_html_report() {
         video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        oracle_percent=$(echo "scale=1; $ORACLE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        ore_percent=$(echo "scale=1; $ORE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
     # Determine report type based on activity
@@ -203,6 +219,8 @@ generate_html_report() {
         .dm-events { background: #e8f5e8; }
         .deletion-events { background: #ffebee; }
         .did-events { background: #fff3e0; }
+        .oracle-events { background: #e8f5e9; }
+        .ore-events { background: #e3f2fd; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
     </style>
 </head>
@@ -256,6 +274,14 @@ generate_html_report() {
             <div class="stat-card did-events">
                 <div class="stat-value">$DID_EVENTS</div>
                 <div class="stat-label">DID Documents ($did_percent%)</div>
+            </div>
+            <div class="stat-card oracle-events">
+                <div class="stat-value">$ORACLE_EVENTS</div>
+                <div class="stat-label">Oracle Permits ($oracle_percent%)</div>
+            </div>
+            <div class="stat-card ore-events">
+                <div class="stat-value">$ORE_EVENTS</div>
+                <div class="stat-label">ORE Contracts ($ore_percent%)</div>
             </div>
             <div class="stat-card performance">
                 <div class="stat-value">$PROFILES_FOUND</div>
@@ -339,6 +365,12 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>DID Documents:</strong> $DID_EVENTS ($did_percent%) - Identity documents (kind 30311) from did_manager_nostr.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Oracle Permits:</strong> $ORACLE_EVENTS ($oracle_percent%) - Permit system events (kinds 30500-30503): definitions, requests, attestations, credentials
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30400-30402): contracts, validations, rewards
             </p>
         </div>
         
