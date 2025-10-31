@@ -479,7 +479,6 @@ send_sync_report() {
     local nostr_content="📊 ${report_title}
 
 🔗 Full Report: ${ipfs_url}
-/ipfs/${report_ipfs}
 
 📈 Summary:
 • Peers: ${SUCCESS_PEERS}/${TOTAL_PEERS} successful
