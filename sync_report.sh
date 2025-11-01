@@ -364,13 +364,13 @@ generate_html_report() {
                 • <strong>Deletion Events:</strong> $DELETION_EVENTS ($deletion_percent%) - Messages marked for deletion (kind 5)
             </p>
             <p style="margin: 5px 0; color: #555;">
-                • <strong>DID Documents:</strong> $DID_EVENTS ($did_percent%) - Identity documents (kind 30311) from did_manager_nostr.sh
+                • <strong>DID Documents:</strong> $DID_EVENTS ($did_percent%) - Identity documents (kind 30800 - NIP-101) from did_manager_nostr.sh
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Oracle Permits:</strong> $ORACLE_EVENTS ($oracle_percent%) - Permit system events (kinds 30500-30503): definitions, requests, attestations, credentials
             </p>
             <p style="margin: 5px 0; color: #555;">
-                • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30400-30402): contracts, validations, rewards
+                • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30312-30313): meeting spaces, verification meetings
             </p>
         </div>
         

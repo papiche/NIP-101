@@ -60,7 +60,9 @@ The **Constellation Synchronization System** ensures all NIP-101 events (DID, Or
 | 22 | Long Video | Extended video content |
 | 30023 | Long-form | Articles, blog posts |
 | 30024 | Calendar | Events, scheduling |
-| 30311 | **DID Document** | Decentralized identifiers |
+| 30800 | **DID Document** | Decentralized identifiers (NIP-101) |
+
+> **Note:** Kind 30311 is reserved for NIP-53 (Live Event). We use 30800 for DID Documents to avoid conflicts.
 
 ### Oracle System (4 kinds) 🆕
 
@@ -73,22 +75,23 @@ The **Constellation Synchronization System** ensures all NIP-101 events (DID, Or
 
 **📖 See:** [ORACLE_SYSTEM.md](../Astroport.ONE/docs/ORACLE_SYSTEM.md)
 
-### ORE System (3 kinds) 🆕
+### ORE System (2 kinds) 🆕
 
 | Kind | Name | Description | Signed By |
 |------|------|-------------|-----------|
-| **30400** | ORE Contract | Environmental obligations | UMAP DID |
-| **30401** | ORE Validation | Verification reports | ORE Expert |
-| **30402** | ORE Reward | Payment confirmations | UPLANETNAME.RnD |
+| **30312** | ORE Meeting Space | Persistent Geographic Space | UMAP DID |
+| **30313** | ORE Verification Meeting | Verification meetings | ORE Expert |
 
 **📖 See:** [ORE_SYSTEM.md](../Astroport.ONE/docs/ORE_SYSTEM.md)
 
+> **Note:** Originally used kinds 30400-30402. Migrated to 30312-30313 to avoid conflict with NIP-99 (Classified Listing uses 30402).
+
 ---
 
-### 📊 Total: **19 Event Types**
+### 📊 Total: **18 Event Types**
 
 ```
-Core: 12 + DID: 1 + Oracle: 4 + ORE: 3 = 19
+Core: 12 + DID: 1 + Oracle: 4 + ORE: 2 = 18
 ```
 
 **Statistics Example:**
@@ -393,10 +396,10 @@ cd ~/.zen/strfry
 ```bash
 # After backfill, query ORE events
 cd ~/.zen/strfry
-./strfry scan '{"kinds": [30400, 30401, 30402]}' | jq -s 'length'
+./strfry scan '{"kinds": [30312, 30313]}' | jq -s 'length'
 ```
 
-**Expected:** Number of ORE events synced (contracts, validations, rewards)
+**Expected:** Number of ORE events synced (meeting spaces, verification meetings)
 
 ### Test Profiles
 
@@ -574,7 +577,7 @@ cd ~/.zen/workspace/NIP-101
 
 # Query ORE validations
 cd ~/.zen/strfry
-./strfry scan '{"kinds": [30401], "since": '$(($(date +%s) - 86400))'}' | \
+./strfry scan '{"kinds": [30313], "since": '$(($(date +%s) - 86400))'}' | \
   jq -r '.content | fromjson | "\(.date) - \(.result)"'
 ```
 

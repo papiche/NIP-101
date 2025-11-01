@@ -14,9 +14,9 @@
 NIP-101 defines a comprehensive protocol for **decentralized identity management**, **geographic coordination**, and **verifiable credentials** on Nostr. It extends the Nostr protocol with four integrated systems:
 
 1. **Hierarchical GeoKeys** - Nostr keypairs derived from geographic coordinates
-2. **Decentralized Identity (DID)** - W3C-compliant identities stored as Nostr events (kind 30311)
+2. **Decentralized Identity (DID)** - W3C-compliant identities stored as Nostr events (kind 30800)
 3. **Oracle System** - Multi-signature permit management using Web of Trust (kinds 30500-30503)
-4. **ORE System** - Environmental obligations attached to geographic cells (kinds 30400-30402)
+4. **ORE System** - Environmental obligations attached to geographic cells (kinds 30312-30313)
 
 This NIP enables **geographically localized communication**, **self-sovereign identity**, **peer-validated credentials**, and **ecological commitment tracking** on a fully decentralized network.
 
@@ -99,15 +99,17 @@ All from the same seed, creating a **Twin-Key** mechanism.
 
 ### 2. Decentralized Identity (DID)
 
-#### Event Type: `kind:30311`
+#### Event Type: `kind:30800` (NIP-101)
 
 DIDs are stored as **Parameterized Replaceable Events** ([NIP-33](https://github.com/nostr-protocol/nips/blob/master/33.md)).
+
+> **Note:** We use kind 30800 instead of 30311 to avoid conflict with NIP-53 (Live Event), which officially uses kind 30311.
 
 #### Standard Tags
 
 ```json
 {
-  "kind": 30311,
+  "kind": 30800,
   "tags": [
     ["d", "did"],
     ["t", "uplanet"],
@@ -168,7 +170,7 @@ DIDs are stored as **Parameterized Replaceable Events** ([NIP-33](https://github
 #### DID Resolution
 
 - **Format:** `did:nostr:<hex_pubkey>`
-- **Query:** Subscribe to `kind:30311` events where `pubkey == <hex_pubkey>`
+- **Query:** Subscribe to `kind:30800` events where `pubkey == <hex_pubkey>`
 - **Verification:** Use the embedded `verificationMethod` to verify signatures
 
 #### Benefits
@@ -328,80 +330,58 @@ The ORE System attaches **environmental obligations** to geographic cells (UMAP)
 
 | Kind | Name | Description | Signed by |
 |------|------|-------------|-----------|
-| **30400** | ORE Definition | Environmental contract | UMAP DID |
-| **30401** | ORE Validation | Verification report | ORE Expert |
-| **30402** | ORE Reward | Payment confirmation | UPLANETNAME.RnD |
+| **30312** | ORE Meeting Space | Persistent Geographic Space | UMAP DID |
+| **30313** | ORE Verification Meeting | Verification meeting | ORE Expert |
+
+> **Note:** Originally used kinds 30400-30402. Migrated to 30312-30313 to avoid conflict with NIP-99 (Classified Listing uses 30402).
 
 #### Event Structure
 
-##### 30400: ORE Definition
+##### 30312: ORE Meeting Space
 ```json
 {
-  "kind": 30400,
+  "kind": 30312,
   "pubkey": "<UMAP_hex>",
   "tags": [
-    ["d", "<ore_contract_id>"],
-    ["latitude", "43.60"],
-    ["longitude", "1.44"],
+    ["d", "ore-space-43.60-1.44"],
+    ["g", "43.60,1.44"],
+    ["room", "UMAP_ORE_43.60_1.44"],
     ["t", "uplanet"],
-    ["t", "ore-contract"]
+    ["t", "ore-space"]
   ],
   "content": "{
+    \"description\": \"Persistent geographic space for ORE verifications\",
+    \"vdo_url\": \"https://vdo.ninja/?room=UMAP_ORE_43.60_1.44\",
     \"contractId\": \"ORE-2025-001\",
-    \"description\": \"Maintain 80% forest cover\",
-    \"provider\": \"did:nostr:<verifier_hex>\",
-    \"reward\": \"10\",
-    \"validationMethod\": \"satellite\",
-    \"frequency\": \"annual\"
+    \"provider\": \"did:nostr:<verifier_hex>\"
   }"
 }
 ```
 
-##### 30401: ORE Validation
+##### 30313: ORE Verification Meeting
 ```json
 {
-  "kind": 30401,
+  "kind": 30313,
   "pubkey": "<expert_hex>",
   "tags": [
-    ["d", "<validation_id>"],
-    ["e", "<ore_contract_event_id>"],
-    ["permit", "PERMIT_ORE_V1"],
-    ["latitude", "43.60"],
-    ["longitude", "1.44"]
+    ["d", "ore-verification-43.60-1.44-1730289600"],
+    ["a", "30312:<authority>:ore-space-43.60-1.44"],
+    ["g", "43.60,1.44"],
+    ["start", "1730289600"],
+    ["permit", "PERMIT_ORE_V1"]
   ],
   "content": "{
     \"result\": \"compliant\",
     \"evidence\": \"ipfs://Qm...\",
     \"method\": \"satellite_imagery\",
-    \"date\": \"2025-10-30T12:00:00Z\",
     \"notes\": \"Forest cover: 82%\"
-  }"
-}
-```
-
-##### 30402: ORE Reward
-```json
-{
-  "kind": 30402,
-  "pubkey": "<UPLANETNAME_RnD_hex>",
-  "tags": [
-    ["d", "<reward_id>"],
-    ["e", "<validation_event_id>"],
-    ["p", "<UMAP_hex>"],
-    ["amount", "10"]
-  ],
-  "content": "{
-    \"transaction_id\": \"G1_TX_123...\",
-    \"amount\": \"10\",
-    \"currency\": \"ZEN\",
-    \"date\": \"2025-10-30T12:05:00Z\"
   }"
 }
 ```
 
 #### ORE in DID Documents
 
-Environmental obligations are stored in the UMAP's DID document (kind 30311):
+Environmental obligations are stored in the UMAP's DID document (kind 30800):
 
 ```json
 {
@@ -426,10 +406,11 @@ Environmental obligations are stored in the UMAP's DID document (kind 30311):
 #### Economic Flow
 
 ```
-1. ORE Contract → UMAP DID (kind 30311)
-2. Expert Validation → NOSTR event (kind 30401)
-3. Automatic Payment → UPLANETNAME.RnD → UMAP Wallet (kind 30402)
-4. UMAP Redistribution → Local guardians/residents
+1. ORE Contract → UMAP DID (kind 30800)
+2. ORE Meeting Space → NOSTR event (kind 30312)
+3. Expert Validation → NOSTR event (kind 30313)
+4. Automatic Payment → UPLANETNAME.RnD → UMAP Wallet
+5. UMAP Redistribution → Local guardians/residents
 ```
 
 #### Cost Comparison
@@ -471,11 +452,11 @@ All UPlanet events SHOULD include these tags:
 ["p", "<related_pubkey>"]
 ```
 
-#### ORE Tags (30400-30402)
+#### ORE Tags (30312-30313)
 ```json
-["ore", "ORE_CONTRACT_ID"]
-["latitude", "FLOAT_STRING"]
-["longitude", "FLOAT_STRING"]
+["d", "ore-space-{lat}-{lon}"]
+["g", "{lat},{lon}"]
+["room", "UMAP_ORE_{lat}_{lon}"]
 ```
 
 ---
@@ -493,11 +474,11 @@ UPlanet relays synchronize all NIP-101 events across the constellation network.
 | **Core** | 0, 1, 3, 5, 6, 7 | Profiles, notes, contacts, deletions, reposts, reactions |
 | **Media** | 21, 22 | Videos (short/long form) |
 | **Content** | 30023, 30024 | Articles, calendar events |
-| **Identity** | 30311 | DID documents |
+| **Identity** | 30800 | DID documents (NIP-101) |
 | **Oracle** | 30500-30503 | Permits (definitions, requests, attestations, credentials) |
-| **ORE** | 30400-30402 | Environmental obligations (contracts, validations, rewards) |
+| **ORE** | 30312-30313 | Environmental obligations (meeting spaces, verification meetings) |
 
-**Total:** **19 event types** synchronized automatically
+**Total:** **18 event types** synchronized automatically
 
 #### Backfill Process
 
@@ -678,16 +659,16 @@ POST /api/permit/attest
 
 ```json
 {
-  "kind": 30400,
+  "kind": 30312,
   "pubkey": "<UMAP_hex>",
   "tags": [
-    ["d", "ORE-2025-DAVE-001"],
-    ["latitude", "48.85"],
-    ["longitude", "-2.34"]
+    ["d", "ore-space-48.85--2.34"],
+    ["g", "48.85,-2.34"],
+    ["room", "UMAP_ORE_48.85_-2.34"]
   ],
   "content": "{
-    \"description\": \"Maintain 80% forest cover\",
-    \"reward\": \"10\",
+    \"description\": \"Persistent ORE meeting space for UMAP\",
+    \"contractId\": \"ORE-2025-DAVE-001\",
     \"provider\": \"did:nostr:<carol_hex>\"
   }"
 }
@@ -695,7 +676,7 @@ POST /api/permit/attest
 
 **Annual Verification:**
 1. Carol (certified ORE expert) validates via satellite imagery
-2. Carol publishes validation event (kind 30401)
+2. Carol publishes verification meeting event (kind 30313)
 3. System automatically triggers 10 Ẑen payment to Dave's UMAP
 4. Dave redistributes to local guardians
 
@@ -864,9 +845,9 @@ graph LR
 ### ✅ Implemented
 
 - Hierarchical GeoKeys (UMAP, SECTOR, REGION)
-- DID documents on NOSTR (kind 30311)
+- DID documents on NOSTR (kind 30800 - NIP-101)
 - Oracle permit system (kinds 30500-30503)
-- ORE environmental contracts (kinds 30400-30402)
+- ORE environmental contracts (kinds 30312-30313)
 - Constellation synchronization (backfill)
 - NIP-42 authentication
 - Web interface (`/oracle`)
@@ -896,8 +877,8 @@ We invite the Nostr community to review and provide feedback on NIP-101.
 
 ### Discussion Topics
 
-1. **Event Kind Allocation:** Are kinds 30500-30503 (Oracle) and 30400-30402 (ORE) acceptable?
-2. **DID Integration:** Should DIDs be stored in kind 30311 or a dedicated kind?
+1. **Event Kind Allocation:** Are kinds 30500-30503 (Oracle), 30312-30313 (ORE), and 30800 (DID) acceptable?
+2. **DID Integration:** We've chosen kind 30800 to avoid conflict with NIP-53 (Live Event using 30311). Is this acceptable?
 3. **Geographic Tags:** Are `latitude`/`longitude` tags sufficient, or should we use GeoJSON?
 4. **Constellation Sync:** Should backfill be standardized across all Nostr implementations?
 5. **Economic Layer:** How to integrate Ğ1/Ẑen payments with other Nostr economic systems?
