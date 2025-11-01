@@ -18,6 +18,15 @@ title="$title"
 article_id="$d"
 published_at="$published_at"
 
+# Check if user is "nobody" (not authorized and not in amisOfAmis)
+# A "nobody" user has no MULTIPASS account and is not in amisOfAmis.txt
+local_email=$(get_key_email "$pubkey")
+if [[ -z "$local_email" ]] && ! check_amis_of_amis "$pubkey"; then
+    # User is "nobody" - reject the event
+    echo ">>> (30023) REJECTED: Blog article from 'nobody' user ${pubkey:0:8}..."
+    exit 1
+fi
+
 # Log the blog article
 echo ">>> (30023) BLOG: ${title:-'Untitled Article'} (ID: ${article_id:-'no-id'}) from ${pubkey:0:8}..."
 
