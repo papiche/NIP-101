@@ -136,7 +136,7 @@ extract_tags() {
         if [[ -n "$jq_query" ]]; then
             jq_query="$jq_query + \";\" + "
         fi
-        jq_query="$jq_query\"${tag_name}=\" + ((.event.tags[] | select(.[0] == \"${tag_name}\") | .[1]) // \"\")"
+        jq_query="$jq_query\"${tag_name}=\" + (((.event.tags[] | select(.[0] == \"${tag_name}\") | .[1]) // \"\") | @sh)"
     done
     
     # Execute single jq call and eval the results
