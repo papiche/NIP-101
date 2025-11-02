@@ -17,14 +17,6 @@ url="$url"
 latitude="$latitude"
 longitude="$longitude"
 
-# Extract coordinates from "g" tag if latitude/longitude not directly provided
-# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
-if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
-    latitude=$(echo "$g" | cut -d',' -f1 | xargs)
-    longitude=$(echo "$g" | cut -d',' -f2 | xargs)
-    log_uplanet "Extracted coordinates from 'g' tag: lat=$latitude, lon=$longitude"
-fi
-
 # Initialize full_content with content if not already set
 [[ -z "$full_content" ]] && full_content="$content"
 
@@ -44,7 +36,7 @@ PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
 QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
 WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
 
-# Logging functions using common utilities
+# Logging functions using common utilities (must be defined before use)
 log_uplanet() {
     log_with_timestamp "$HOME/.zen/tmp/nostr_kind1_messages.log" "$1"
 }
@@ -56,6 +48,14 @@ log_ia() {
 # Ensure log directories exist
 ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
 ensure_log_dir "$HOME/.zen/tmp/IA.log"
+
+# Extract coordinates from "g" tag if latitude/longitude not directly provided
+# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
+if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
+    latitude=$(echo "$g" | cut -d',' -f1 | xargs)
+    longitude=$(echo "$g" | cut -d',' -f2 | xargs)
+    log_uplanet "Extracted coordinates from 'g' tag: lat=$latitude, lon=$longitude"
+fi
 
 # Optimized function to get key directory with GPS handling
 get_key_directory_with_gps() {
