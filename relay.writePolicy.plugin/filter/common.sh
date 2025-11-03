@@ -24,37 +24,35 @@ extract_event_data() {
 }
 
 # Optimized function to check if a key is authorized and get the associated email
+# Uses a single grep call to find both existence and location
 get_key_email() {
     local pubkey="$1"
     
-    if cat "$KEY_DIR"/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
-        # Find the specific directory
-        local key_dir=$(grep -l "^$pubkey$" "$KEY_DIR"/*/HEX 2>/dev/null | head -1 | xargs dirname)
-        if [[ -n "$key_dir" ]]; then
-            basename "$key_dir"
-            return 0
-        fi
+    # Single grep call that finds the file containing the pubkey and extracts directory in one pass
+    local found_file=$(grep -l "^$pubkey$" "$KEY_DIR"/*/HEX 2>/dev/null | head -1)
+    if [[ -n "$found_file" ]]; then
+        basename "$(dirname "$found_file")"
+        return 0
     fi
     echo ""
     return 1
 }
 
 # Optimized function to search for pubkey in swarm
+# Uses single grep call instead of cat|grep then grep -l
 search_swarm_for_pubkey() {
     local pubkey="$1"
     
-    # First, try swarm directories
-    if cat ${HOME}/.zen/tmp/swarm/*/TW/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
-        local found_file=$(grep -l "^$pubkey$" ${HOME}/.zen/tmp/swarm/*/TW/*/HEX 2>/dev/null | head -1)
-        if [[ -n "$found_file" ]]; then
-            basename "$(dirname "$found_file")"
-            return 0
-        fi
+    # First, try swarm directories - single grep call to find file directly
+    local found_file=$(grep -l "^$pubkey$" ${HOME}/.zen/tmp/swarm/*/TW/*/HEX 2>/dev/null | head -1)
+    if [[ -n "$found_file" ]]; then
+        basename "$(dirname "$found_file")"
+        return 0
     fi
     
-    # If not found in swarm, try local IPFSNODEID
-    if cat ${HOME}/.zen/tmp/${IPFSNODEID}/TW/*/HEX 2>/dev/null | grep -q "^$pubkey$"; then
-        local found_file=$(grep -l "^$pubkey$" ${HOME}/.zen/tmp/${IPFSNODEID}/TW/*/HEX 2>/dev/null | head -1)
+    # If not found in swarm, try local IPFSNODEID - single grep call
+    if [[ -n "$IPFSNODEID" ]]; then
+        found_file=$(grep -l "^$pubkey$" ${HOME}/.zen/tmp/${IPFSNODEID}/TW/*/HEX 2>/dev/null | head -1)
         if [[ -n "$found_file" ]]; then
             basename "$(dirname "$found_file")"
             return 0
