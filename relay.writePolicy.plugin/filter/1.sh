@@ -49,6 +49,17 @@ log_ia() {
 ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
 ensure_log_dir "$HOME/.zen/tmp/IA.log"
 
+# Extract precise coordinates from "g" tag (preserve full precision for PlantNet)
+# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
+# Store precise coordinates before any rounding/processing
+ORIGINAL_GEO_LAT=""
+ORIGINAL_GEO_LON=""
+if [[ -n "$g" ]]; then
+    ORIGINAL_GEO_LAT=$(echo "$g" | cut -d',' -f1 | xargs)
+    ORIGINAL_GEO_LON=$(echo "$g" | cut -d',' -f2 | xargs)
+    log_uplanet "Extracted precise coordinates from 'g' tag: lat=$ORIGINAL_GEO_LAT, lon=$ORIGINAL_GEO_LON"
+fi
+
 # Extract coordinates from "g" tag if latitude/longitude not directly provided
 # Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
 if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
@@ -398,6 +409,8 @@ longitude="$longitude"
 full_content="$full_content"
 url="$url"
 KNAME="$KNAME"
+ORIGINAL_GEO_LAT="$ORIGINAL_GEO_LAT"
+ORIGINAL_GEO_LON="$ORIGINAL_GEO_LON"
 EOF
 }
 
@@ -428,7 +441,7 @@ process_queue() {
         local secret_flag=""
         [[ "$is_secret_message" == true ]] && secret_flag="--secret"
         
-        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" $secret_flag &
+        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" $secret_flag &
     fi
 }
 
@@ -458,7 +471,7 @@ if [[ "$check" != "nobody" ]]; then
             secret_flag=""
             [[ "$is_secret_message" == true ]] && secret_flag="--secret"
             
-            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" $secret_flag 2>&1 >> "$HOME/.zen/tmp/IA.log" &
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" $secret_flag 2>&1 >> "$HOME/.zen/tmp/IA.log" &
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
