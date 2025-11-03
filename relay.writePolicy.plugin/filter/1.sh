@@ -446,7 +446,7 @@ if [[ "$check" != "nobody" ]]; then
 
         # Check if process is running
         if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
-            local queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
+            queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
             if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
                 create_queue_file
                 log_uplanet "QUEUE_FILE: $QUEUE_FILE"
@@ -455,7 +455,7 @@ if [[ "$check" != "nobody" ]]; then
             fi
         else
             log_ia "PROCESSING UPlanet_IA_Responder.sh $pubkey $event_id $latitude $longitude $full_content $url $KNAME"
-            local secret_flag=""
+            secret_flag=""
             [[ "$is_secret_message" == true ]] && secret_flag="--secret"
             
             timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" $secret_flag 2>&1 >> "$HOME/.zen/tmp/IA.log" &
