@@ -310,9 +310,9 @@ log_long_video "Title: $title"
 log_long_video "Content: ${content:0:100}..."
 
 # Extract coordinates
-local coords=$(extract_coordinates)
-local latitude=$(echo "$coords" | cut -d'|' -f1)
-local longitude=$(echo "$coords" | cut -d'|' -f2)
+coords=$(extract_coordinates)
+latitude=$(echo "$coords" | cut -d'|' -f1)
+longitude=$(echo "$coords" | cut -d'|' -f2)
 
 # Process long video event
 process_nostr_long_video_event "$pubkey" "$event_id" "$title" "$content" "$duration" "$latitude" "$longitude"
