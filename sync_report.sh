@@ -42,6 +42,8 @@ extract_sync_stats() {
     local public_events=$(echo "$sync_stats" | grep -o 'public=[0-9]*' | cut -d= -f2)
     local deletion_events=$(echo "$sync_stats" | grep -o 'deletions=[0-9]*' | cut -d= -f2)
     local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
+    local file_events=$(echo "$sync_stats" | grep -o 'files=[0-9]*' | cut -d= -f2)
+    local comment_events=$(echo "$sync_stats" | grep -o 'comments=[0-9]*' | cut -d= -f2)
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
     local oracle_events=$(echo "$sync_stats" | grep -o 'oracle=[0-9]*' | cut -d= -f2)
     local ore_events=$(echo "$sync_stats" | grep -o 'ore=[0-9]*' | cut -d= -f2)
@@ -59,6 +61,8 @@ extract_sync_stats() {
     [[ -z "$public_events" ]] && public_events="0"
     [[ -z "$deletion_events" ]] && deletion_events="0"
     [[ -z "$video_events" ]] && video_events="0"
+    [[ -z "$file_events" ]] && file_events="0"
+    [[ -z "$comment_events" ]] && comment_events="0"
     [[ -z "$did_events" ]] && did_events="0"
     [[ -z "$oracle_events" ]] && oracle_events="0"
     [[ -z "$ore_events" ]] && ore_events="0"
@@ -97,6 +101,8 @@ DM_EVENTS="$dm_events"
 PUBLIC_EVENTS="$public_events"
 DELETION_EVENTS="$deletion_events"
 VIDEO_EVENTS="$video_events"
+FILE_EVENTS="$file_events"
+COMMENT_EVENTS="$comment_events"
 DID_EVENTS="$did_events"
 ORACLE_EVENTS="$oracle_events"
 ORE_EVENTS="$ore_events"
@@ -146,6 +152,8 @@ generate_html_report() {
     local public_percent="0"
     local dm_percent="0"
     local video_percent="0"
+    local file_percent="0"
+    local comment_percent="0"
     local deletion_percent="0"
     local did_percent="0"
     local oracle_percent="0"
@@ -159,6 +167,12 @@ generate_html_report() {
     fi
     if [[ -n "$VIDEO_EVENTS" && "$VIDEO_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + VIDEO_EVENTS))
+    fi
+    if [[ -n "$FILE_EVENTS" && "$FILE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + FILE_EVENTS))
+    fi
+    if [[ -n "$COMMENT_EVENTS" && "$COMMENT_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + COMMENT_EVENTS))
     fi
     if [[ -n "$DELETION_EVENTS" && "$DELETION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DELETION_EVENTS))
@@ -177,6 +191,8 @@ generate_html_report() {
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         dm_percent=$(echo "scale=1; $DM_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        file_percent=$(echo "scale=1; $FILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        comment_percent=$(echo "scale=1; $COMMENT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         oracle_percent=$(echo "scale=1; $ORACLE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -264,13 +280,21 @@ generate_html_report() {
                 <div class="stat-value">$VIDEO_EVENTS</div>
                 <div class="stat-label">Video Events ($video_percent%)</div>
             </div>
-            <div class="stat-card deletion-events">
-                <div class="stat-value">$DELETION_EVENTS</div>
-                <div class="stat-label">Deletion Events ($deletion_percent%)</div>
+            <div class="stat-card video-events">
+                <div class="stat-value">$FILE_EVENTS</div>
+                <div class="stat-label">File Metadata ($file_percent%)</div>
             </div>
         </div>
         
         <div class="stats-grid">
+            <div class="stat-card video-events">
+                <div class="stat-value">$COMMENT_EVENTS</div>
+                <div class="stat-label">Comments ($comment_percent%)</div>
+            </div>
+            <div class="stat-card deletion-events">
+                <div class="stat-value">$DELETION_EVENTS</div>
+                <div class="stat-label">Deletion Events ($deletion_percent%)</div>
+            </div>
             <div class="stat-card did-events">
                 <div class="stat-value">$DID_EVENTS</div>
                 <div class="stat-label">DID Documents ($did_percent%)</div>
@@ -279,6 +303,9 @@ generate_html_report() {
                 <div class="stat-value">$ORACLE_EVENTS</div>
                 <div class="stat-label">Oracle Permits ($oracle_percent%)</div>
             </div>
+        </div>
+        
+        <div class="stats-grid">
             <div class="stat-card ore-events">
                 <div class="stat-value">$ORE_EVENTS</div>
                 <div class="stat-label">ORE Contracts ($ore_percent%)</div>
@@ -359,6 +386,12 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Video Events:</strong> $VIDEO_EVENTS ($video_percent%) - YouTube videos (kind 21/22) from process_youtube.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>File Metadata:</strong> $FILE_EVENTS ($file_percent%) - File attachments (kind 1063 - NIP-94) from upload2ipfs.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Comments:</strong> $COMMENT_EVENTS ($comment_percent%) - Video comments (kind 1111 - NIP-22) from theater-modal.html
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Deletion Events:</strong> $DELETION_EVENTS ($deletion_percent%) - Messages marked for deletion (kind 5)
@@ -491,6 +524,8 @@ send_sync_report() {
 • Public: ${PUBLIC_EVENTS}
 • DMs: ${DM_EVENTS}
 • Videos: ${VIDEO_EVENTS}
+• Files: ${FILE_EVENTS}
+• Comments: ${COMMENT_EVENTS}
 • Deletions: ${DELETION_EVENTS}
 • DID: ${DID_EVENTS}
 • Oracle: ${ORACLE_EVENTS}

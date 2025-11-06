@@ -473,12 +473,14 @@ UPlanet relays synchronize all NIP-101 events across the constellation network.
 |----------|-------|-------------|
 | **Core** | 0, 1, 3, 5, 6, 7 | Profiles, notes, contacts, deletions, reposts, reactions |
 | **Media** | 21, 22 | Videos (short/long form) |
+| **Files** | 1063 | File metadata (NIP-94) |
+| **Comments** | 1111 | Video comments (NIP-22) |
 | **Content** | 30023, 30024 | Articles, calendar events |
 | **Identity** | 30800 | DID documents (NIP-101) |
 | **Oracle** | 30500-30503 | Permits (definitions, requests, attestations, credentials) |
 | **ORE** | 30312-30313 | Environmental obligations (meeting spaces, verification meetings) |
 
-**Total:** **18 event types** synchronized automatically
+**Total:** **20 event types** synchronized automatically
 
 #### Backfill Process
 
@@ -496,12 +498,14 @@ UPlanet relays synchronize all NIP-101 events across the constellation network.
 #### Statistics Example
 
 ```log
-[2025-10-30 12:35:12] [INFO] SYNC_STATS: 
+[2025-11-06 12:35:12] [INFO] SYNC_STATS: 
   events=1523 
   dms=45 
   public=1478 
   deletions=12 
   videos=8 
+  files=15
+  comments=34
   did=34 
   oracle=23 
   ore=15

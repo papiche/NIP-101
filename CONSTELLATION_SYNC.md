@@ -45,7 +45,7 @@ The **Constellation Synchronization System** ensures all NIP-101 events (DID, Or
 
 ## Synchronized Event Types
 
-### Core Events (12 kinds)
+### Core Events (14 kinds)
 
 | Kind | Name | Description |
 |------|------|-------------|
@@ -58,6 +58,8 @@ The **Constellation Synchronization System** ensures all NIP-101 events (DID, Or
 | 7 | Reaction | Likes, emoji reactions |
 | 21 | Short Video | Video posts |
 | 22 | Long Video | Extended video content |
+| **1063** | **File Metadata** | File attachments (NIP-94) |
+| **1111** | **Comments** | Video comments (NIP-22) |
 | 30023 | Long-form | Articles, blog posts |
 | 30024 | Calendar | Events, scheduling |
 | 30800 | **DID Document** | Decentralized identifiers (NIP-101) |
@@ -88,20 +90,22 @@ The **Constellation Synchronization System** ensures all NIP-101 events (DID, Or
 
 ---
 
-### 📊 Total: **18 Event Types**
+### 📊 Total: **20 Event Types**
 
 ```
-Core: 12 + DID: 1 + Oracle: 4 + ORE: 2 = 18
+Core: 14 + DID: 1 + Oracle: 4 + ORE: 2 = 20
 ```
 
 **Statistics Example:**
 ```log
-[2025-10-30 14:20:01] [INFO] SYNC_STATS:
+[2025-11-06 14:20:01] [INFO] SYNC_STATS:
   events=1523
   dms=45
   public=1478
   deletions=12
   videos=8
+  files=15 🆕
+  comments=34 🆕
   did=34
   oracle=23 🆕
   ore=15 🆕
