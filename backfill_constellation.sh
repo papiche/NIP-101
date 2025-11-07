@@ -424,7 +424,7 @@ streams {
         
         # Request events from the last N days
         filter = { 
-            "kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, videos (short/long), file metadata (1063 - NIP-94), comments (1111 - NIP-22), blog, calendar, DID documents (30800 - NIP-101), ORE spaces/meetings (30312-30313), Oracle permits (30500-30503)
+            "kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, videos (short/long), channel creation/metadata/messages (40-42 - NIP-28), file metadata (1063 - NIP-94), comments (1111 - NIP-22), playlists (30005, 10001 - NIP-51), blog, calendar, DID documents (30800 - NIP-101), ORE spaces/meetings (30312-30313), Oracle permits (30500-30503)
             "since": $since_timestamp,
             "limit": 10000
         }
@@ -456,15 +456,17 @@ EOF
     local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
     
     # Build kinds array based on INCLUDE_DMS setting
-    local kinds_array="[0, 1, 3, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800]"  # Base kinds + videos + files + comments + DID + ORE + Oracle
+    local kinds_array="[0, 1, 3, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800]"  # Base kinds + videos + files + comments + channels + playlists + DID + ORE + Oracle
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        kinds_array="[0, 1, 3, 4, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800]"  # Include DMs + videos + files + comments + DID + ORE + Oracle
-        log "INFO" "Including direct messages (DMs), video events (kind 21/22), file metadata (kind 1063), and comments (kind 1111) in synchronization"
+        kinds_array="[0, 1, 3, 4, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800]"  # Include DMs + videos + files + comments + channels + playlists + DID + ORE + Oracle
+        log "INFO" "Including direct messages (DMs), video events (kind 21/22), file metadata (kind 1063), comments (kind 1111), channel messages (kind 42 - NIP-28), and playlists (kind 30005/10001 - NIP-51) in synchronization"
     else
-        log "INFO" "Excluding direct messages (DMs) but including video events (kind 21/22), file metadata (kind 1063), and comments (kind 1111) in synchronization"
+        log "INFO" "Excluding direct messages (DMs) but including video events (kind 21/22), file metadata (kind 1063), comments (kind 1111), channel messages (kind 42 - NIP-28), and playlists (kind 30005/10001 - NIP-51) in synchronization"
     fi
     log "INFO" "Including kind 1063 (file metadata - NIP-94) in synchronization"
     log "INFO" "Including kind 1111 (video comments - NIP-22) in synchronization"
+    log "INFO" "Including kind 40-42 (channel creation/metadata/messages - NIP-28) in synchronization"
+    log "INFO" "Including kind 30005/10001 (playlists - NIP-51) in synchronization"
     log "INFO" "Including kind 30800 (DID documents - NIP-101) in synchronization"
     log "INFO" "Including kind 30312-30313 (ORE Meeting Spaces and Verification Meetings) in synchronization"
     log "INFO" "Including kind 21/22 (video events from process_youtube.sh) in synchronization"
@@ -670,9 +672,9 @@ execute_backfill_websocket_single_hex() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Include DMs + videos + files + comments + DID + ORE + Oracle
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Include DMs + videos + files + comments + channels + playlists + DID + ORE + Oracle
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Exclude DMs but include videos + files + comments + DID + ORE + Oracle
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Exclude DMs but include videos + files + comments + channels + playlists + DID + ORE + Oracle
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -730,9 +732,9 @@ execute_backfill_websocket_batch() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Include DMs + videos + files + comments + DID + ORE + Oracle
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Include DMs + videos + files + comments + channels + playlists + DID + ORE + Oracle
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 1063, 1111, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Exclude DMs but include videos + files + comments + DID + ORE + Oracle
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 21, 22, 40, 41, 42, 1063, 1111, 30005, 10001, 30023, 30024, 30312, 30313, 30500, 30501, 30502, 30503, 30800], '  # Exclude DMs but include videos + files + comments + channels + playlists + DID + ORE + Oracle
     fi
     
     req_message+="\"since\": $since_timestamp, "
@@ -916,12 +918,12 @@ process_and_import_events() {
     fi
     
     # OPT #4: Fusionner appels jq - 1 seul appel au lieu de 3
-    read total_events dm_events public_events deletion_events video_events file_events comment_events did_events ore_space_events ore_meeting_events oracle_events < <(
-        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length), ([.[] | select(.kind == 5)] | length), ([.[] | select(.kind == 21 or .kind == 22)] | length), ([.[] | select(.kind == 1063)] | length), ([.[] | select(.kind == 1111)] | length), ([.[] | select(.kind == 30800)] | length), ([.[] | select(.kind == 30312)] | length), ([.[] | select(.kind == 30313)] | length), ([.[] | select(.kind >= 30500 and .kind <= 30503)] | length)] | @tsv' \
-        "$response_file" 2>/dev/null || echo "0 0 0 0 0 0 0 0 0 0 0"
+    read total_events dm_events public_events deletion_events video_events file_events comment_events channel_events playlist_events did_events ore_space_events ore_meeting_events oracle_events < <(
+        jq -r '[length, ([.[] | select(.kind == 4)] | length), ([.[] | select(.kind != 4)] | length), ([.[] | select(.kind == 5)] | length), ([.[] | select(.kind == 21 or .kind == 22)] | length), ([.[] | select(.kind == 1063)] | length), ([.[] | select(.kind == 1111)] | length), ([.[] | select(.kind == 40 or .kind == 41 or .kind == 42)] | length), ([.[] | select(.kind == 30005 or .kind == 10001)] | length), ([.[] | select(.kind == 30800)] | length), ([.[] | select(.kind == 30312)] | length), ([.[] | select(.kind == 30313)] | length), ([.[] | select(.kind >= 30500 and .kind <= 30503)] | length)] | @tsv' \
+        "$response_file" 2>/dev/null || echo "0 0 0 0 0 0 0 0 0 0 0 0 0"
     )
     
-    log "INFO" "SYNC_STATS: events=$total_events dms=$dm_events public=$public_events deletions=$deletion_events videos=$video_events files=$file_events comments=$comment_events did=$did_events ore_spaces=$ore_space_events ore_meetings=$ore_meeting_events oracle=$oracle_events"
+    log "INFO" "SYNC_STATS: events=$total_events dms=$dm_events public=$public_events deletions=$deletion_events videos=$video_events files=$file_events comments=$comment_events channels=$channel_events playlists=$playlist_events did=$did_events ore_spaces=$ore_space_events ore_meetings=$ore_meeting_events oracle=$oracle_events"
     
     # Create a filtered file without "Hello NOSTR visitor." messages and process deletion events
     local filtered_file="${response_file%.json}_filtered.json"

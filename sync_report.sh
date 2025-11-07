@@ -44,6 +44,8 @@ extract_sync_stats() {
     local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
     local file_events=$(echo "$sync_stats" | grep -o 'files=[0-9]*' | cut -d= -f2)
     local comment_events=$(echo "$sync_stats" | grep -o 'comments=[0-9]*' | cut -d= -f2)
+    local channel_events=$(echo "$sync_stats" | grep -o 'channels=[0-9]*' | cut -d= -f2)
+    local playlist_events=$(echo "$sync_stats" | grep -o 'playlists=[0-9]*' | cut -d= -f2)
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
     local oracle_events=$(echo "$sync_stats" | grep -o 'oracle=[0-9]*' | cut -d= -f2)
     local ore_events=$(echo "$sync_stats" | grep -o 'ore=[0-9]*' | cut -d= -f2)
@@ -63,6 +65,8 @@ extract_sync_stats() {
     [[ -z "$video_events" ]] && video_events="0"
     [[ -z "$file_events" ]] && file_events="0"
     [[ -z "$comment_events" ]] && comment_events="0"
+    [[ -z "$channel_events" ]] && channel_events="0"
+    [[ -z "$playlist_events" ]] && playlist_events="0"
     [[ -z "$did_events" ]] && did_events="0"
     [[ -z "$oracle_events" ]] && oracle_events="0"
     [[ -z "$ore_events" ]] && ore_events="0"
@@ -103,6 +107,8 @@ DELETION_EVENTS="$deletion_events"
 VIDEO_EVENTS="$video_events"
 FILE_EVENTS="$file_events"
 COMMENT_EVENTS="$comment_events"
+CHANNEL_EVENTS="$channel_events"
+PLAYLIST_EVENTS="$playlist_events"
 DID_EVENTS="$did_events"
 ORACLE_EVENTS="$oracle_events"
 ORE_EVENTS="$ore_events"
@@ -154,6 +160,8 @@ generate_html_report() {
     local video_percent="0"
     local file_percent="0"
     local comment_percent="0"
+    local channel_percent="0"
+    local playlist_percent="0"
     local deletion_percent="0"
     local did_percent="0"
     local oracle_percent="0"
@@ -174,6 +182,12 @@ generate_html_report() {
     if [[ -n "$COMMENT_EVENTS" && "$COMMENT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + COMMENT_EVENTS))
     fi
+    if [[ -n "$CHANNEL_EVENTS" && "$CHANNEL_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + CHANNEL_EVENTS))
+    fi
+    if [[ -n "$PLAYLIST_EVENTS" && "$PLAYLIST_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + PLAYLIST_EVENTS))
+    fi
     if [[ -n "$DELETION_EVENTS" && "$DELETION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DELETION_EVENTS))
     fi
@@ -193,6 +207,8 @@ generate_html_report() {
         video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         file_percent=$(echo "scale=1; $FILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         comment_percent=$(echo "scale=1; $COMMENT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        channel_percent=$(echo "scale=1; $CHANNEL_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        playlist_percent=$(echo "scale=1; $PLAYLIST_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         oracle_percent=$(echo "scale=1; $ORACLE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -509,6 +525,14 @@ send_sync_report() {
     
     # Prepare NOSTR message content
     eval "$stats"
+    
+    # Get captain nprofile for reference (if available)
+    local CAPTAIN_NPROFILE=""
+    if [[ -n "$CAPTAINEMAIL" && -n "$CAPTAINHEX" ]]; then
+        CAPTAIN_NPROFILE=$($HOME/.zen/Astroport.ONE/tools/nostr_hex2nprofile.sh "$CAPTAINHEX" 2>/dev/null)
+        [[ -z "$CAPTAIN_NPROFILE" ]] && CAPTAIN_NPROFILE="unknown_captain"
+    fi
+    
     local nostr_content="📊 ${report_title}
 
 🔗 Full Report: ${ipfs_url}
@@ -526,6 +550,8 @@ send_sync_report() {
 • Videos: ${VIDEO_EVENTS}
 • Files: ${FILE_EVENTS}
 • Comments: ${COMMENT_EVENTS}
+• Channels: ${CHANNEL_EVENTS}
+• Playlists: ${PLAYLIST_EVENTS}
 • Deletions: ${DELETION_EVENTS}
 • DID: ${DID_EVENTS}
 • Oracle: ${ORACLE_EVENTS}
@@ -535,16 +561,38 @@ send_sync_report() {
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
 
 ⏰ Sync Time: ${SYNC_START_TIME} → ${SYNC_END_TIME}
-🌐 Node: ${IPFSNODEID}"
+🌐 Node: ${IPFSNODEID}
 
-    # Find captain's NOSTR keyfile
-    local captain_keyfile="$HOME/.zen/game/nostr/$CAPTAINEMAIL/.secret.nostr"
+🌍 UMAP 0.00,0.00 - Global Meeting Point
+This synchronization report comes from the global UMAP (0.00,0.00), the meeting point for system messages and reports.
+
+#UMAP_0.00_0.00
+#Captain:${CAPTAIN_NPROFILE}"
+
+    # Generate UMAP 0.00,0.00 key (same as 1.sh)
+    local UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" -s)
     
-    if [[ ! -s "$captain_keyfile" ]]; then
-        echo "❌ Captain's NOSTR keyfile not found: $captain_keyfile"
+    if [[ -z "$UMAPNSEC" ]]; then
+        echo "❌ Failed to generate UMAP 0.00,0.00 NSEC key"
         rm -f "$temp_html"
         return 1
     fi
+    
+    # Convert NSEC to HEX
+    local UMAP_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+    
+    if [[ -z "$UMAP_HEX" ]]; then
+        echo "❌ Failed to convert UMAP NSEC to HEX"
+        rm -f "$temp_html"
+        return 1
+    fi
+    
+    echo "🌍 Using UMAP 0.00,0.00 key for sync report (pubkey: ${UMAP_HEX:0:16}...)"
+    
+    # Create temporary keyfile for nostr_send_note.py
+    local umap_keyfile="/tmp/umap_0.00_keyfile_$(date +%s).nsec"
+    echo "$UMAPNSEC" > "$umap_keyfile"
+    chmod 600 "$umap_keyfile"
     
     # Get default relay from environment (myRELAY) or use default
     local nostr_relay="${myRELAY:-ws://127.0.0.1:7777}"
@@ -558,11 +606,11 @@ send_sync_report() {
         return 1
     fi
     
-    echo "🚀 Sending NOSTR note via $nostr_relay..."
+    echo "🚀 Sending NOSTR note via $nostr_relay using UMAP 0.00,0.00 key..."
     
     # Call nostr_send_note.py with ephemeral flag (1h = 3600 seconds)
     python3 "$nostr_script" \
-        --keyfile "$captain_keyfile" \
+        --keyfile "$umap_keyfile" \
         --content "$nostr_content" \
         --relays "$nostr_relay" \
         --ephemeral 3600 \
@@ -572,7 +620,7 @@ send_sync_report() {
     local nostr_result=$(cat /tmp/nostr_result.json 2>/dev/null)
     
     # Clean up temporary files
-    rm -f "$temp_html" /tmp/nostr_result.json
+    rm -f "$temp_html" "$umap_keyfile" /tmp/nostr_result.json
     
     # Check result
     if [[ $nostr_exit_code -eq 0 ]] && echo "$nostr_result" | grep -q '"success":\s*true'; then
