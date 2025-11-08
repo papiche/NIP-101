@@ -32,6 +32,12 @@ if ! check_authorization "$pubkey" "log_like"; then
     exit 1
 fi
 
+# Prevent self-likes: reject if source (pubkey) is the same as destination (reacted_author_pubkey)
+if [[ -n "$reacted_author_pubkey" && "$pubkey" == "$reacted_author_pubkey" ]]; then
+    log_like "REJECTED: Self-like detected - source ${pubkey:0:8}... cannot like their own event ${reacted_event_id:0:8}..."
+    exit 1
+fi
+
 # Parse ẐEN amount from content
 ZEN_AMOUNT=$(parse_zen_amount "$content")
 
