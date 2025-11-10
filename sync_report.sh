@@ -44,6 +44,7 @@ extract_sync_stats() {
     local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
     local file_events=$(echo "$sync_stats" | grep -o 'files=[0-9]*' | cut -d= -f2)
     local comment_events=$(echo "$sync_stats" | grep -o 'comments=[0-9]*' | cut -d= -f2)
+    local tag_events=$(echo "$sync_stats" | grep -o 'tags=[0-9]*' | cut -d= -f2)
     local channel_events=$(echo "$sync_stats" | grep -o 'channels=[0-9]*' | cut -d= -f2)
     local playlist_events=$(echo "$sync_stats" | grep -o 'playlists=[0-9]*' | cut -d= -f2)
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
@@ -65,6 +66,7 @@ extract_sync_stats() {
     [[ -z "$video_events" ]] && video_events="0"
     [[ -z "$file_events" ]] && file_events="0"
     [[ -z "$comment_events" ]] && comment_events="0"
+    [[ -z "$tag_events" ]] && tag_events="0"
     [[ -z "$channel_events" ]] && channel_events="0"
     [[ -z "$playlist_events" ]] && playlist_events="0"
     [[ -z "$did_events" ]] && did_events="0"
@@ -107,6 +109,7 @@ DELETION_EVENTS="$deletion_events"
 VIDEO_EVENTS="$video_events"
 FILE_EVENTS="$file_events"
 COMMENT_EVENTS="$comment_events"
+TAG_EVENTS="$tag_events"
 CHANNEL_EVENTS="$channel_events"
 PLAYLIST_EVENTS="$playlist_events"
 DID_EVENTS="$did_events"
@@ -160,6 +163,7 @@ generate_html_report() {
     local video_percent="0"
     local file_percent="0"
     local comment_percent="0"
+    local tag_percent="0"
     local channel_percent="0"
     local playlist_percent="0"
     local deletion_percent="0"
@@ -181,6 +185,9 @@ generate_html_report() {
     fi
     if [[ -n "$COMMENT_EVENTS" && "$COMMENT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + COMMENT_EVENTS))
+    fi
+    if [[ -n "$TAG_EVENTS" && "$TAG_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + TAG_EVENTS))
     fi
     if [[ -n "$CHANNEL_EVENTS" && "$CHANNEL_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + CHANNEL_EVENTS))
@@ -207,6 +214,7 @@ generate_html_report() {
         video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         file_percent=$(echo "scale=1; $FILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         comment_percent=$(echo "scale=1; $COMMENT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        tag_percent=$(echo "scale=1; $TAG_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         channel_percent=$(echo "scale=1; $CHANNEL_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         playlist_percent=$(echo "scale=1; $PLAYLIST_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -306,6 +314,10 @@ generate_html_report() {
             <div class="stat-card video-events">
                 <div class="stat-value">$COMMENT_EVENTS</div>
                 <div class="stat-label">Comments ($comment_percent%)</div>
+            </div>
+            <div class="stat-card video-events">
+                <div class="stat-value">$TAG_EVENTS</div>
+                <div class="stat-label">User Tags ($tag_percent%)</div>
             </div>
             <div class="stat-card deletion-events">
                 <div class="stat-value">$DELETION_EVENTS</div>
@@ -408,6 +420,9 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Comments:</strong> $COMMENT_EVENTS ($comment_percent%) - Video comments (kind 1111 - NIP-22) from theater-modal.html
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>User Tags:</strong> $TAG_EVENTS ($tag_percent%) - User-generated tags (kind 1985 - NIP-32) from tags.html and publish_nostr_video.sh
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Deletion Events:</strong> $DELETION_EVENTS ($deletion_percent%) - Messages marked for deletion (kind 5)
@@ -550,6 +565,7 @@ send_sync_report() {
 • Videos: ${VIDEO_EVENTS}
 • Files: ${FILE_EVENTS}
 • Comments: ${COMMENT_EVENTS}
+• Tags: ${TAG_EVENTS}
 • Channels: ${CHANNEL_EVENTS}
 • Playlists: ${PLAYLIST_EVENTS}
 • Deletions: ${DELETION_EVENTS}
@@ -589,9 +605,10 @@ This synchronization report comes from the global UMAP (0.00,0.00), the meeting 
     
     echo "🌍 Using UMAP 0.00,0.00 key for sync report (pubkey: ${UMAP_HEX:0:16}...)"
     
-    # Create temporary keyfile for nostr_send_note.py
+    # Create temporary keyfile for nostr_send_note.py in .secret.nostr format
+    # Format: NSEC=nsec1...; (NPUB and HEX are optional, NSEC is required)
     local umap_keyfile="/tmp/umap_0.00_keyfile_$(date +%s).nsec"
-    echo "$UMAPNSEC" > "$umap_keyfile"
+    echo "NSEC=$UMAPNSEC;" > "$umap_keyfile"
     chmod 600 "$umap_keyfile"
     
     # Get default relay from environment (myRELAY) or use default
