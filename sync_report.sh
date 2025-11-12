@@ -44,12 +44,23 @@ extract_sync_stats() {
     local video_events=$(echo "$sync_stats" | grep -o 'videos=[0-9]*' | cut -d= -f2)
     local file_events=$(echo "$sync_stats" | grep -o 'files=[0-9]*' | cut -d= -f2)
     local comment_events=$(echo "$sync_stats" | grep -o 'comments=[0-9]*' | cut -d= -f2)
+    local voice_events=$(echo "$sync_stats" | grep -o 'voice=[0-9]*' | cut -d= -f2)
     local tag_events=$(echo "$sync_stats" | grep -o 'tags=[0-9]*' | cut -d= -f2)
+    local tmdb_events=$(echo "$sync_stats" | grep -o 'tmdb=[0-9]*' | cut -d= -f2)
     local channel_events=$(echo "$sync_stats" | grep -o 'channels=[0-9]*' | cut -d= -f2)
     local playlist_events=$(echo "$sync_stats" | grep -o 'playlists=[0-9]*' | cut -d= -f2)
+    local status_events=$(echo "$sync_stats" | grep -o 'status=[0-9]*' | cut -d= -f2)
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
     local oracle_events=$(echo "$sync_stats" | grep -o 'oracle=[0-9]*' | cut -d= -f2)
-    local ore_events=$(echo "$sync_stats" | grep -o 'ore=[0-9]*' | cut -d= -f2)
+    local ore_events=$(echo "$sync_stats" | grep -o 'ore_spaces=[0-9]*' | cut -d= -f2)
+    local workflow_events=$(echo "$sync_stats" | grep -o 'workflows=[0-9]*' | cut -d= -f2)
+    local profile_events=$(echo "$sync_stats" | grep -o 'profiles=[0-9]*' | cut -d= -f2)
+    local text_events=$(echo "$sync_stats" | grep -o 'text=[0-9]*' | cut -d= -f2)
+    local contact_events=$(echo "$sync_stats" | grep -o 'contacts=[0-9]*' | cut -d= -f2)
+    local repost_events=$(echo "$sync_stats" | grep -o 'reposts=[0-9]*' | cut -d= -f2)
+    local reaction_events=$(echo "$sync_stats" | grep -o 'reactions=[0-9]*' | cut -d= -f2)
+    local blog_events=$(echo "$sync_stats" | grep -o 'blog=[0-9]*' | cut -d= -f2)
+    local calendar_events=$(echo "$sync_stats" | grep -o 'calendar=[0-9]*' | cut -d= -f2)
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
@@ -66,12 +77,23 @@ extract_sync_stats() {
     [[ -z "$video_events" ]] && video_events="0"
     [[ -z "$file_events" ]] && file_events="0"
     [[ -z "$comment_events" ]] && comment_events="0"
+    [[ -z "$voice_events" ]] && voice_events="0"
     [[ -z "$tag_events" ]] && tag_events="0"
+    [[ -z "$tmdb_events" ]] && tmdb_events="0"
     [[ -z "$channel_events" ]] && channel_events="0"
     [[ -z "$playlist_events" ]] && playlist_events="0"
+    [[ -z "$status_events" ]] && status_events="0"
     [[ -z "$did_events" ]] && did_events="0"
     [[ -z "$oracle_events" ]] && oracle_events="0"
     [[ -z "$ore_events" ]] && ore_events="0"
+    [[ -z "$workflow_events" ]] && workflow_events="0"
+    [[ -z "$profile_events" ]] && profile_events="0"
+    [[ -z "$text_events" ]] && text_events="0"
+    [[ -z "$contact_events" ]] && contact_events="0"
+    [[ -z "$repost_events" ]] && repost_events="0"
+    [[ -z "$reaction_events" ]] && reaction_events="0"
+    [[ -z "$blog_events" ]] && blog_events="0"
+    [[ -z "$calendar_events" ]] && calendar_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -109,12 +131,23 @@ DELETION_EVENTS="$deletion_events"
 VIDEO_EVENTS="$video_events"
 FILE_EVENTS="$file_events"
 COMMENT_EVENTS="$comment_events"
+VOICE_EVENTS="$voice_events"
 TAG_EVENTS="$tag_events"
+TMDB_EVENTS="$tmdb_events"
 CHANNEL_EVENTS="$channel_events"
 PLAYLIST_EVENTS="$playlist_events"
+STATUS_EVENTS="$status_events"
 DID_EVENTS="$did_events"
 ORACLE_EVENTS="$oracle_events"
 ORE_EVENTS="$ore_events"
+WORKFLOW_EVENTS="$workflow_events"
+PROFILE_EVENTS="$profile_events"
+TEXT_EVENTS="$text_events"
+CONTACT_EVENTS="$contact_events"
+REPOST_EVENTS="$repost_events"
+REACTION_EVENTS="$reaction_events"
+BLOG_EVENTS="$blog_events"
+CALENDAR_EVENTS="$calendar_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -163,14 +196,46 @@ generate_html_report() {
     local video_percent="0"
     local file_percent="0"
     local comment_percent="0"
+    local voice_percent="0"
     local tag_percent="0"
+    local tmdb_percent="0"
     local channel_percent="0"
     local playlist_percent="0"
+    local status_percent="0"
     local deletion_percent="0"
     local did_percent="0"
     local oracle_percent="0"
     local ore_percent="0"
+    local workflow_percent="0"
+    local profile_percent="0"
+    local text_percent="0"
+    local contact_percent="0"
+    local repost_percent="0"
+    local reaction_percent="0"
+    local blog_percent="0"
+    local calendar_percent="0"
     
+    if [[ -n "$PROFILE_EVENTS" && "$PROFILE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + PROFILE_EVENTS))
+    fi
+    if [[ -n "$TEXT_EVENTS" && "$TEXT_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + TEXT_EVENTS))
+    fi
+    if [[ -n "$CONTACT_EVENTS" && "$CONTACT_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + CONTACT_EVENTS))
+    fi
+    if [[ -n "$REPOST_EVENTS" && "$REPOST_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + REPOST_EVENTS))
+    fi
+    if [[ -n "$REACTION_EVENTS" && "$REACTION_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + REACTION_EVENTS))
+    fi
+    if [[ -n "$BLOG_EVENTS" && "$BLOG_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + BLOG_EVENTS))
+    fi
+    if [[ -n "$CALENDAR_EVENTS" && "$CALENDAR_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + CALENDAR_EVENTS))
+    fi
     if [[ -n "$PUBLIC_EVENTS" && "$PUBLIC_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PUBLIC_EVENTS))
     fi
@@ -186,14 +251,23 @@ generate_html_report() {
     if [[ -n "$COMMENT_EVENTS" && "$COMMENT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + COMMENT_EVENTS))
     fi
+    if [[ -n "$VOICE_EVENTS" && "$VOICE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + VOICE_EVENTS))
+    fi
     if [[ -n "$TAG_EVENTS" && "$TAG_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + TAG_EVENTS))
+    fi
+    if [[ -n "$TMDB_EVENTS" && "$TMDB_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + TMDB_EVENTS))
     fi
     if [[ -n "$CHANNEL_EVENTS" && "$CHANNEL_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + CHANNEL_EVENTS))
     fi
     if [[ -n "$PLAYLIST_EVENTS" && "$PLAYLIST_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PLAYLIST_EVENTS))
+    fi
+    if [[ -n "$STATUS_EVENTS" && "$STATUS_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + STATUS_EVENTS))
     fi
     if [[ -n "$DELETION_EVENTS" && "$DELETION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DELETION_EVENTS))
@@ -207,6 +281,9 @@ generate_html_report() {
     if [[ -n "$ORE_EVENTS" && "$ORE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + ORE_EVENTS))
     fi
+    if [[ -n "$WORKFLOW_EVENTS" && "$WORKFLOW_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + WORKFLOW_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -214,13 +291,24 @@ generate_html_report() {
         video_percent=$(echo "scale=1; $VIDEO_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         file_percent=$(echo "scale=1; $FILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         comment_percent=$(echo "scale=1; $COMMENT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        voice_percent=$(echo "scale=1; $VOICE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         tag_percent=$(echo "scale=1; $TAG_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        tmdb_percent=$(echo "scale=1; $TMDB_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         channel_percent=$(echo "scale=1; $CHANNEL_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         playlist_percent=$(echo "scale=1; $PLAYLIST_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        status_percent=$(echo "scale=1; $STATUS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         deletion_percent=$(echo "scale=1; $DELETION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         oracle_percent=$(echo "scale=1; $ORACLE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         ore_percent=$(echo "scale=1; $ORE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        workflow_percent=$(echo "scale=1; $WORKFLOW_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        profile_percent=$(echo "scale=1; $PROFILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        text_percent=$(echo "scale=1; $TEXT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        contact_percent=$(echo "scale=1; $CONTACT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        repost_percent=$(echo "scale=1; $REPOST_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        reaction_percent=$(echo "scale=1; $REACTION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        blog_percent=$(echo "scale=1; $BLOG_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        calendar_percent=$(echo "scale=1; $CALENDAR_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
     # Determine report type based on activity
@@ -407,10 +495,25 @@ generate_html_report() {
                 <strong>Total Message Events:</strong> $total_message_events
             </p>
             <p style="margin: 5px 0; color: #555;">
-                • <strong>Public Messages:</strong> $PUBLIC_EVENTS ($public_percent%) - Notes, articles, and public communications
+                • <strong>Profiles:</strong> $PROFILE_EVENTS ($profile_percent%) - User profiles (kind 0 - NIP-01)
             </p>
             <p style="margin: 5px 0; color: #555;">
-                • <strong>Direct Messages:</strong> $DM_EVENTS ($dm_percent%) - Private conversations between users
+                • <strong>Text Notes:</strong> $TEXT_EVENTS ($text_percent%) - Text notes and posts (kind 1 - NIP-01)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Contacts:</strong> $CONTACT_EVENTS ($contact_percent%) - Contact lists and follows (kind 3 - NIP-02)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Direct Messages:</strong> $DM_EVENTS ($dm_percent%) - Private conversations between users (kind 4 - NIP-04)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Reposts:</strong> $REPOST_EVENTS ($repost_percent%) - Reposted events (kind 6 - NIP-18)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Reactions:</strong> $REACTION_EVENTS ($reaction_percent%) - Like and reaction events (kind 7 - NIP-25)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Public Messages:</strong> $PUBLIC_EVENTS ($public_percent%) - Other public messages and communications
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Video Events:</strong> $VIDEO_EVENTS ($video_percent%) - YouTube videos (kind 21/22) from process_youtube.sh
@@ -422,7 +525,22 @@ generate_html_report() {
                 • <strong>Comments:</strong> $COMMENT_EVENTS ($comment_percent%) - Video comments (kind 1111 - NIP-22) from theater-modal.html
             </p>
             <p style="margin: 5px 0; color: #555;">
+                • <strong>Voice Messages:</strong> $VOICE_EVENTS ($voice_percent%) - Short voice messages (kinds 1222, 1244 - NIP-A0)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
                 • <strong>User Tags:</strong> $TAG_EVENTS ($tag_percent%) - User-generated tags (kind 1985 - NIP-32) from tags.html and publish_nostr_video.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>TMDB Enrichments:</strong> $TMDB_EVENTS ($tmdb_percent%) - Video metadata enrichments (kinds 1986, 30001 - NIP-71 extension) from contrib.html
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Channel Messages:</strong> $CHANNEL_EVENTS ($channel_percent%) - Channel messages and mute events (kinds 40-44 - NIP-28)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Playlists:</strong> $PLAYLIST_EVENTS ($playlist_percent%) - User playlists (kinds 30005, 10001 - NIP-51)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>User Statuses:</strong> $STATUS_EVENTS ($status_percent%) - Live user statuses including music (kind 30315 - NIP-38)
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Deletion Events:</strong> $DELETION_EVENTS ($deletion_percent%) - Messages marked for deletion (kind 5)
@@ -435,6 +553,15 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30312-30313): meeting spaces, verification meetings
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Cookie Workflows:</strong> $WORKFLOW_EVENTS ($workflow_percent%) - Workflow definitions and executions (kinds 31900-31902 - NIP-101 extension) from n8n.html
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Blog Posts:</strong> $BLOG_EVENTS ($blog_percent%) - Long-form blog posts (kind 30023 - NIP-23)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Calendar Events:</strong> $CALENDAR_EVENTS ($calendar_percent%) - Calendar and event scheduling (kind 30024 - NIP-52)
             </p>
         </div>
         
@@ -560,18 +687,29 @@ send_sync_report() {
 • Profiles: ${PROFILES_FOUND} found, ${PROFILES_MISSING} missing
 
 📨 Message Types:
-• Public: ${PUBLIC_EVENTS}
+• Profiles: ${PROFILE_EVENTS}
+• Text Notes: ${TEXT_EVENTS}
+• Contacts: ${CONTACT_EVENTS}
 • DMs: ${DM_EVENTS}
+• Reposts: ${REPOST_EVENTS}
+• Reactions: ${REACTION_EVENTS}
+• Public: ${PUBLIC_EVENTS}
 • Videos: ${VIDEO_EVENTS}
 • Files: ${FILE_EVENTS}
 • Comments: ${COMMENT_EVENTS}
+• Voice: ${VOICE_EVENTS}
 • Tags: ${TAG_EVENTS}
+• TMDB: ${TMDB_EVENTS}
 • Channels: ${CHANNEL_EVENTS}
 • Playlists: ${PLAYLIST_EVENTS}
+• Status: ${STATUS_EVENTS}
 • Deletions: ${DELETION_EVENTS}
 • DID: ${DID_EVENTS}
 • Oracle: ${ORACLE_EVENTS}
 • ORE: ${ORE_EVENTS}
+• Workflows: ${WORKFLOW_EVENTS}
+• Blog: ${BLOG_EVENTS}
+• Calendar: ${CALENDAR_EVENTS}
 
 ⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
