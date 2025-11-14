@@ -174,7 +174,7 @@ generate_html_report() {
     
     # Calculate success rate
     local success_rate="0"
-    if [[ -n "$TOTAL_PEERS" && "$TOTAL_PEERS" -gt 0 ]]; then
+    if [[ -n "$TOTAL_PEERS" ]] && [[ "$TOTAL_PEERS" =~ ^[0-9]+$ ]] && [[ "$TOTAL_PEERS" -gt 0 ]]; then
         success_rate=$(echo "scale=1; $SUCCESS_PEERS * 100 / $TOTAL_PEERS" | bc -l 2>/dev/null || echo "0")
     fi
     
@@ -215,73 +215,73 @@ generate_html_report() {
     local blog_percent="0"
     local calendar_percent="0"
     
-    if [[ -n "$PROFILE_EVENTS" && "$PROFILE_EVENTS" -gt 0 ]]; then
+    if [[ -n "$PROFILE_EVENTS" ]] && [[ "$PROFILE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PROFILE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PROFILE_EVENTS))
     fi
-    if [[ -n "$TEXT_EVENTS" && "$TEXT_EVENTS" -gt 0 ]]; then
+    if [[ -n "$TEXT_EVENTS" ]] && [[ "$TEXT_EVENTS" =~ ^[0-9]+$ ]] && [[ "$TEXT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + TEXT_EVENTS))
     fi
-    if [[ -n "$CONTACT_EVENTS" && "$CONTACT_EVENTS" -gt 0 ]]; then
+    if [[ -n "$CONTACT_EVENTS" ]] && [[ "$CONTACT_EVENTS" =~ ^[0-9]+$ ]] && [[ "$CONTACT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + CONTACT_EVENTS))
     fi
-    if [[ -n "$REPOST_EVENTS" && "$REPOST_EVENTS" -gt 0 ]]; then
+    if [[ -n "$REPOST_EVENTS" ]] && [[ "$REPOST_EVENTS" =~ ^[0-9]+$ ]] && [[ "$REPOST_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + REPOST_EVENTS))
     fi
-    if [[ -n "$REACTION_EVENTS" && "$REACTION_EVENTS" -gt 0 ]]; then
+    if [[ -n "$REACTION_EVENTS" ]] && [[ "$REACTION_EVENTS" =~ ^[0-9]+$ ]] && [[ "$REACTION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + REACTION_EVENTS))
     fi
-    if [[ -n "$BLOG_EVENTS" && "$BLOG_EVENTS" -gt 0 ]]; then
+    if [[ -n "$BLOG_EVENTS" ]] && [[ "$BLOG_EVENTS" =~ ^[0-9]+$ ]] && [[ "$BLOG_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + BLOG_EVENTS))
     fi
-    if [[ -n "$CALENDAR_EVENTS" && "$CALENDAR_EVENTS" -gt 0 ]]; then
+    if [[ -n "$CALENDAR_EVENTS" ]] && [[ "$CALENDAR_EVENTS" =~ ^[0-9]+$ ]] && [[ "$CALENDAR_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + CALENDAR_EVENTS))
     fi
-    if [[ -n "$PUBLIC_EVENTS" && "$PUBLIC_EVENTS" -gt 0 ]]; then
+    if [[ -n "$PUBLIC_EVENTS" ]] && [[ "$PUBLIC_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PUBLIC_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PUBLIC_EVENTS))
     fi
-    if [[ -n "$DM_EVENTS" && "$DM_EVENTS" -gt 0 ]]; then
+    if [[ -n "$DM_EVENTS" ]] && [[ "$DM_EVENTS" =~ ^[0-9]+$ ]] && [[ "$DM_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DM_EVENTS))
     fi
-    if [[ -n "$VIDEO_EVENTS" && "$VIDEO_EVENTS" -gt 0 ]]; then
+    if [[ -n "$VIDEO_EVENTS" ]] && [[ "$VIDEO_EVENTS" =~ ^[0-9]+$ ]] && [[ "$VIDEO_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + VIDEO_EVENTS))
     fi
-    if [[ -n "$FILE_EVENTS" && "$FILE_EVENTS" -gt 0 ]]; then
+    if [[ -n "$FILE_EVENTS" ]] && [[ "$FILE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$FILE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + FILE_EVENTS))
     fi
-    if [[ -n "$COMMENT_EVENTS" && "$COMMENT_EVENTS" -gt 0 ]]; then
+    if [[ -n "$COMMENT_EVENTS" ]] && [[ "$COMMENT_EVENTS" =~ ^[0-9]+$ ]] && [[ "$COMMENT_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + COMMENT_EVENTS))
     fi
-    if [[ -n "$VOICE_EVENTS" && "$VOICE_EVENTS" -gt 0 ]]; then
+    if [[ -n "$VOICE_EVENTS" ]] && [[ "$VOICE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$VOICE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + VOICE_EVENTS))
     fi
-    if [[ -n "$TAG_EVENTS" && "$TAG_EVENTS" -gt 0 ]]; then
+    if [[ -n "$TAG_EVENTS" ]] && [[ "$TAG_EVENTS" =~ ^[0-9]+$ ]] && [[ "$TAG_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + TAG_EVENTS))
     fi
-    if [[ -n "$TMDB_EVENTS" && "$TMDB_EVENTS" -gt 0 ]]; then
+    if [[ -n "$TMDB_EVENTS" ]] && [[ "$TMDB_EVENTS" =~ ^[0-9]+$ ]] && [[ "$TMDB_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + TMDB_EVENTS))
     fi
-    if [[ -n "$CHANNEL_EVENTS" && "$CHANNEL_EVENTS" -gt 0 ]]; then
+    if [[ -n "$CHANNEL_EVENTS" ]] && [[ "$CHANNEL_EVENTS" =~ ^[0-9]+$ ]] && [[ "$CHANNEL_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + CHANNEL_EVENTS))
     fi
-    if [[ -n "$PLAYLIST_EVENTS" && "$PLAYLIST_EVENTS" -gt 0 ]]; then
+    if [[ -n "$PLAYLIST_EVENTS" ]] && [[ "$PLAYLIST_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PLAYLIST_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PLAYLIST_EVENTS))
     fi
-    if [[ -n "$STATUS_EVENTS" && "$STATUS_EVENTS" -gt 0 ]]; then
+    if [[ -n "$STATUS_EVENTS" ]] && [[ "$STATUS_EVENTS" =~ ^[0-9]+$ ]] && [[ "$STATUS_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + STATUS_EVENTS))
     fi
-    if [[ -n "$DELETION_EVENTS" && "$DELETION_EVENTS" -gt 0 ]]; then
+    if [[ -n "$DELETION_EVENTS" ]] && [[ "$DELETION_EVENTS" =~ ^[0-9]+$ ]] && [[ "$DELETION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DELETION_EVENTS))
     fi
-    if [[ -n "$DID_EVENTS" && "$DID_EVENTS" -gt 0 ]]; then
+    if [[ -n "$DID_EVENTS" ]] && [[ "$DID_EVENTS" =~ ^[0-9]+$ ]] && [[ "$DID_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + DID_EVENTS))
     fi
-    if [[ -n "$ORACLE_EVENTS" && "$ORACLE_EVENTS" -gt 0 ]]; then
+    if [[ -n "$ORACLE_EVENTS" ]] && [[ "$ORACLE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ORACLE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + ORACLE_EVENTS))
     fi
-    if [[ -n "$ORE_EVENTS" && "$ORE_EVENTS" -gt 0 ]]; then
+    if [[ -n "$ORE_EVENTS" ]] && [[ "$ORE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ORE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + ORE_EVENTS))
     fi
-    if [[ -n "$WORKFLOW_EVENTS" && "$WORKFLOW_EVENTS" -gt 0 ]]; then
+    if [[ -n "$WORKFLOW_EVENTS" ]] && [[ "$WORKFLOW_EVENTS" =~ ^[0-9]+$ ]] && [[ "$WORKFLOW_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + WORKFLOW_EVENTS))
     fi
     
@@ -587,15 +587,15 @@ should_send_report() {
     
     # Check if there are imported events (synchronized messages)
     local has_imported_events=false
-    if [[ -n "$IMPORTED_EVENTS" && "$IMPORTED_EVENTS" -gt 0 ]]; then
+    if [[ -n "$IMPORTED_EVENTS" ]] && [[ "$IMPORTED_EVENTS" =~ ^[0-9]+$ ]] && [[ "$IMPORTED_EVENTS" -gt 0 ]]; then
         has_imported_events=true
     fi
     
     # Check if there are any errors
     local has_errors=false
-    if [[ -n "$BATCH_FAILURES" && "$BATCH_FAILURES" -gt 0 ]] || \
-       [[ -n "$WEBSOCKET_FAILURES" && "$WEBSOCKET_FAILURES" -gt 0 ]] || \
-       [[ -n "$TUNNEL_FAILURES" && "$TUNNEL_FAILURES" -gt 0 ]]; then
+    if ( [[ -n "$BATCH_FAILURES" ]] && [[ "$BATCH_FAILURES" =~ ^[0-9]+$ ]] && [[ "$BATCH_FAILURES" -gt 0 ]] ) || \
+       ( [[ -n "$WEBSOCKET_FAILURES" ]] && [[ "$WEBSOCKET_FAILURES" =~ ^[0-9]+$ ]] && [[ "$WEBSOCKET_FAILURES" -gt 0 ]] ) || \
+       ( [[ -n "$TUNNEL_FAILURES" ]] && [[ "$TUNNEL_FAILURES" =~ ^[0-9]+$ ]] && [[ "$TUNNEL_FAILURES" -gt 0 ]] ); then
         has_errors=true
     fi
     
