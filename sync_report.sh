@@ -61,6 +61,8 @@ extract_sync_stats() {
     local reaction_events=$(echo "$sync_stats" | grep -o 'reactions=[0-9]*' | cut -d= -f2)
     local blog_events=$(echo "$sync_stats" | grep -o 'blog=[0-9]*' | cut -d= -f2)
     local calendar_events=$(echo "$sync_stats" | grep -o 'calendar=[0-9]*' | cut -d= -f2)
+    local analytics_events=$(echo "$sync_stats" | grep -o 'analytics=[0-9]*' | cut -d= -f2)
+    local encrypted_analytics_events=$(echo "$sync_stats" | grep -o 'encrypted_analytics=[0-9]*' | cut -d= -f2)
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
@@ -94,6 +96,8 @@ extract_sync_stats() {
     [[ -z "$reaction_events" ]] && reaction_events="0"
     [[ -z "$blog_events" ]] && blog_events="0"
     [[ -z "$calendar_events" ]] && calendar_events="0"
+    [[ -z "$analytics_events" ]] && analytics_events="0"
+    [[ -z "$encrypted_analytics_events" ]] && encrypted_analytics_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -148,6 +152,8 @@ REPOST_EVENTS="$repost_events"
 REACTION_EVENTS="$reaction_events"
 BLOG_EVENTS="$blog_events"
 CALENDAR_EVENTS="$calendar_events"
+ANALYTICS_EVENTS="$analytics_events"
+ENCRYPTED_ANALYTICS_EVENTS="$encrypted_analytics_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -214,6 +220,8 @@ generate_html_report() {
     local reaction_percent="0"
     local blog_percent="0"
     local calendar_percent="0"
+    local analytics_percent="0"
+    local encrypted_analytics_percent="0"
     
     if [[ -n "$PROFILE_EVENTS" ]] && [[ "$PROFILE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PROFILE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PROFILE_EVENTS))
@@ -284,6 +292,12 @@ generate_html_report() {
     if [[ -n "$WORKFLOW_EVENTS" ]] && [[ "$WORKFLOW_EVENTS" =~ ^[0-9]+$ ]] && [[ "$WORKFLOW_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + WORKFLOW_EVENTS))
     fi
+    if [[ -n "$ANALYTICS_EVENTS" ]] && [[ "$ANALYTICS_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ANALYTICS_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + ANALYTICS_EVENTS))
+    fi
+    if [[ -n "$ENCRYPTED_ANALYTICS_EVENTS" ]] && [[ "$ENCRYPTED_ANALYTICS_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ENCRYPTED_ANALYTICS_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + ENCRYPTED_ANALYTICS_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -309,15 +323,69 @@ generate_html_report() {
         reaction_percent=$(echo "scale=1; $REACTION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         blog_percent=$(echo "scale=1; $BLOG_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         calendar_percent=$(echo "scale=1; $CALENDAR_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        analytics_percent=$(echo "scale=1; $ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        encrypted_analytics_percent=$(echo "scale=1; $ENCRYPTED_ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
-    # Determine report type based on activity
+    # Determine report type and create informative title
     local report_type="Sync Report"
-    if [[ "$IMPORTED_EVENTS" -gt 0 && "$BATCH_FAILURES" -gt 0 ]]; then
+    local title_suffix=""
+    
+    # Build informative title with key metrics
+    local title_parts=()
+    
+    if [[ "$IMPORTED_EVENTS" -gt 0 ]]; then
+        title_parts+=("${IMPORTED_EVENTS} events imported")
+    fi
+    
+    if [[ "$SUCCESS_PEERS" -gt 0 && "$TOTAL_PEERS" -gt 0 ]]; then
+        title_parts+=("${SUCCESS_PEERS}/${TOTAL_PEERS} peers")
+    fi
+    
+    # Add top event types to title
+    local top_events=()
+    [[ "$VIDEO_EVENTS" -gt 0 ]] && top_events+=("${VIDEO_EVENTS} videos")
+    [[ "$TEXT_EVENTS" -gt 0 ]] && top_events+=("${TEXT_EVENTS} notes")
+    [[ "$DM_EVENTS" -gt 0 ]] && top_events+=("${DM_EVENTS} DMs")
+    [[ "$FILE_EVENTS" -gt 0 ]] && top_events+=("${FILE_EVENTS} files")
+    [[ "$COMMENT_EVENTS" -gt 0 ]] && top_events+=("${COMMENT_EVENTS} comments")
+    [[ "$PROFILE_EVENTS" -gt 0 ]] && top_events+=("${PROFILE_EVENTS} profiles")
+    
+    # Take top 3 event types
+    if [[ ${#top_events[@]} -gt 0 ]]; then
+        local top_3_list=""
+        local count=0
+        for event in "${top_events[@]}"; do
+            [[ $count -ge 3 ]] && break
+            [[ -n "$top_3_list" ]] && top_3_list+=", "
+            top_3_list+="$event"
+            ((count++))
+        done
+        [[ -n "$top_3_list" ]] && title_parts+=("$top_3_list")
+    fi
+    
+    # Add error indicator if present
+    local total_failures=$((BATCH_FAILURES + WEBSOCKET_FAILURES + TUNNEL_FAILURES))
+    if [[ "$total_failures" -gt 0 ]]; then
+        title_parts+=("⚠️ ${total_failures} errors")
+    fi
+    
+    # Build final title
+    if [[ ${#title_parts[@]} -gt 0 ]]; then
+        local title_joined=""
+        for part in "${title_parts[@]}"; do
+            [[ -n "$title_joined" ]] && title_joined+=" • "
+            title_joined+="$part"
+        done
+        title_suffix=" - $title_joined"
+    fi
+    
+    # Determine report type for classification
+    if [[ "$IMPORTED_EVENTS" -gt 0 && "$total_failures" -gt 0 ]]; then
         report_type="Sync Report (Activity + Errors)"
     elif [[ "$IMPORTED_EVENTS" -gt 0 ]]; then
         report_type="Sync Report (Activity)"
-    elif [[ "$BATCH_FAILURES" -gt 0 || "$WEBSOCKET_FAILURES" -gt 0 || "$TUNNEL_FAILURES" -gt 0 ]]; then
+    elif [[ "$total_failures" -gt 0 ]]; then
         report_type="Sync Report (Errors)"
     fi
     
@@ -327,7 +395,8 @@ generate_html_report() {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>UPlanet Constellation $report_type</title>
+    <title>UPlanet Constellation $report_type$title_suffix</title>
+    <script src="https://ipfs.copylaradio.com/ipns/copylaradio.com/@p5.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -350,12 +419,14 @@ generate_html_report() {
         .oracle-events { background: #e8f5e9; }
         .ore-events { background: #e3f2fd; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
+        #p5-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0.1; }
     </style>
 </head>
 <body>
+    <div id="p5-canvas"></div>
     <div class="container">
         <div class="header">
-            <h1>🌍 UPlanet Constellation $report_type</h1>
+            <h1>🌍 UPlanet Constellation $report_type$title_suffix</h1>
             <p>Node: $node_info</p>
             <p>Sync Time: $SYNC_START_TIME → $SYNC_END_TIME ($duration)</p>
         </div>
@@ -563,6 +634,12 @@ generate_html_report() {
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Calendar Events:</strong> $CALENDAR_EVENTS ($calendar_percent%) - Calendar and event scheduling (kind 30024 - NIP-52)
             </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Analytics Events:</strong> $ANALYTICS_EVENTS ($analytics_percent%) - UPlanet analytics events (kind 10000 - NIP-10000, unencrypted) from astro.js
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Encrypted Analytics:</strong> $ENCRYPTED_ANALYTICS_EVENTS ($encrypted_analytics_percent%) - Encrypted UPlanet analytics events (kind 10000 - NIP-10000, encrypted content) from astro.js
+            </p>
         </div>
         
         <div class="footer">
@@ -573,6 +650,40 @@ generate_html_report() {
             </p>
         </div>
     </div>
+    <script>
+        // p5.js visualization for stats
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            noStroke();
+        }
+        
+        function draw() {
+            background(245, 245, 245, 10);
+            
+            // Animated particles representing events
+            for (let i = 0; i < 50; i++) {
+                let x = (frameCount * 0.5 + i * 50) % width;
+                let y = height / 2 + sin(frameCount * 0.01 + i) * 100;
+                let size = 2 + sin(frameCount * 0.02 + i) * 2;
+                fill(52, 152, 219, 50);
+                ellipse(x, y, size, size);
+            }
+            
+            // Constellation pattern
+            for (let i = 0; i < 20; i++) {
+                let angle = (frameCount * 0.005 + i) * TWO_PI / 20;
+                let radius = 150 + sin(frameCount * 0.01 + i) * 30;
+                let x = width / 2 + cos(angle) * radius;
+                let y = height / 2 + sin(angle) * radius;
+                fill(46, 204, 113, 30);
+                ellipse(x, y, 3, 3);
+            }
+        }
+        
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+    </script>
 </body>
 </html>
 EOF
@@ -710,6 +821,8 @@ send_sync_report() {
 • Workflows: ${WORKFLOW_EVENTS}
 • Blog: ${BLOG_EVENTS}
 • Calendar: ${CALENDAR_EVENTS}
+• Analytics: ${ANALYTICS_EVENTS}
+• Encrypted Analytics: ${ENCRYPTED_ANALYTICS_EVENTS}
 
 ⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
