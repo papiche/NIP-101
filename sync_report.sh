@@ -63,6 +63,9 @@ extract_sync_stats() {
     local calendar_events=$(echo "$sync_stats" | grep -o 'calendar=[0-9]*' | cut -d= -f2)
     local analytics_events=$(echo "$sync_stats" | grep -o 'analytics=[0-9]*' | cut -d= -f2)
     local encrypted_analytics_events=$(echo "$sync_stats" | grep -o 'encrypted_analytics=[0-9]*' | cut -d= -f2)
+    local badge_award_events=$(echo "$sync_stats" | grep -o 'badge_awards=[0-9]*' | cut -d= -f2)
+    local profile_badge_events=$(echo "$sync_stats" | grep -o 'profile_badges=[0-9]*' | cut -d= -f2)
+    local badge_definition_events=$(echo "$sync_stats" | grep -o 'badge_definitions=[0-9]*' | cut -d= -f2)
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
@@ -98,6 +101,9 @@ extract_sync_stats() {
     [[ -z "$calendar_events" ]] && calendar_events="0"
     [[ -z "$analytics_events" ]] && analytics_events="0"
     [[ -z "$encrypted_analytics_events" ]] && encrypted_analytics_events="0"
+    [[ -z "$badge_award_events" ]] && badge_award_events="0"
+    [[ -z "$profile_badge_events" ]] && profile_badge_events="0"
+    [[ -z "$badge_definition_events" ]] && badge_definition_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -154,6 +160,9 @@ BLOG_EVENTS="$blog_events"
 CALENDAR_EVENTS="$calendar_events"
 ANALYTICS_EVENTS="$analytics_events"
 ENCRYPTED_ANALYTICS_EVENTS="$encrypted_analytics_events"
+BADGE_AWARD_EVENTS="$badge_award_events"
+PROFILE_BADGE_EVENTS="$profile_badge_events"
+BADGE_DEFINITION_EVENTS="$badge_definition_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -298,6 +307,15 @@ generate_html_report() {
     if [[ -n "$ENCRYPTED_ANALYTICS_EVENTS" ]] && [[ "$ENCRYPTED_ANALYTICS_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ENCRYPTED_ANALYTICS_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + ENCRYPTED_ANALYTICS_EVENTS))
     fi
+    if [[ -n "$BADGE_AWARD_EVENTS" ]] && [[ "$BADGE_AWARD_EVENTS" =~ ^[0-9]+$ ]] && [[ "$BADGE_AWARD_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + BADGE_AWARD_EVENTS))
+    fi
+    if [[ -n "$PROFILE_BADGE_EVENTS" ]] && [[ "$PROFILE_BADGE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PROFILE_BADGE_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + PROFILE_BADGE_EVENTS))
+    fi
+    if [[ -n "$BADGE_DEFINITION_EVENTS" ]] && [[ "$BADGE_DEFINITION_EVENTS" =~ ^[0-9]+$ ]] && [[ "$BADGE_DEFINITION_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + BADGE_DEFINITION_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -325,6 +343,9 @@ generate_html_report() {
         calendar_percent=$(echo "scale=1; $CALENDAR_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         analytics_percent=$(echo "scale=1; $ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         encrypted_analytics_percent=$(echo "scale=1; $ENCRYPTED_ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        badge_award_percent=$(echo "scale=1; $BADGE_AWARD_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        profile_badge_percent=$(echo "scale=1; $PROFILE_BADGE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        badge_definition_percent=$(echo "scale=1; $BADGE_DEFINITION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
     # Determine report type and create informative title
@@ -350,6 +371,7 @@ generate_html_report() {
     [[ "$FILE_EVENTS" -gt 0 ]] && top_events+=("${FILE_EVENTS} files")
     [[ "$COMMENT_EVENTS" -gt 0 ]] && top_events+=("${COMMENT_EVENTS} comments")
     [[ "$PROFILE_EVENTS" -gt 0 ]] && top_events+=("${PROFILE_EVENTS} profiles")
+    [[ "$BADGE_AWARD_EVENTS" -gt 0 ]] && top_events+=("${BADGE_AWARD_EVENTS} badge awards")
     
     # Take top 3 event types
     if [[ ${#top_events[@]} -gt 0 ]]; then
@@ -418,6 +440,7 @@ generate_html_report() {
         .did-events { background: #fff3e0; }
         .oracle-events { background: #e8f5e9; }
         .ore-events { background: #e3f2fd; }
+        .badge-events { background: #fff9e6; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
         #p5-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0.1; }
     </style>
@@ -489,6 +512,10 @@ generate_html_report() {
             <div class="stat-card oracle-events">
                 <div class="stat-value">$ORACLE_EVENTS</div>
                 <div class="stat-label">Oracle Permits ($oracle_percent%)</div>
+            </div>
+            <div class="stat-card badge-events">
+                <div class="stat-value">$BADGE_AWARD_EVENTS</div>
+                <div class="stat-label">Badge Awards ($badge_award_percent%)</div>
             </div>
         </div>
         
@@ -621,6 +648,15 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Oracle Permits:</strong> $ORACLE_EVENTS ($oracle_percent%) - Permit system events (kinds 30500-30503): definitions, requests, attestations, credentials
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Badge Awards:</strong> $BADGE_AWARD_EVENTS ($badge_award_percent%) - Badge awards (kind 8 - NIP-58) from Oracle system
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Profile Badges:</strong> $PROFILE_BADGE_EVENTS ($profile_badge_percent%) - User profile badge selections (kind 30008 - NIP-58)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>Badge Definitions:</strong> $BADGE_DEFINITION_EVENTS ($badge_definition_percent%) - Badge definitions (kind 30009 - NIP-58) from Oracle system
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30312-30313): meeting spaces, verification meetings
@@ -823,6 +859,9 @@ send_sync_report() {
 • Calendar: ${CALENDAR_EVENTS}
 • Analytics: ${ANALYTICS_EVENTS}
 • Encrypted Analytics: ${ENCRYPTED_ANALYTICS_EVENTS}
+• Badge Awards: ${BADGE_AWARD_EVENTS}
+• Profile Badges: ${PROFILE_BADGE_EVENTS}
+• Badge Definitions: ${BADGE_DEFINITION_EVENTS}
 
 ⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
