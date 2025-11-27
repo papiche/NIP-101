@@ -286,8 +286,23 @@ activate_umap_follow_for_video() {
         log_video "UMAP_FOLLOW: Activating UMAP follow for video at $latitude,$longitude"
         
         # Get UMAP coordinates (rounded to 0.01° precision)
-        local umap_lat=$(printf "%.2f" "$latitude")
-        local umap_lon=$(printf "%.2f" "$longitude")
+        # Validate and format numeric values safely
+        local umap_lat="0.00"
+        local umap_lon="0.00"
+        
+        # Check if latitude is numeric and format it
+        if [[ "$latitude" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+            umap_lat=$(awk "BEGIN {printf \"%.2f\", $latitude}")
+        else
+            log_video "UMAP_FOLLOW: Invalid latitude value: $latitude"
+        fi
+        
+        # Check if longitude is numeric and format it
+        if [[ "$longitude" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+            umap_lon=$(awk "BEGIN {printf \"%.2f\", $longitude}")
+        else
+            log_video "UMAP_FOLLOW: Invalid longitude value: $longitude"
+        fi
         
         # Generate UMAP NSEC for this location
         local umap_nsec=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}${umap_lat}" "${UPLANETNAME}${umap_lon}" -s)
