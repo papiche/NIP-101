@@ -1,0 +1,67 @@
+# ============================================================================
+# Astroport.ONE and NostrTube - Entries for nostrapps.com
+# ============================================================================
+# 
+# HOW TO SUBMIT:
+# 1. Go to: https://gitworkshop.dev/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6/nostrapps-com/tree/master/apps.toml
+# 2. Login with your NOSTR account
+# 3. Create a Pull Request adding these entries to apps.toml
+# 4. Wait for review by fiatjaf or other maintainers
+#
+# ABOUT NIP-101 (https://github.com/papiche/NIP-101):
+# NIP-101 is a comprehensive protocol for decentralized identity management,
+# geographic coordination, and verifiable credentials on Nostr. It provides:
+# - Decentralized Identity (DID) on Nostr (kind 30800)
+# - Hierarchical GeoKeys for location-based feeds (UMAP, SECTOR, REGION)
+# - Oracle System for peer-validated credentials (kinds 30500-30503)
+# - ORE System for environmental obligations (kinds 30312-30313)
+# - Constellation synchronization across multiple relays
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# ENTRY 1: Astroport.ONE - Decentralized Infrastructure Platform
+# ----------------------------------------------------------------------------
+[[apps]]
+name = "Astroport.ONE"
+description = "Decentralized infrastructure for building cooperative Web3 applications. Run your own Station with IPFS storage, NOSTR identity, Ğ1 libre currency, and NIP-101 decentralized identity. Transform users from digital tenants into sovereign co-owners of their infrastructure."
+url = "https://github.com/papiche/Astroport.ONE"
+category = "Tools"
+platforms = ["linux", "desktop"]
+tags = ["infrastructure", "ipfs", "identity", "did", "nip-101", "geokeys", "oracle", "economy", "cooperative", "self-hosting"]
+nips = ["01", "07", "10", "11", "33", "42", "71", "94", "101"]
+screenshot = "https://ipfs.copylaradio.com/ipns/copylaradio.com/images/UPlanet_SolarPunk.society.jpg"
+source = "https://github.com/papiche/Astroport.ONE"
+license = "AGPL-3.0"
+
+# ----------------------------------------------------------------------------
+# ENTRY 2: NostrTube - Decentralized YouTube Alternative  
+# ----------------------------------------------------------------------------
+[[apps]]
+name = "NostrTube"
+description = "Decentralized YouTube alternative built on NOSTR, IPFS, and MULTIPASS. Upload, share, like, and comment on videos with NIP-71 video events, NIP-42 authentication, and NIP-101 geographic anchoring (UMAP). Built in 1 week - no API to build, no auth to implement, no servers to manage."
+url = "https://u.copylaradio.com/youtube?html=1"
+category = "Video"
+platforms = ["web"]
+tags = ["video", "streaming", "youtube-alternative", "ipfs", "media", "nip-71", "nip-101", "decentralized", "social", "comments"]
+nips = ["01", "07", "10", "22", "33", "42", "71", "94", "101"]
+screenshot = "https://ipfs.copylaradio.com/ipns/copylaradio.com/images/nostrtube_demo.png"
+source = "https://github.com/papiche/Astroport.ONE/tree/main/docs"
+documentation = "https://github.com/papiche/Astroport.ONE/blob/main/docs/README.NostrTube.DEV.md"
+license = "AGPL-3.0"
+
+# ----------------------------------------------------------------------------
+# ENTRY 3: NIP-101 Protocol - Decentralized Identity & Geographic Coordination
+# (Optional - submit if you want to highlight the protocol separately)
+# ----------------------------------------------------------------------------
+[[apps]]
+name = "NIP-101 UPlanet Protocol"
+description = "Decentralized Identity & Geographic Coordination Protocol for Nostr. Implements W3C-compliant DIDs (kind 30800), hierarchical GeoKeys for location-based feeds, Oracle System for peer-validated credentials, and ORE System for environmental obligations with constellation synchronization."
+url = "https://github.com/papiche/NIP-101"
+category = "Tools"
+platforms = ["web", "linux"]
+tags = ["protocol", "did", "identity", "geokeys", "oracle", "credentials", "environmental", "web-of-trust", "nip-101", "geographic"]
+nips = ["01", "10", "33", "42", "101"]
+source = "https://github.com/papiche/NIP-101"
+documentation = "https://github.com/papiche/NIP-101/blob/main/README.md"
+license = "AGPL-3.0"
+
