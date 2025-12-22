@@ -40,6 +40,40 @@ This NIP enables **geographically localized communication**, **self-sovereign id
 - [References](#references)
 
 ---
+┌─────────────────────────────────────────────────────────────────┐
+│                    UPlanet Event Kinds Map                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  CORE NOSTR                    NIP-101 EXTENSIONS                │
+│  ─────────                     ──────────────────                │
+│  0    Profile                  30800   DID Document              │
+│  1    Text Note                30500   Permit Definition         │
+│  3    Contacts                 30501   Permit Request            │
+│  5    Deletion                 30502   Permit Attestation        │
+│  6    Repost                   30503   Permit Credential (VC)    │
+│  7    Reaction                                                   │
+│                                                                  │
+│  MEDIA (NIP-71)                ORE SYSTEM (NIP-53 Extension)     │
+│  ──────────────                ─────────────────────────────     │
+│  21   Video Normal             30312   ORE Meeting Space         │
+│  22   Video Short              30313   ORE Verification          │
+│  1063 File Metadata                                              │
+│                                                                  │
+│  SOCIAL                        BADGES (NIP-58)                   │
+│  ──────                        ───────────────                   │
+│  42   Channel Message (UMAP)   30009   Badge Definition          │
+│  22242 Auth (Twin-Key)         8       Badge Award               │
+│                                30008   Profile Badges            │
+│                                                                  │
+│  CONTENT                       INVENTORY (New)                   │
+│  ───────                       ───────────────                   │
+│  30023  Long-form Article      30312 + inventory_type tag        │
+│  30024  Draft                  + inventory_name tag              │
+│                                + contract tag                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+---
 
 ## Motivation
 
