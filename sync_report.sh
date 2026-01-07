@@ -66,6 +66,7 @@ extract_sync_stats() {
     local badge_award_events=$(echo "$sync_stats" | grep -o 'badge_awards=[0-9]*' | cut -d= -f2)
     local profile_badge_events=$(echo "$sync_stats" | grep -o 'profile_badges=[0-9]*' | cut -d= -f2)
     local badge_definition_events=$(echo "$sync_stats" | grep -o 'badge_definitions=[0-9]*' | cut -d= -f2)
+    local n2_memory_events=$(echo "$sync_stats" | grep -o 'n2_memory=[0-9]*' | cut -d= -f2)
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | cut -d= -f2)
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | cut -d= -f2)
@@ -104,6 +105,7 @@ extract_sync_stats() {
     [[ -z "$badge_award_events" ]] && badge_award_events="0"
     [[ -z "$profile_badge_events" ]] && profile_badge_events="0"
     [[ -z "$badge_definition_events" ]] && badge_definition_events="0"
+    [[ -z "$n2_memory_events" ]] && n2_memory_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -163,6 +165,7 @@ ENCRYPTED_ANALYTICS_EVENTS="$encrypted_analytics_events"
 BADGE_AWARD_EVENTS="$badge_award_events"
 PROFILE_BADGE_EVENTS="$profile_badge_events"
 BADGE_DEFINITION_EVENTS="$badge_definition_events"
+N2_MEMORY_EVENTS="$n2_memory_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -316,6 +319,9 @@ generate_html_report() {
     if [[ -n "$BADGE_DEFINITION_EVENTS" ]] && [[ "$BADGE_DEFINITION_EVENTS" =~ ^[0-9]+$ ]] && [[ "$BADGE_DEFINITION_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + BADGE_DEFINITION_EVENTS))
     fi
+    if [[ -n "$N2_MEMORY_EVENTS" ]] && [[ "$N2_MEMORY_EVENTS" =~ ^[0-9]+$ ]] && [[ "$N2_MEMORY_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + N2_MEMORY_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -346,6 +352,7 @@ generate_html_report() {
         badge_award_percent=$(echo "scale=1; $BADGE_AWARD_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         profile_badge_percent=$(echo "scale=1; $PROFILE_BADGE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         badge_definition_percent=$(echo "scale=1; $BADGE_DEFINITION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        n2_memory_percent=$(echo "scale=1; $N2_MEMORY_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
     # Determine report type and create informative title
@@ -372,6 +379,7 @@ generate_html_report() {
     [[ "$COMMENT_EVENTS" -gt 0 ]] && top_events+=("${COMMENT_EVENTS} comments")
     [[ "$PROFILE_EVENTS" -gt 0 ]] && top_events+=("${PROFILE_EVENTS} profiles")
     [[ "$BADGE_AWARD_EVENTS" -gt 0 ]] && top_events+=("${BADGE_AWARD_EVENTS} badge awards")
+    [[ "$N2_MEMORY_EVENTS" -gt 0 ]] && top_events+=("${N2_MEMORY_EVENTS} N² memory")
     
     # Take top 3 event types
     if [[ ${#top_events[@]} -gt 0 ]]; then
@@ -441,6 +449,7 @@ generate_html_report() {
         .oracle-events { background: #e8f5e9; }
         .ore-events { background: #e3f2fd; }
         .badge-events { background: #fff9e6; }
+        .n2-memory-events { background: #e8f0fe; border-left: 3px solid #1a73e8; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
         #p5-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0.1; }
     </style>
@@ -523,6 +532,10 @@ generate_html_report() {
             <div class="stat-card ore-events">
                 <div class="stat-value">$ORE_EVENTS</div>
                 <div class="stat-label">ORE Contracts ($ore_percent%)</div>
+            </div>
+            <div class="stat-card n2-memory-events">
+                <div class="stat-value">$N2_MEMORY_EVENTS</div>
+                <div class="stat-label">N² Memory ($n2_memory_percent%)</div>
             </div>
             <div class="stat-card performance">
                 <div class="stat-value">$PROFILES_FOUND</div>
@@ -675,6 +688,9 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Encrypted Analytics:</strong> $ENCRYPTED_ANALYTICS_EVENTS ($encrypted_analytics_percent%) - Encrypted UPlanet analytics events (kind 10000 - NIP-10000, encrypted content) from astro.js
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>N² Memory:</strong> $N2_MEMORY_EVENTS ($n2_memory_percent%) - AI recommendations, Captain TODOs, votes (kind 31910 - NIP-101 extension) from todo.sh
             </p>
         </div>
         
@@ -862,6 +878,7 @@ send_sync_report() {
 • Badge Awards: ${BADGE_AWARD_EVENTS}
 • Profile Badges: ${PROFILE_BADGE_EVENTS}
 • Badge Definitions: ${BADGE_DEFINITION_EVENTS}
+• N² Memory: ${N2_MEMORY_EVENTS}
 
 ⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
