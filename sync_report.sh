@@ -53,6 +53,7 @@ extract_sync_stats() {
     local did_events=$(echo "$sync_stats" | grep -o 'did=[0-9]*' | cut -d= -f2)
     local oracle_events=$(echo "$sync_stats" | grep -o 'oracle=[0-9]*' | cut -d= -f2)
     local ore_events=$(echo "$sync_stats" | grep -o 'ore_spaces=[0-9]*' | cut -d= -f2)
+    local economic_health_events=$(echo "$sync_stats" | grep -o 'economic_health=[0-9]*' | cut -d= -f2)
     local workflow_events=$(echo "$sync_stats" | grep -o 'workflows=[0-9]*' | cut -d= -f2)
     local profile_events=$(echo "$sync_stats" | grep -o 'profiles=[0-9]*' | cut -d= -f2)
     local text_events=$(echo "$sync_stats" | grep -o 'text=[0-9]*' | cut -d= -f2)
@@ -60,7 +61,8 @@ extract_sync_stats() {
     local repost_events=$(echo "$sync_stats" | grep -o 'reposts=[0-9]*' | cut -d= -f2)
     local reaction_events=$(echo "$sync_stats" | grep -o 'reactions=[0-9]*' | cut -d= -f2)
     local blog_events=$(echo "$sync_stats" | grep -o 'blog=[0-9]*' | cut -d= -f2)
-    local calendar_events=$(echo "$sync_stats" | grep -o 'calendar=[0-9]*' | cut -d= -f2)
+    local draft_events=$(echo "$sync_stats" | grep -o 'drafts=[0-9]*' | cut -d= -f2)
+    local nip52_calendar_events=$(echo "$sync_stats" | grep -o 'nip52_calendar=[0-9]*' | cut -d= -f2)
     local analytics_events=$(echo "$sync_stats" | grep -o 'analytics=[0-9]*' | cut -d= -f2)
     local encrypted_analytics_events=$(echo "$sync_stats" | grep -o 'encrypted_analytics=[0-9]*' | cut -d= -f2)
     local badge_award_events=$(echo "$sync_stats" | grep -o 'badge_awards=[0-9]*' | cut -d= -f2)
@@ -92,6 +94,7 @@ extract_sync_stats() {
     [[ -z "$did_events" ]] && did_events="0"
     [[ -z "$oracle_events" ]] && oracle_events="0"
     [[ -z "$ore_events" ]] && ore_events="0"
+    [[ -z "$economic_health_events" ]] && economic_health_events="0"
     [[ -z "$workflow_events" ]] && workflow_events="0"
     [[ -z "$profile_events" ]] && profile_events="0"
     [[ -z "$text_events" ]] && text_events="0"
@@ -99,7 +102,8 @@ extract_sync_stats() {
     [[ -z "$repost_events" ]] && repost_events="0"
     [[ -z "$reaction_events" ]] && reaction_events="0"
     [[ -z "$blog_events" ]] && blog_events="0"
-    [[ -z "$calendar_events" ]] && calendar_events="0"
+    [[ -z "$draft_events" ]] && draft_events="0"
+    [[ -z "$nip52_calendar_events" ]] && nip52_calendar_events="0"
     [[ -z "$analytics_events" ]] && analytics_events="0"
     [[ -z "$encrypted_analytics_events" ]] && encrypted_analytics_events="0"
     [[ -z "$badge_award_events" ]] && badge_award_events="0"
@@ -152,6 +156,7 @@ STATUS_EVENTS="$status_events"
 DID_EVENTS="$did_events"
 ORACLE_EVENTS="$oracle_events"
 ORE_EVENTS="$ore_events"
+ECONOMIC_HEALTH_EVENTS="$economic_health_events"
 WORKFLOW_EVENTS="$workflow_events"
 PROFILE_EVENTS="$profile_events"
 TEXT_EVENTS="$text_events"
@@ -159,7 +164,8 @@ CONTACT_EVENTS="$contact_events"
 REPOST_EVENTS="$repost_events"
 REACTION_EVENTS="$reaction_events"
 BLOG_EVENTS="$blog_events"
-CALENDAR_EVENTS="$calendar_events"
+DRAFT_EVENTS="$draft_events"
+NIP52_CALENDAR_EVENTS="$nip52_calendar_events"
 ANALYTICS_EVENTS="$analytics_events"
 ENCRYPTED_ANALYTICS_EVENTS="$encrypted_analytics_events"
 BADGE_AWARD_EVENTS="$badge_award_events"
@@ -224,6 +230,7 @@ generate_html_report() {
     local did_percent="0"
     local oracle_percent="0"
     local ore_percent="0"
+    local economic_health_percent="0"
     local workflow_percent="0"
     local profile_percent="0"
     local text_percent="0"
@@ -231,7 +238,8 @@ generate_html_report() {
     local repost_percent="0"
     local reaction_percent="0"
     local blog_percent="0"
-    local calendar_percent="0"
+    local draft_percent="0"
+    local nip52_calendar_percent="0"
     local analytics_percent="0"
     local encrypted_analytics_percent="0"
     
@@ -253,8 +261,11 @@ generate_html_report() {
     if [[ -n "$BLOG_EVENTS" ]] && [[ "$BLOG_EVENTS" =~ ^[0-9]+$ ]] && [[ "$BLOG_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + BLOG_EVENTS))
     fi
-    if [[ -n "$CALENDAR_EVENTS" ]] && [[ "$CALENDAR_EVENTS" =~ ^[0-9]+$ ]] && [[ "$CALENDAR_EVENTS" -gt 0 ]]; then
-        total_message_events=$((total_message_events + CALENDAR_EVENTS))
+    if [[ -n "$DRAFT_EVENTS" ]] && [[ "$DRAFT_EVENTS" =~ ^[0-9]+$ ]] && [[ "$DRAFT_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + DRAFT_EVENTS))
+    fi
+    if [[ -n "$NIP52_CALENDAR_EVENTS" ]] && [[ "$NIP52_CALENDAR_EVENTS" =~ ^[0-9]+$ ]] && [[ "$NIP52_CALENDAR_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + NIP52_CALENDAR_EVENTS))
     fi
     if [[ -n "$PUBLIC_EVENTS" ]] && [[ "$PUBLIC_EVENTS" =~ ^[0-9]+$ ]] && [[ "$PUBLIC_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + PUBLIC_EVENTS))
@@ -301,6 +312,9 @@ generate_html_report() {
     if [[ -n "$ORE_EVENTS" ]] && [[ "$ORE_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ORE_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + ORE_EVENTS))
     fi
+    if [[ -n "$ECONOMIC_HEALTH_EVENTS" ]] && [[ "$ECONOMIC_HEALTH_EVENTS" =~ ^[0-9]+$ ]] && [[ "$ECONOMIC_HEALTH_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + ECONOMIC_HEALTH_EVENTS))
+    fi
     if [[ -n "$WORKFLOW_EVENTS" ]] && [[ "$WORKFLOW_EVENTS" =~ ^[0-9]+$ ]] && [[ "$WORKFLOW_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + WORKFLOW_EVENTS))
     fi
@@ -339,6 +353,7 @@ generate_html_report() {
         did_percent=$(echo "scale=1; $DID_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         oracle_percent=$(echo "scale=1; $ORACLE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         ore_percent=$(echo "scale=1; $ORE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        economic_health_percent=$(echo "scale=1; $ECONOMIC_HEALTH_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         workflow_percent=$(echo "scale=1; $WORKFLOW_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         profile_percent=$(echo "scale=1; $PROFILE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         text_percent=$(echo "scale=1; $TEXT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -346,7 +361,8 @@ generate_html_report() {
         repost_percent=$(echo "scale=1; $REPOST_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         reaction_percent=$(echo "scale=1; $REACTION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         blog_percent=$(echo "scale=1; $BLOG_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
-        calendar_percent=$(echo "scale=1; $CALENDAR_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        draft_percent=$(echo "scale=1; $DRAFT_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        nip52_calendar_percent=$(echo "scale=1; $NIP52_CALENDAR_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         analytics_percent=$(echo "scale=1; $ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         encrypted_analytics_percent=$(echo "scale=1; $ENCRYPTED_ANALYTICS_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         badge_award_percent=$(echo "scale=1; $BADGE_AWARD_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -675,13 +691,19 @@ generate_html_report() {
                 • <strong>ORE Contracts:</strong> $ORE_EVENTS ($ore_percent%) - Environmental obligations (kinds 30312-30313): meeting spaces, verification meetings
             </p>
             <p style="margin: 5px 0; color: #555;">
+                • <strong>Economic Health:</strong> $ECONOMIC_HEALTH_EVENTS ($economic_health_percent%) - Wallet balance reports (kinds 30850-30851 - NIP-101 extension) from todo.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
                 • <strong>Cookie Workflows:</strong> $WORKFLOW_EVENTS ($workflow_percent%) - Workflow definitions and executions (kinds 31900-31902 - NIP-101 extension) from n8n.html
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Blog Posts:</strong> $BLOG_EVENTS ($blog_percent%) - Long-form blog posts (kind 30023 - NIP-23)
             </p>
             <p style="margin: 5px 0; color: #555;">
-                • <strong>Calendar Events:</strong> $CALENDAR_EVENTS ($calendar_percent%) - Calendar and event scheduling (kind 30024 - NIP-52)
+                • <strong>Draft Articles:</strong> $DRAFT_EVENTS ($draft_percent%) - Draft long-form content (kind 30024 - NIP-23)
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>NIP-52 Calendar:</strong> $NIP52_CALENDAR_EVENTS ($nip52_calendar_percent%) - Lunar calendar events from plantnet.html (kinds 31922-31925 - NIP-52)
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>Analytics Events:</strong> $ANALYTICS_EVENTS ($analytics_percent%) - UPlanet analytics events (kind 10000 - NIP-10000, unencrypted) from astro.js
@@ -870,9 +892,11 @@ send_sync_report() {
 • DID: ${DID_EVENTS}
 • Oracle: ${ORACLE_EVENTS}
 • ORE: ${ORE_EVENTS}
+• Economic Health: ${ECONOMIC_HEALTH_EVENTS}
 • Workflows: ${WORKFLOW_EVENTS}
 • Blog: ${BLOG_EVENTS}
-• Calendar: ${CALENDAR_EVENTS}
+• Drafts: ${DRAFT_EVENTS}
+• NIP-52 Calendar: ${NIP52_CALENDAR_EVENTS}
 • Analytics: ${ANALYTICS_EVENTS}
 • Encrypted Analytics: ${ENCRYPTED_ANALYTICS_EVENTS}
 • Badge Awards: ${BADGE_AWARD_EVENTS}
