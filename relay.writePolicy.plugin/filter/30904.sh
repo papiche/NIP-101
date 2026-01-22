@@ -13,17 +13,24 @@
 # - Syncs campaign state with local database
 #
 # REQUIRED TAGS:
-# - ["d", "crowdfund-{lat}-{lon}-{slug}"] - Unique identifier
-# - ["title", "Campaign Name"] - Campaign title
-# - ["t", "crowdfunding"] - Type marker
-# - ["g", "{lat},{lon}"] - Geographic coordinates
-# - ["project-id", "CF-YYYYMMDD-XXXX"] - Project identifier
+# - ["d", "project-id"] or ["project-id", "CF-YYYYMMDD-XXXX"] - Project identifier (REQUIRED)
+# - ["title", "Campaign Name"] - Campaign title (REQUIRED)
+# - ["t", "crowdfunding"] - Type marker (REQUIRED)
+# - ["g", "{lat},{lon}"] - Geographic coordinates (REQUIRED)
+# - ["ipfsnodeid", "12D3KooW..."] - Creator node ID (REQUIRED to prevent duplication)
+# - ["p", bien_hex, "", "bien"] - Bien's NOSTR pubkey (REQUIRED for payments)
+# - ["i", "g1pub:{g1pubkey}"] - Bien's Ğ1 wallet (REQUIRED for payments)
+# - ["status", "draft"|"crowdfunding"|"funded"|"completed"] - Campaign status (REQUIRED)
+#
+# REQUIRED IN CONTENT JSON:
+# - bien_identity: { hex, g1pub, npub } - Bien identity (REQUIRED)
+# - totals: { zen_convertible_target, g1_target, ... } - Funding goals (REQUIRED)
+# - owners: [] - Owner list (can be empty for draft projects)
 #
 # OPTIONAL TAGS:
-# - ["owner", pubkey, mode, amount, currency] - Owner details
-# - ["goal", type, target, collected] - Funding goals
-# - ["wallet", type, g1pubkey] - Wallet destinations
-# - ["status", "crowdfunding"|"funded"|"completed"] - Campaign status
+# - ["zen_target", "1000"] - Ẑen convertible target (also in content JSON)
+# - ["g1_target", "150"] - Ğ1 donation target (also in content JSON)
+# - ["e", event_id, "", "document"] - Reference to kind 30023 document
 #
 ################################################################################
 
@@ -50,12 +57,18 @@ event_json="$1"
 extract_event_data "$event_json"
 
 # Extract required tags
-extract_tags "$event_json" "d" "title" "project-id" "g" "status"
+extract_tags "$event_json" "d" "title" "project-id" "g" "status" "ipfsnodeid"
 campaign_d="$d"
 campaign_title="$title"
 project_id="${project_id:-}"
 geo_coords="$g"
 campaign_status="${status:-draft}"
+creator_node_id="${ipfsnodeid:-}"
+
+# Also extract from content JSON if present
+if echo "$content" | jq -e '.creator_node_id' >/dev/null 2>&1; then
+    creator_node_id=$(echo "$content" | jq -r '.creator_node_id // empty')
+fi
 
 # Get project-id from d tag if not explicitly set
 if [[ -z "$project_id" && -n "$campaign_d" ]]; then
@@ -104,22 +117,52 @@ fi
 # VALIDATE REQUIRED FIELDS
 ################################################################################
 
+# 1. Validate title
 if [[ -z "$campaign_title" ]]; then
-    log_cf "REJECTED: Missing title tag"
+    log_cf "REJECTED: Missing required 'title' tag"
+    echo ">>> (30904) REJECTED: Missing required 'title' tag"
     exit 1
 fi
 
-# Check for crowdfunding tag
+# 2. Validate crowdfunding tag
 if ! has_tag_value "$event_json" "t" "crowdfunding"; then
-    log_cf "REJECTED: Missing ['t', 'crowdfunding'] tag"
+    log_cf "REJECTED: Missing required ['t', 'crowdfunding'] tag"
+    echo ">>> (30904) REJECTED: Missing required ['t', 'crowdfunding'] tag"
     exit 1
 fi
 
+# 3. Validate project-id
+if [[ -z "$project_id" ]]; then
+    log_cf "REJECTED: Missing required 'project-id' tag"
+    echo ">>> (30904) REJECTED: Missing required 'project-id' tag"
+    exit 1
+fi
+
+# 4. Validate geographic coordinates
+if [[ -z "$geo_coords" ]]; then
+    log_cf "REJECTED: Missing required 'g' tag (geographic coordinates)"
+    echo ">>> (30904) REJECTED: Missing required 'g' tag"
+    exit 1
+fi
+
+# 5. Validate status
+if [[ -z "$campaign_status" ]]; then
+    log_cf "REJECTED: Missing required 'status' tag"
+    echo ">>> (30904) REJECTED: Missing required 'status' tag"
+    exit 1
+fi
+
+# 6. Validate creator node ID (required to prevent duplication)
+if [[ -z "$creator_node_id" ]]; then
+    log_cf "WARNING: Missing 'ipfsnodeid' tag - cannot prevent duplication"
+    # Not fatal, but strongly recommended
+fi
+
 ################################################################################
-# EXTRACT BIEN IDENTITY (if present in content)
+# EXTRACT AND VALIDATE BIEN IDENTITY (REQUIRED)
 ################################################################################
 
-# Try to extract bien_identity from content JSON
+# Try to extract bien_identity from content JSON (primary source)
 bien_hex=""
 bien_g1pub=""
 bien_npub=""
@@ -129,12 +172,52 @@ if echo "$content" | jq -e '.bien_identity' >/dev/null 2>&1; then
     bien_hex=$(echo "$content" | jq -r '.bien_identity.hex // empty')
     bien_g1pub=$(echo "$content" | jq -r '.bien_identity.g1pub // empty')
     bien_npub=$(echo "$content" | jq -r '.bien_identity.npub // empty')
+    log_cf "EXTRACTED: Bien identity from content JSON"
 fi
 
-# Also check for i tag with g1pub
+# Also check for i tag with g1pub (fallback or validation)
 g1pub_from_tag=$(get_tag_value "$event_json" "i")
 if [[ "$g1pub_from_tag" == g1pub:* ]]; then
-    bien_g1pub="${g1pub_from_tag#g1pub:}"
+    g1pub_value="${g1pub_from_tag#g1pub:}"
+    if [[ -z "$bien_g1pub" ]]; then
+        bien_g1pub="$g1pub_value"
+        log_cf "EXTRACTED: Bien g1pub from i tag"
+    elif [[ "$bien_g1pub" != "$g1pub_value" ]]; then
+        log_cf "WARNING: Bien g1pub mismatch between content JSON and i tag"
+    fi
+fi
+
+# Also check for p tag marked as "bien" (Bien's NOSTR pubkey)
+bien_hex_from_tag=$(echo "$event_json" | jq -r '(.event.tags[] | select(.[0] == "p" and (.[3] // "") == "bien") | .[1]) // empty')
+if [[ -n "$bien_hex_from_tag" ]]; then
+    if [[ -z "$bien_hex" ]]; then
+        bien_hex="$bien_hex_from_tag"
+        log_cf "EXTRACTED: Bien hex from p tag"
+    elif [[ "$bien_hex" != "$bien_hex_from_tag" ]]; then
+        log_cf "WARNING: Bien hex mismatch between content JSON and p tag"
+    fi
+fi
+
+# VALIDATE: Bien identity is REQUIRED for crowdfunding projects
+# Without it, the Bien cannot receive payments
+if [[ -z "$bien_hex" ]]; then
+    log_cf "REJECTED: Missing required bien_identity.hex (Bien cannot receive payments)"
+    echo ">>> (30904) REJECTED: Missing required bien_identity.hex"
+    exit 1
+fi
+
+if [[ -z "$bien_g1pub" ]]; then
+    log_cf "REJECTED: Missing required bien_identity.g1pub (Bien wallet required)"
+    echo ">>> (30904) REJECTED: Missing required bien_identity.g1pub"
+    exit 1
+fi
+
+log_cf "VALIDATED: Bien identity present (hex: ${bien_hex:0:16}..., g1pub: ${bien_g1pub:0:8}...)"
+
+# Validate totals are present in content JSON
+if ! echo "$content" | jq -e '.totals' >/dev/null 2>&1; then
+    log_cf "WARNING: Missing 'totals' in content JSON - funding goals not defined"
+    # Not fatal, but strongly recommended
 fi
 
 ################################################################################
@@ -221,11 +304,13 @@ zen_target=$(echo "$event_json" | jq -r '(.event.tags[] | select(.[0] == "goal" 
 g1_target=$(echo "$event_json" | jq -r '(.event.tags[] | select(.[0] == "goal" and .[1] == "G1") | .[2]) // "0"')
 
 log_cf "ACCEPTED: Campaign '$campaign_title' (ID: $project_id)"
+log_cf "  Publisher: ${pubkey:0:8}... (${local_email:-swarm/amisOfAmis})"
+log_cf "  Creator node: ${creator_node_id:-unknown} (we are: ${IPFSNODEID:-unknown})"
 log_cf "  Status: $campaign_status"
 log_cf "  Geo: $geo_coords"
 log_cf "  Goals: ZEN=$zen_target, G1=$g1_target"
 if [[ -n "$bien_hex" ]]; then
-    log_cf "  Bien HEX: ${bien_hex:0:16}..."
+    log_cf "  Bien HEX: ${bien_hex:0:16}... (can receive payments)"
 fi
 
 ################################################################################
