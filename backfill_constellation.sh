@@ -111,17 +111,20 @@ while [[ $# -gt 0 ]]; do
             
             # Get HEX pubkeys count directly
             nostr_dir="$HOME/.zen/game/nostr"
-            swarm_dir="$HOME/.zen/tmp/swarm"
             
             hex_count=0
             if [[ -d "$nostr_dir" ]]; then
-                hex_count=$(cat $nostr_dir/*/HEX | wc -l)
+                hex_count=$(cat $nostr_dir/*/HEX 2>/dev/null | wc -l)
             fi
             
-            if [[ -d "$swarm_dir" ]]; then
-                amis_count=$(cat $swarm_dir/*/amisOfAmis.txt | wc -l)
+            local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
+            if [[ -f "$amis_file" ]]; then
+                amis_count=$(wc -l < "$amis_file" 2>/dev/null || echo "0")
                 echo "HEX files found: $hex_count"
-                echo "amisOfAmis.txt files found: $amis_count"
+                echo "amisOfAmis.txt entries: $amis_count"
+            else
+                echo "HEX files found: $hex_count"
+                echo "amisOfAmis.txt entries: 0 (file not found)"
             fi
             
             echo "Total HEX pubkeys monitored: $hex_count"
@@ -263,11 +266,10 @@ remove_lock() {
 # Trap to ensure lock file is removed on exit
 trap remove_lock EXIT INT TERM
 
-# Function to get all HEX pubkeys from nostr directory and amisOfAmis.txt files
+# Function to get all HEX pubkeys from nostr directory and amisOfAmis.txt file
 get_constellation_hex_pubkeys() {
     local hex_pubkeys=()
     local nostr_dir="$HOME/.zen/game/nostr"
-    local swarm_dir="$HOME/.zen/tmp/swarm"
     
     # First, get HEX pubkeys from nostr directory using cat (optimized)
     if [[ -d "$nostr_dir" ]]; then
@@ -289,25 +291,23 @@ get_constellation_hex_pubkeys() {
         echo "WARN: Nostr directory not found: $nostr_dir" >&2
     fi
     
-    # Then, get HEX pubkeys from amisOfAmis.txt files in swarm using cat (optimized)
-    if [[ -d "$swarm_dir" ]]; then
-        echo "INFO: Scanning ~/.zen/tmp/swarm/*/amisOfAmis.txt for extended network..." >&2
-        # Use cat directly on all amisOfAmis.txt files (faster than find + cat)
-        if ls "$swarm_dir"/*/amisOfAmis.txt >/dev/null 2>&1; then
-            while IFS= read -r line; do
-                local pubkey=$(echo "$line" | tr -d '[:space:]')
-                # Strict validation: exactly 64 hex characters
-                # Also reject lines that look like log messages (contain brackets or "INFO", "DEBUG", "Connected", etc.)
-                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ && ! "$line" =~ \[|INFO|DEBUG|Connected|Sent|Received|Found ]]; then
-                    hex_pubkeys+=("$pubkey")
-                    echo "DEBUG: Found amisOfAmis pubkey: ${pubkey:0:8}..." >&2
-                elif [[ -n "$pubkey" && ${#pubkey} -ne 64 ]]; then
-                    echo "DEBUG: Skipping non-hex line (length=${#pubkey}): ${line:0:50}..." >&2
-                fi
-            done < <(cat "$swarm_dir"/*/amisOfAmis.txt 2>/dev/null)
-        fi
+    # Then, get HEX pubkeys from amisOfAmis.txt file in strfry directory
+    local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
+    if [[ -f "$amis_file" ]]; then
+        echo "INFO: Scanning ~/.zen/strfry/amisOfAmis.txt for extended network..." >&2
+        while IFS= read -r line; do
+            local pubkey=$(echo "$line" | tr -d '[:space:]')
+            # Strict validation: exactly 64 hex characters
+            # Also reject lines that look like log messages (contain brackets or "INFO", "DEBUG", "Connected", etc.)
+            if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ && ! "$line" =~ \[|INFO|DEBUG|Connected|Sent|Received|Found ]]; then
+                hex_pubkeys+=("$pubkey")
+                echo "DEBUG: Found amisOfAmis pubkey: ${pubkey:0:8}..." >&2
+            elif [[ -n "$pubkey" && ${#pubkey} -ne 64 ]]; then
+                echo "DEBUG: Skipping non-hex line (length=${#pubkey}): ${line:0:50}..." >&2
+            fi
+        done < "$amis_file"
     else
-        echo "WARN: Swarm directory not found: $swarm_dir" >&2
+        echo "WARN: amisOfAmis.txt file not found: $amis_file" >&2
     fi
     
     # Remove duplicates and return
