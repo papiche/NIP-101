@@ -95,9 +95,95 @@ if [[ "$DRYRUN" == "true" ]]; then
     exit 0
 fi
 
+## Detect hardware profile for tuning
+ARCH=$(uname -m)
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+TOTAL_RAM_MB=$((TOTAL_RAM_KB / 1024))
+CPU_CORES=$(nproc 2>/dev/null || echo 2)
+
+if [[ "$ARCH" == "aarch64" && $TOTAL_RAM_MB -lt 1024 ]]; then
+    ## RPi Zero W2 / low-RAM aarch64 profile (512 Mo)
+    echo "Hardware profile: aarch64 low-RAM (${TOTAL_RAM_MB} MB, ${CPU_CORES} cores)"
+    STRFRY_MAXREADERS=64
+    STRFRY_MAPSIZE=1073741824           # 1 GB
+    STRFRY_NOREADAHEAD=true
+    STRFRY_MAXEVENTSIZE=65536           # 64 KB
+    STRFRY_EPHEMERAL_LIFETIME=300
+    STRFRY_MAXNUMTAGS=500
+    STRFRY_MAXTAGVALSIZE=512
+    STRFRY_NOFILES=4096
+    STRFRY_MAXWSPAYLOAD=65536           # 64 KB
+    STRFRY_MAXREQFILTERSIZE=20
+    STRFRY_AUTOPINGSECONDS=55
+    STRFRY_TCPKEEPALIVE=true
+    STRFRY_QUERYTIMESLICE=5000          # 5 ms
+    STRFRY_MAXFILTERLIMIT=500
+    STRFRY_MAXSUBS=5
+    STRFRY_COMPRESSION=true
+    STRFRY_SLIDINGWINDOW=false          # Saves ~256 KB per connection
+    STRFRY_INVALIDEVENTS=true
+    STRFRY_INGESTER=1
+    STRFRY_REQWORKER=1
+    STRFRY_REQMONITOR=1
+    STRFRY_NEGENTROPY_THREADS=1
+    STRFRY_MAXSYNCEVENTS=100000
+elif [[ "$ARCH" == "aarch64" ]]; then
+    ## Standard aarch64 (RPi 4/5, 2-8 GB RAM)
+    echo "Hardware profile: aarch64 standard (${TOTAL_RAM_MB} MB, ${CPU_CORES} cores)"
+    STRFRY_MAXREADERS=256
+    STRFRY_MAPSIZE=4294967296           # 4 GB
+    STRFRY_NOREADAHEAD=true
+    STRFRY_MAXEVENTSIZE=131072
+    STRFRY_EPHEMERAL_LIFETIME=600
+    STRFRY_MAXNUMTAGS=2000
+    STRFRY_MAXTAGVALSIZE=1024
+    STRFRY_NOFILES=32000
+    STRFRY_MAXWSPAYLOAD=131072
+    STRFRY_MAXREQFILTERSIZE=100
+    STRFRY_AUTOPINGSECONDS=55
+    STRFRY_TCPKEEPALIVE=true
+    STRFRY_QUERYTIMESLICE=10000
+    STRFRY_MAXFILTERLIMIT=1000
+    STRFRY_MAXSUBS=10
+    STRFRY_COMPRESSION=true
+    STRFRY_SLIDINGWINDOW=false
+    STRFRY_INVALIDEVENTS=true
+    STRFRY_INGESTER=2
+    STRFRY_REQWORKER=2
+    STRFRY_REQMONITOR=2
+    STRFRY_NEGENTROPY_THREADS=1
+    STRFRY_MAXSYNCEVENTS=500000
+else
+    ## x86_64 server profile
+    echo "Hardware profile: x86_64 server (${TOTAL_RAM_MB} MB, ${CPU_CORES} cores)"
+    STRFRY_MAXREADERS=512
+    STRFRY_MAPSIZE=10737418240          # 10 GB
+    STRFRY_NOREADAHEAD=true
+    STRFRY_MAXEVENTSIZE=131072
+    STRFRY_EPHEMERAL_LIFETIME=600
+    STRFRY_MAXNUMTAGS=2000
+    STRFRY_MAXTAGVALSIZE=1024
+    STRFRY_NOFILES=100000
+    STRFRY_MAXWSPAYLOAD=262144
+    STRFRY_MAXREQFILTERSIZE=200
+    STRFRY_AUTOPINGSECONDS=55
+    STRFRY_TCPKEEPALIVE=true
+    STRFRY_QUERYTIMESLICE=20000
+    STRFRY_MAXFILTERLIMIT=2000
+    STRFRY_MAXSUBS=20
+    STRFRY_COMPRESSION=true
+    STRFRY_SLIDINGWINDOW=true
+    STRFRY_INVALIDEVENTS=true
+    STRFRY_INGESTER=4
+    STRFRY_REQWORKER=4
+    STRFRY_REQMONITOR=3
+    STRFRY_NEGENTROPY_THREADS=3
+    STRFRY_MAXSYNCEVENTS=1000000
+fi
+
 cat <<EOF > ~/.zen/strfry/strfry.conf
 ##
-## Default strfry config
+## strfry config — auto-tuned for $ARCH (${TOTAL_RAM_MB} MB RAM, ${CPU_CORES} cores)
 ##
 
 # Directory that contains the strfry LMDB database (restart required)
@@ -105,18 +191,18 @@ db = "./strfry-db/"
 
 dbParams {
     # Maximum number of threads/processes that can simultaneously have LMDB transactions open (restart required)
-    maxreaders = 512
+    maxreaders = $STRFRY_MAXREADERS
 
-    # Size of mmap() to use when loading LMDB (default is 10GB, does *not* correspond to disk-space used) (restart required)
-    mapsize = 10737418240
+    # Size of mmap() to use when loading LMDB (does *not* correspond to disk-space used) (restart required)
+    mapsize = $STRFRY_MAPSIZE
 
     # Disables read-ahead when accessing the LMDB mapping. Reduces IO activity when DB size is larger than RAM. (restart required)
-    noReadAhead = true
+    noReadAhead = $STRFRY_NOREADAHEAD
 }
 
 events {
     # Maximum size of normalised JSON, in bytes
-    maxEventSize = 131072
+    maxEventSize = $STRFRY_MAXEVENTSIZE
 
     # Events newer than this will be rejected
     rejectEventsNewerThanSeconds = 900
@@ -128,13 +214,13 @@ events {
     rejectEphemeralEventsOlderThanSeconds = 60
 
     # Ephemeral events will be deleted from the DB when older than this
-    ephemeralEventsLifetimeSeconds = 300
+    ephemeralEventsLifetimeSeconds = $STRFRY_EPHEMERAL_LIFETIME
 
-    # Maximum number of tags allowed
-    maxNumTags = 200
+    # Maximum number of tags allowed (kind 3 contact lists can have 1000+ tags)
+    maxNumTags = $STRFRY_MAXNUMTAGS
 
-    # Maximum size for tag values, in bytes
-    maxTagValSize = 512
+    # Maximum size for tag values, in bytes (NIP-94 file metadata may have long URLs)
+    maxTagValSize = $STRFRY_MAXTAGVALSIZE
 }
 
 relay {
@@ -145,10 +231,10 @@ relay {
     port = 7777
 
     # Set OS-limit on maximum number of open files/sockets (if 0, don't attempt to set) (restart required)
-    nofiles = 100000
+    nofiles = $STRFRY_NOFILES
 
     # HTTP header that contains the client's real IP, before reverse proxying (ie x-real-ip) (MUST be all lower-case)
-    realIpHeader = ""
+    realIpHeader = "x-real-ip"
 
     info {
         # NIP-11: Name of this server. Short/descriptive (< 30 characters)
@@ -171,25 +257,25 @@ relay {
     }
 
     # Maximum accepted incoming websocket frame size (should be larger than max event) (restart required)
-    maxWebsocketPayloadSize = 262144
+    maxWebsocketPayloadSize = $STRFRY_MAXWSPAYLOAD
 
     # Maximum number of filters allowed in a REQ
-    maxReqFilterSize = 200
+    maxReqFilterSize = $STRFRY_MAXREQFILTERSIZE
 
     # Websocket-level PING message frequency (should be less than any reverse proxy idle timeouts) (restart required)
-    autoPingSeconds = 55
+    autoPingSeconds = $STRFRY_AUTOPINGSECONDS
 
     # If TCP keep-alive should be enabled (detect dropped connections to upstream reverse proxy)
-    enableTcpKeepalive = false
+    enableTcpKeepalive = $STRFRY_TCPKEEPALIVE
 
     # How much uninterrupted CPU time a REQ query should get during its DB scan
-    queryTimesliceBudgetMicroseconds = 10000
+    queryTimesliceBudgetMicroseconds = $STRFRY_QUERYTIMESLICE
 
     # Maximum records that can be returned per filter
-    maxFilterLimit = 500
+    maxFilterLimit = $STRFRY_MAXFILTERLIMIT
 
     # Maximum number of subscriptions (concurrent REQs) a connection can have open at any time
-    maxSubsPerConnection = 10
+    maxSubsPerConnection = $STRFRY_MAXSUBS
 
     writePolicy {
         # If non-empty, path to an executable script that implements the writePolicy plugin logic
@@ -198,10 +284,10 @@ relay {
 
     compression {
         # Use permessage-deflate compression if supported by client. Reduces bandwidth, but slight increase in CPU (restart required)
-        enabled = true
+        enabled = $STRFRY_COMPRESSION
 
         # Maintain a sliding window buffer for each connection. Improves compression, but uses more memory (restart required)
-        slidingWindow = true
+        slidingWindow = $STRFRY_SLIDINGWINDOW
     }
 
     logging {
@@ -217,22 +303,22 @@ relay {
         # Log performance metrics for initial REQ database scans
         dbScanPerf = false
 
-        # Log reason for invalid event rejection? Can be disabled to silence excessive logging
-        invalidEvents = false
+        # Log reason for invalid event rejection? Helps diagnose ["OK",false,""] responses
+        invalidEvents = $STRFRY_INVALIDEVENTS
     }
 
     numThreads {
         # Ingester threads: route incoming requests, validate events/sigs (restart required)
-        ingester = 3
+        ingester = $STRFRY_INGESTER
 
         # reqWorker threads: Handle initial DB scan for events (restart required)
-        reqWorker = 3
+        reqWorker = $STRFRY_REQWORKER
 
         # reqMonitor threads: Handle filtering of new events (restart required)
-        reqMonitor = 3
+        reqMonitor = $STRFRY_REQMONITOR
 
         # negentropy threads: Handle negentropy protocol messages (restart required)
-        negentropy = 2
+        negentropy = $STRFRY_NEGENTROPY_THREADS
     }
 
     negentropy {
@@ -240,7 +326,7 @@ relay {
         enabled = true
 
         # Maximum records that sync will process before returning an error
-        maxSyncEvents = 1000000
+        maxSyncEvents = $STRFRY_MAXSYNCEVENTS
     }
 }
 EOF
