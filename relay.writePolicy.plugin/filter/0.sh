@@ -44,7 +44,7 @@ log_with_timestamp "$LOG_FILE" "G1PUB: $g1pub"
 log_with_timestamp "$LOG_FILE" "Full content: $content"
 log_with_timestamp "$LOG_FILE" "================================"
 if check_amis_of_amis "$pubkey"; then
-    log_with_timestamp "Pubkey is in amisOfAmis.txt"
+    log_with_timestamp "$LOG_FILE" "Pubkey $pubkey is in amisOfAmis.txt"
 fi
 
 # Accept the event

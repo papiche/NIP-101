@@ -16,8 +16,14 @@ BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
 LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
 
 # Log rotation settings (for error log only)
-MAX_LOG_SIZE_MB=10  # Rotate when log exceeds 10MB
-MAX_LOG_FILES=5     # Keep 5 rotated log files
+# Adapt to hardware: RPi Zero has limited storage
+if [[ "$(uname -m)" == "aarch64" ]] && [[ $(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}') -lt 1048576 ]]; then
+    MAX_LOG_SIZE_MB=5   # 5 MB on low-RAM aarch64
+    MAX_LOG_FILES=2     # Keep only 2 rotated files (~15 MB max)
+else
+    MAX_LOG_SIZE_MB=10  # 10 MB on standard hardware
+    MAX_LOG_FILES=3     # Keep 3 rotated files (~40 MB max)
+fi
 
 # Parse command line arguments
 DRYRUN=false
