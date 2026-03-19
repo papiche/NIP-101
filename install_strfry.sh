@@ -1,19 +1,5 @@
 #!/bin/bash
 ## strfry + strfry.conf
-
-## IPFS BINARY SOURCE
-ipfs_strfry() {
-    architecture=$(uname -m)
-    echo "strfry binary ipfs links"
-    strfry_amd64="/ipfs/QmPq6nbDDXP33n8XG7jJsc5j92xJ7tqsZSeVqkhTYt4V8D"
-    strfry_arm64="/ipfs/Qmb2TNyXhdvaUxec69W7UPQ1yfBAmXpR6TyhXWopzwWi9X"
-    if [ "$architecture" == "x86_64" ]; then
-        echo "ipfs get -o $STRFRY_INSTALL_DIR/strfry $strfry_amd64"
-    elif [ "$architecture" == "aarch64" ]; then
-        echo "ipfs get -o $STRFRY_INSTALL_DIR/strfry $strfry_arm64"
-    fi
-}
-
 # Définition des chemins
 WORKSPACE_DIR="$HOME/.zen/workspace"
 NIP101_DIR="$HOME/.zen/workspace/NIP-101"
@@ -86,8 +72,6 @@ install_strfry() {
 
 ########################################
 ## INSTALL NOSTR RELAY
-ipfs_strfry # show ipfs get link
-
 echo "Installation NIP-101"
 if [[ ! -d $NIP101_DIR ]]; then
     echo "CLONING NIP-101 = UPlanet NOSTR Relay ASTROBOT 'Side Chain' "
