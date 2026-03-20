@@ -43,9 +43,32 @@ log_with_timestamp "$LOG_FILE" "NIP-05: $nip05"
 log_with_timestamp "$LOG_FILE" "G1PUB: $g1pub"
 log_with_timestamp "$LOG_FILE" "Full content: $content"
 log_with_timestamp "$LOG_FILE" "================================"
-if check_amis_of_amis "$pubkey"; then
+# Rejeter les bots RSS détectés par le pattern du nom "(RSS Feed)"
+if echo "$name" | grep -qi "(RSS Feed)"; then
+    log_with_timestamp "$LOG_FILE" "REJECTED: RSS bot by name pattern: $name (pubkey: $pubkey)"
+    exit 1
+fi
+
+# Rejeter les bots agrégateurs RSS connus via leur domaine nip05
+if [[ -n "$nip05" ]] && echo "$nip05" | grep -qiE "@atomstr\.data\.haus$"; then
+    log_with_timestamp "$LOG_FILE" "REJECTED: atomstr.data.haus RSS bot (nip05: $nip05, pubkey: $pubkey)"
+    exit 1
+fi
+
+# Vérifier l'autorisation : accepter uniquement les joueurs MULTIPASS ou amisOfAmis
+_log_key() { log_with_timestamp "$LOG_FILE" "$1"; }
+check_authorization "$pubkey" "_log_key"
+
+if [[ "$AUTHORIZED" != "true" ]]; then
+    log_with_timestamp "$LOG_FILE" "REJECTED: Unauthorized pubkey $pubkey (not in MULTIPASS, swarm, or amisOfAmis)"
+    exit 1
+fi
+
+if [[ "$SOURCE" == "amisOfAmis" ]]; then
     log_with_timestamp "$LOG_FILE" "Pubkey $pubkey is in amisOfAmis.txt"
 fi
+
+log_with_timestamp "$LOG_FILE" "ACCEPTED: Authorized pubkey $pubkey (source: $SOURCE, email: $EMAIL)"
 
 # Accept the event
 exit 0
