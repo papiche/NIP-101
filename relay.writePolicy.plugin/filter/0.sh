@@ -27,22 +27,6 @@ picture_64=$(echo "$content" | jq -r '.picture_64 // empty')
 website=$(echo "$content" | jq -r '.website // empty')
 nip05=$(echo "$content" | jq -r '.nip05 // empty')
 g1pub=$(echo "$content" | jq -r '.g1pub // empty')
-
-# Log the profile update with more fields
-log_with_timestamp "$LOG_FILE" "=== Profile update (kind 0) ==="
-log_with_timestamp "$LOG_FILE" "Pubkey: $pubkey"
-log_with_timestamp "$LOG_FILE" "Event ID: $event_id"
-log_with_timestamp "$LOG_FILE" "Created at: $created_at"
-log_with_timestamp "$LOG_FILE" "Name: $name"
-log_with_timestamp "$LOG_FILE" "Display Name: $display_name"
-log_with_timestamp "$LOG_FILE" "About: $about"
-log_with_timestamp "$LOG_FILE" "Picture URL: $picture"
-log_with_timestamp "$LOG_FILE" "Picture 64: $picture_64"
-log_with_timestamp "$LOG_FILE" "Website: $website"
-log_with_timestamp "$LOG_FILE" "NIP-05: $nip05"
-log_with_timestamp "$LOG_FILE" "G1PUB: $g1pub"
-log_with_timestamp "$LOG_FILE" "Full content: $content"
-log_with_timestamp "$LOG_FILE" "================================"
 # Rejeter les bots RSS détectés par le pattern du nom "(RSS Feed)"
 if echo "$name" | grep -qi "(RSS Feed)"; then
     log_with_timestamp "$LOG_FILE" "REJECTED: RSS bot by name pattern: $name (pubkey: $pubkey)"
@@ -67,6 +51,22 @@ fi
 if [[ "$SOURCE" == "amisOfAmis" ]]; then
     log_with_timestamp "$LOG_FILE" "Pubkey $pubkey is in amisOfAmis.txt"
 fi
+
+# Log the profile update with more fields
+log_with_timestamp "$LOG_FILE" "=== Profile update (kind 0) ==="
+log_with_timestamp "$LOG_FILE" "Pubkey: $pubkey"
+log_with_timestamp "$LOG_FILE" "Event ID: $event_id"
+log_with_timestamp "$LOG_FILE" "Created at: $created_at"
+log_with_timestamp "$LOG_FILE" "Name: $name"
+log_with_timestamp "$LOG_FILE" "Display Name: $display_name"
+log_with_timestamp "$LOG_FILE" "About: $about"
+log_with_timestamp "$LOG_FILE" "Picture URL: $picture"
+log_with_timestamp "$LOG_FILE" "Picture 64: $picture_64"
+log_with_timestamp "$LOG_FILE" "Website: $website"
+log_with_timestamp "$LOG_FILE" "NIP-05: $nip05"
+log_with_timestamp "$LOG_FILE" "G1PUB: $g1pub"
+log_with_timestamp "$LOG_FILE" "Full content: $content"
+log_with_timestamp "$LOG_FILE" "================================"
 
 log_with_timestamp "$LOG_FILE" "ACCEPTED: Authorized pubkey $pubkey (source: $SOURCE, email: $EMAIL)"
 

@@ -13,7 +13,7 @@ NIP-101 is the **NOSTR relay filtering and synchronization layer** for the UPlan
 
 - Requires `~/.zen/Astroport.ONE` installed (provides `tools/my.sh`, `tools/keygen`, etc.)
 - strfry binary installed at `~/.zen/strfry/strfry` (fetched from IPFS or compiled)
-- `jq`, `ipfs`, `nostpy-cli`, `libsecp256k1-1`
+- `jq`, `ipfs`, `nostr_send_note.py`, `libsecp256k1-1`
 - Python 3 with `websockets` (for `nostr_websocket_backfill.py`)
 
 ## Commands

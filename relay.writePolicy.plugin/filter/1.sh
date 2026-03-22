@@ -299,15 +299,22 @@ Get a #MULTIPASS to access localized content
             log_uplanet "⏰ Visitor message will expire at: $(date -d "@$EXPIRY_TIMESTAMP") (${VISITOR_MESSAGE_EXPIRY}s from now)"
             
             # Envoyer le message d'avertissement avec expiration
-            WARNING_MSG_OUTPUT=$(nostpy-cli send_event \
-              -privkey "$NPRIV_HEX" \
-              -kind 1 \
-              -content "$RESPN" \
-              -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'Warning'], ['expiration', '$EXPIRY_TIMESTAMP']]" \
-              --relay "$myRELAY" 2>&1)
+            # Create temp keyfile for nostr_send_note.py
+            TMP_KEYFILE=$(mktemp)
+            echo "NSEC=$UMAPNSEC;" > "$TMP_KEYFILE"
+
+            WARNING_MSG_OUTPUT=$(python3 $HOME/.zen/Astroport.ONE/tools/nostr_send_note.py \
+              --keyfile "$TMP_KEYFILE" \
+              --kind 1 \
+              --content "$RESPN" \
+              --tags "[[\"e\", \"$event_id\"], [\"p\", \"$pubkey\"], [\"t\", \"Warning\"], [\"expiration\", \"$EXPIRY_TIMESTAMP\"]]" \
+              --relays "$myRELAY" \
+              --json 2>&1)
+            
+            rm "$TMP_KEYFILE"
 
             # Extraire l'ID du message d'avertissement
-            WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE "'id': '[a-f0-9]{64}'" | cut -d"'" -f4 | head -n 1)
+            WARNING_MSG_ID=$(echo "$WARNING_MSG_OUTPUT" | grep -oE '"event_id": "[a-f0-9]{64}"' | cut -d'"' -f4 | head -n 1)
 
             # Update the warning file timestamp
             touch "$warning_file"
@@ -354,14 +361,21 @@ Get a #MULTIPASS to access localized content
                 fi
                 
                 # Send BRO response as UMAP 0.00,0.00
-                BRO_MSG_OUTPUT=$(nostpy-cli send_event \
-                  -privkey "$NPRIV_HEX" \
-                  -kind 1 \
-                  -content "$BRO_RESPONSE_CONTENT" \
-                  -tags "[['e', '$event_id'], ['p', '$pubkey'], ['t', 'BRO'], ['t', 'VisitorWelcome'], ['expiration', '$EXPIRY_TIMESTAMP']]" \
-                  --relay "$myRELAY" 2>&1)
+                # Create temp keyfile for nostr_send_note.py
+                TMP_KEYFILE=$(mktemp)
+                echo "NSEC=$UMAPNSEC;" > "$TMP_KEYFILE"
+
+                BRO_MSG_OUTPUT=$(python3 $HOME/.zen/Astroport.ONE/tools/nostr_send_note.py \
+                  --keyfile "$TMP_KEYFILE" \
+                  --kind 1 \
+                  --content "$BRO_RESPONSE_CONTENT" \
+                  --tags "[[\"e\", \"$event_id\"], [\"p\", \"$pubkey\"], [\"t\", \"BRO\"], [\"t\", \"VisitorWelcome\"], [\"expiration\", \"$EXPIRY_TIMESTAMP\"]]" \
+                  --relays "$myRELAY" \
+                  --json 2>&1)
                 
-                BRO_MSG_ID=$(echo "$BRO_MSG_OUTPUT" | grep -oE "'id': '[a-f0-9]{64}'" | cut -d"'" -f4 | head -n 1)
+                rm "$TMP_KEYFILE"
+                
+                BRO_MSG_ID=$(echo "$BRO_MSG_OUTPUT" | grep -oE '"event_id": "[a-f0-9]{64}"' | cut -d'"' -f4 | head -n 1)
                 log_uplanet "BRO response sent (ID: $BRO_MSG_ID) for visitor: $pubkey"
                 log_uplanet "$BRO_MSG_OUTPUT"
             fi
