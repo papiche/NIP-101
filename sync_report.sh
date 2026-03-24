@@ -70,6 +70,7 @@ extract_sync_stats() {
     local profile_badge_events=$(echo "$sync_stats" | grep -o 'profile_badges=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
     local badge_definition_events=$(echo "$sync_stats" | grep -o 'badge_definitions=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
     local n2_memory_events=$(echo "$sync_stats" | grep -o 'n2_memory=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
+    local love_ledger_events=$(echo "$sync_stats" | grep -o 'love_ledger=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
     
     local hex_count=$(echo "$sync_hex" | grep -o 'count=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
     local profiles_found=$(echo "$sync_profiles" | grep -o 'found=[0-9]*' | tail -1 | cut -d= -f2 | tr -d '\n')
@@ -111,6 +112,7 @@ extract_sync_stats() {
     [[ -z "$profile_badge_events" ]] && profile_badge_events="0"
     [[ -z "$badge_definition_events" ]] && badge_definition_events="0"
     [[ -z "$n2_memory_events" ]] && n2_memory_events="0"
+    [[ -z "$love_ledger_events" ]] && love_ledger_events="0"
     [[ -z "$hex_count" ]] && hex_count="0"
     [[ -z "$profiles_found" ]] && profiles_found="0"
     [[ -z "$profiles_missing" ]] && profiles_missing="0"
@@ -173,6 +175,7 @@ BADGE_AWARD_EVENTS="$badge_award_events"
 PROFILE_BADGE_EVENTS="$profile_badge_events"
 BADGE_DEFINITION_EVENTS="$badge_definition_events"
 N2_MEMORY_EVENTS="$n2_memory_events"
+LOVE_LEDGER_EVENTS="$love_ledger_events"
 HEX_PUBKEYS="$hex_count"
 PROFILES_FOUND="$profiles_found"
 PROFILES_MISSING="$profiles_missing"
@@ -337,6 +340,9 @@ generate_html_report() {
     if [[ -n "$N2_MEMORY_EVENTS" ]] && [[ "$N2_MEMORY_EVENTS" =~ ^[0-9]+$ ]] && [[ "$N2_MEMORY_EVENTS" -gt 0 ]]; then
         total_message_events=$((total_message_events + N2_MEMORY_EVENTS))
     fi
+    if [[ -n "$LOVE_LEDGER_EVENTS" ]] && [[ "$LOVE_LEDGER_EVENTS" =~ ^[0-9]+$ ]] && [[ "$LOVE_LEDGER_EVENTS" -gt 0 ]]; then
+        total_message_events=$((total_message_events + LOVE_LEDGER_EVENTS))
+    fi
     
     if [[ $total_message_events -gt 0 ]]; then
         public_percent=$(echo "scale=1; $PUBLIC_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
@@ -370,6 +376,7 @@ generate_html_report() {
         profile_badge_percent=$(echo "scale=1; $PROFILE_BADGE_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         badge_definition_percent=$(echo "scale=1; $BADGE_DEFINITION_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
         n2_memory_percent=$(echo "scale=1; $N2_MEMORY_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
+        love_ledger_percent=$(echo "scale=1; $LOVE_LEDGER_EVENTS * 100 / $total_message_events" | bc -l 2>/dev/null || echo "0")
     fi
     
     # Determine report type and create informative title
@@ -397,6 +404,7 @@ generate_html_report() {
     [[ "$PROFILE_EVENTS" -gt 0 ]] && top_events+=("${PROFILE_EVENTS} profiles")
     [[ "$BADGE_AWARD_EVENTS" -gt 0 ]] && top_events+=("${BADGE_AWARD_EVENTS} badge awards")
     [[ "$N2_MEMORY_EVENTS" -gt 0 ]] && top_events+=("${N2_MEMORY_EVENTS} N² memory")
+    [[ "$LOVE_LEDGER_EVENTS" -gt 0 ]] && top_events+=("${LOVE_LEDGER_EVENTS} ❤️ Love Ledger")
     
     # Take top 3 event types
     if [[ ${#top_events[@]} -gt 0 ]]; then
@@ -467,6 +475,7 @@ generate_html_report() {
         .ore-events { background: #e3f2fd; }
         .badge-events { background: #fff9e6; }
         .n2-memory-events { background: #e8f0fe; border-left: 3px solid #1a73e8; }
+        .love-ledger-events { background: #f3e5f5; border-left: 3px solid #7b1fa2; }
         .footer { text-align: center; margin-top: 20px; color: #7f8c8d; font-size: 12px; }
         #p5-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0.1; }
     </style>
@@ -553,6 +562,10 @@ generate_html_report() {
             <div class="stat-card n2-memory-events">
                 <div class="stat-value">$N2_MEMORY_EVENTS</div>
                 <div class="stat-label">N² Memory ($n2_memory_percent%)</div>
+            </div>
+            <div class="stat-card love-ledger-events">
+                <div class="stat-value">$LOVE_LEDGER_EVENTS</div>
+                <div class="stat-label">❤️ Love Ledger DU ($love_ledger_percent%)</div>
             </div>
             <div class="stat-card performance">
                 <div class="stat-value">$PROFILES_FOUND</div>
@@ -714,6 +727,9 @@ generate_html_report() {
             </p>
             <p style="margin: 5px 0; color: #555;">
                 • <strong>N² Memory:</strong> $N2_MEMORY_EVENTS ($n2_memory_percent%) - AI recommendations, Captain TODOs, votes (kind 31910 - NIP-101 extension) from todo.sh
+            </p>
+            <p style="margin: 5px 0; color: #555;">
+                • <strong>❤️ Love Ledger DU:</strong> $LOVE_LEDGER_EVENTS ($love_ledger_percent%) - Dividende Universel TrocZen (kind 30305) — Fraternité, 1❤️=1DU, bénévolat Capitaine → Bons fondants 28j
             </p>
         </div>
         
@@ -904,6 +920,7 @@ send_sync_report() {
 • Profile Badges: ${PROFILE_BADGE_EVENTS}
 • Badge Definitions: ${BADGE_DEFINITION_EVENTS}
 • N² Memory: ${N2_MEMORY_EVENTS}
+• ❤️ Love Ledger DU: ${LOVE_LEDGER_EVENTS} (kind 30305 TrocZen — 1❤️=1DU)
 
 ⚠️ Retries: Batch=${BATCH_RETRIES}, WS=${WEBSOCKET_RETRIES}, Tunnel=${TUNNEL_RETRIES}
 ❌ Failures: Batch=${BATCH_FAILURES}, WS=${WEBSOCKET_FAILURES}, Tunnel=${TUNNEL_FAILURES}
