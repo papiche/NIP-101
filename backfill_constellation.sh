@@ -277,46 +277,29 @@ get_constellation_hex_pubkeys() {
     local hex_pubkeys=()
     local nostr_dir="$HOME/.zen/game/nostr"
     
-    # First, get HEX pubkeys from nostr directory using cat (optimized)
     if [[ -d "$nostr_dir" ]]; then
-        echo "INFO: Scanning ~/.zen/game/nostr/*/HEX for constellation members..." >&2
-        # Use cat directly on all HEX files (faster than find + cat)
+        # On utilise grep pour ne prendre QUE les chaînes de 64 caractères hexadécimaux
         if ls "$nostr_dir"/*/HEX >/dev/null 2>&1; then
             while IFS= read -r pubkey; do
                 pubkey=$(echo "$pubkey" | tr -d '[:space:]')
-                # Strict validation: exactly 64 hex characters
-                if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
+                if [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
                     hex_pubkeys+=("$pubkey")
-                    echo "DEBUG: Found HEX pubkey: ${pubkey:0:8}..." >&2
-                elif [[ -n "$pubkey" ]]; then
-                    echo "WARN: Invalid HEX pubkey (length=${#pubkey}): ${pubkey:0:16}..." >&2
                 fi
             done < <(cat "$nostr_dir"/*/HEX 2>/dev/null)
         fi
-    else
-        echo "WARN: Nostr directory not found: $nostr_dir" >&2
     fi
-    
-    # Then, get HEX pubkeys from amisOfAmis.txt file in strfry directory
+
+    # Pareil pour amisOfAmis.txt
     local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
     if [[ -f "$amis_file" ]]; then
-        echo "INFO: Scanning ~/.zen/strfry/amisOfAmis.txt for extended network..." >&2
         while IFS= read -r line; do
             local pubkey=$(echo "$line" | tr -d '[:space:]')
-            # Strict validation: exactly 64 hex characters
-            # Also reject lines that look like log messages (contain brackets or "INFO", "DEBUG", "Connected", etc.)
-            if [[ -n "$pubkey" && ${#pubkey} -eq 64 && "$pubkey" =~ ^[0-9a-fA-F]{64}$ && ! "$line" =~ \[|INFO|DEBUG|Connected|Sent|Received|Found ]]; then
+            if [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
                 hex_pubkeys+=("$pubkey")
-                echo "DEBUG: Found amisOfAmis pubkey: ${pubkey:0:8}..." >&2
-            elif [[ -n "$pubkey" && ${#pubkey} -ne 64 ]]; then
-                echo "DEBUG: Skipping non-hex line (length=${#pubkey}): ${line:0:50}..." >&2
             fi
         done < "$amis_file"
-    else
-        echo "WARN: amisOfAmis.txt file not found: $amis_file" >&2
     fi
     
-    # Remove duplicates and return
     printf '%s\n' "${hex_pubkeys[@]}" | sort -u
 }
 
