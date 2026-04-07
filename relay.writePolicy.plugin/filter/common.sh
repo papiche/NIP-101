@@ -3,8 +3,13 @@
 # Common functions for Nostr event filtering
 # Sourced by all filter scripts to eliminate code duplication
 
-# Source my.sh to get all necessary constants and functions
-source "$HOME/.zen/Astroport.ONE/tools/my.sh"
+# ✅ récupération directe de l'IPFSNODEID :
+config_ipfs="$HOME/.ipfs/config"
+if [[ -f "$config_ipfs" ]]; then
+    IPFSNODEID=$(jq -r '.Identity.PeerID // empty' "$config_ipfs" 2>/dev/null)
+else
+    IPFSNODEID=""
+fi
 
 # Global variables
 KEY_DIR="$HOME/.zen/game/nostr"
