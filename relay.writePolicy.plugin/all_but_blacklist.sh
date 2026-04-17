@@ -162,7 +162,7 @@ process_new_event() {
         if [[ -x $MY_PATH/filter/$kind.sh ]]; then
             # Let the specific filter handle the "nobody" case
             log_message "Running filter $kind.sh for 'nobody' user: $pubkey"
-            $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log
+            $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log 2>&1
             local filter_result=$?
             if [[ $filter_result -ne 0 ]]; then
                 log_message "Filter $kind.sh rejected event from 'nobody': $event_id"
@@ -183,9 +183,8 @@ process_new_event() {
 
     # For authorized users (player/uplanet), run specific filters if they exist
     if [[ -x $MY_PATH/filter/$kind.sh ]]; then
-        # log_message "Running filter for kind $kind"
-        # Rediriger toutes les sorties du filtre ~/.zen/tmp/strfry.log 
-        $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log
+        # Rediriger stdout + stderr du filtre dans le log (stdout vers strfry = uniquement le JSON de décision émis ici)
+        $MY_PATH/filter/$kind.sh "$event_json" >> ~/.zen/tmp/strfry.log 2>&1
         local filter_result=$?
         #vérifier si le filtre est bien exécuté
         if [[ $filter_result -ne 0 ]]; then
