@@ -115,25 +115,28 @@ while [[ $# -gt 0 ]]; do
                 echo "Current events in database: Database not found"
             fi
             
-            # Get HEX pubkeys count directly
+            # Comptes par source
             nostr_dir="$HOME/.zen/game/nostr"
-            
-            hex_count=0
-            if [[ -d "$nostr_dir" ]]; then
-                hex_count=$(cat $nostr_dir/*/HEX 2>/dev/null | wc -l)
-            fi
-            
-            local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
-            if [[ -f "$amis_file" ]]; then
-                amis_count=$(wc -l < "$amis_file" 2>/dev/null || echo "0")
-                echo "HEX files found: $hex_count"
-                echo "amisOfAmis.txt entries: $amis_count"
-            else
-                echo "HEX files found: $hex_count"
-                echo "amisOfAmis.txt entries: 0 (file not found)"
-            fi
-            
-            echo "Total HEX pubkeys monitored: $hex_count"
+            multipass_count=0
+            [[ -d "$nostr_dir" ]] && multipass_count=$(cat "$nostr_dir"/*/HEX 2>/dev/null | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+
+            amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
+            amis_count=0
+            [[ -f "$amis_file" ]] && amis_count=$(grep -cE '^[0-9a-fA-F]{64}$' "$amis_file" 2>/dev/null || echo 0)
+
+            swarm_captain_count=$(find "$HOME/.zen/tmp/swarm" -name "12345.json" -print0 2>/dev/null \
+                | xargs -0 -I{} jq -r '.captainHEX // empty, .NODEHEX // empty' {} 2>/dev/null \
+                | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+
+            geo_count=$(find "$HOME/.zen/flashmem" -name "HEX" -print0 2>/dev/null \
+                | xargs -0 cat 2>/dev/null \
+                | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+
+            echo "MULTIPASS locaux     : $multipass_count"
+            echo "amisOfAmis.txt       : $amis_count"
+            echo "captainHEX+NODEHEX   : $swarm_captain_count (pairs swarm)"
+            echo "Geokeys (flashmem)   : $geo_count"
+            echo "Total HEX surveillés : $((multipass_count + amis_count + swarm_captain_count + geo_count)) (avant dédup)"
             
             exit 0
             ;;
@@ -275,31 +278,53 @@ trap remove_lock EXIT INT TERM
 # Function to get all HEX pubkeys from nostr directory and amisOfAmis.txt file
 get_constellation_hex_pubkeys() {
     local hex_pubkeys=()
+
+    # ── 1. MULTIPASS locaux : ~/.zen/game/nostr/*/HEX ─────────────────────────
     local nostr_dir="$HOME/.zen/game/nostr"
-    
     if [[ -d "$nostr_dir" ]]; then
-        # On utilise grep pour ne prendre QUE les chaînes de 64 caractères hexadécimaux
         if ls "$nostr_dir"/*/HEX >/dev/null 2>&1; then
             while IFS= read -r pubkey; do
                 pubkey=$(echo "$pubkey" | tr -d '[:space:]')
-                if [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
-                    hex_pubkeys+=("$pubkey")
-                fi
+                [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]] && hex_pubkeys+=("$pubkey")
             done < <(cat "$nostr_dir"/*/HEX 2>/dev/null)
         fi
     fi
 
-    # Pareil pour amisOfAmis.txt
+    # ── 2. amisOfAmis.txt ─────────────────────────────────────────────────────
     local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
     if [[ -f "$amis_file" ]]; then
         while IFS= read -r line; do
             local pubkey=$(echo "$line" | tr -d '[:space:]')
-            if [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]]; then
-                hex_pubkeys+=("$pubkey")
-            fi
+            [[ "$pubkey" =~ ^[0-9a-fA-F]{64}$ ]] && hex_pubkeys+=("$pubkey")
         done < "$amis_file"
     fi
-    
+
+    # ── 3. captainHEX + NODEHEX de chaque pair du swarm ──────────────────────
+    # Les events coopératifs (kind 30850, kind 0, kind 1…) sont signés par ces
+    # clés, qui ne sont pas dans l'amisOfAmis local sans cet ajout.
+    local swarm_dir="$HOME/.zen/tmp/swarm"
+    if [[ -d "$swarm_dir" ]]; then
+        while IFS= read -r -d '' file; do
+            local captain_hex node_hex
+            captain_hex=$(jq -r '.captainHEX // empty' "$file" 2>/dev/null | tr -d '[:space:]')
+            node_hex=$(jq -r '.NODEHEX // empty'    "$file" 2>/dev/null | tr -d '[:space:]')
+            [[ "$captain_hex" =~ ^[0-9a-fA-F]{64}$ ]] && hex_pubkeys+=("$captain_hex")
+            [[ "$node_hex"    =~ ^[0-9a-fA-F]{64}$ ]] && hex_pubkeys+=("$node_hex")
+        done < <(find "$swarm_dir" -name "12345.json" -print0 2>/dev/null)
+    fi
+
+    # ── 4. Geokeys locales : ~/.zen/flashmem/*/HEX ────────────────────────────
+    # Clés des secteurs géographiques (cellules 0.1°×0.1°) — publient kind 30500
+    # et autres events d'ancrage territorial.
+    local flashmem_dir="$HOME/.zen/flashmem"
+    if [[ -d "$flashmem_dir" ]]; then
+        while IFS= read -r -d '' file; do
+            local geo_hex
+            geo_hex=$(cat "$file" 2>/dev/null | tr -d '[:space:]')
+            [[ "$geo_hex" =~ ^[0-9a-fA-F]{64}$ ]] && hex_pubkeys+=("$geo_hex")
+        done < <(find "$flashmem_dir" -name "HEX" -print0 2>/dev/null)
+    fi
+
     printf '%s\n' "${hex_pubkeys[@]}" | sort -u
 }
 
@@ -420,116 +445,9 @@ get_timestamp_days_ago() {
     echo "$timestamp"
 }
 
-# Function to create backfill request using HTTP API
-create_backfill_request() {
-    local since_timestamp="$1"
-    local peer="$2"
-    
-    log "INFO" "Creating backfill request for peer: $peer"
-    log "INFO" "Requesting events since: $(date -d "@$since_timestamp" '+%Y-%m-%d %H:%M:%S')"
-    
-    # Get all HEX pubkeys from constellation
-    local hex_pubkeys
-    hex_pubkeys=$(get_constellation_hex_pubkeys)
-    if [[ -z "$hex_pubkeys" ]]; then
-        log "WARN" "No HEX pubkeys found, falling back to general backfill"
-        # Fallback to general backfill without author filtering
-        local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
-        cat > "$temp_config" <<EOF
-# Temporary backfill configuration for $peer (general)
-connectionTimeout = 30
-
-streams {
-    backfill_${RANDOM} {
-        dir = "down"
-        
-        # Request events from the last N days
-        filter = { 
-            "kinds": [0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1985, 1986, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30800, 30850, 30851, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000],  # Profiles, text notes, contacts, DMs, deletions, reposts, reactions, badge awards (8 - NIP-58), videos (short/long), channel creation/metadata/messages/mute (40-44 - NIP-28), file metadata (1063 - NIP-94), comments (1111 - NIP-22), voice messages (1222, 1244 - NIP-A0), user tags (1985 - NIP-32), TMDB enrichments (1986, 30001 - NIP-71 extension), playlists (30005, 10001 - NIP-51), profile badges (30008 - NIP-58), badge definitions (30009 - NIP-58), blog (30023), drafts (30024), user statuses (30315 - NIP-38), DID documents (30800 - NIP-101), ORE spaces/meetings (30312-30313), Oracle permits (30500-30503), Economic health (30850-30851 - NIP-101 extension), cookie workflows (31900-31902 - NIP-101 extension), N² Memory (31910 - NIP-101 extension), NIP-52 Calendar events (31922-31925), analytics (10000 - NIP-10000)
-            "since": $since_timestamp,
-            "limit": 10000
-        }
-        
-        urls = [
-            "$peer"
-        ]
-    }
-}
-EOF
-        echo "$temp_config"
-        return
-    fi
-    
-    # Convert hex pubkeys to array and create author filter
-    local pubkeys_array=($(echo "$hex_pubkeys"))
-    local authors_filter=""
-    for pubkey in "${pubkeys_array[@]}"; do
-        if [[ -n "$authors_filter" ]]; then
-            authors_filter="${authors_filter}, \"$pubkey\""
-        else
-            authors_filter="\"$pubkey\""
-        fi
-    done
-    
-    log "INFO" "Targeting ${#pubkeys_array[@]} constellation members for backfill"
-    
-    # Create a temporary backfill configuration with author filtering
-    local temp_config="$HOME/.zen/strfry/backfill-temp.conf"
-    
-    # Build kinds array based on INCLUDE_DMS setting
-    local kinds_array="[0, 1, 3, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1985, 1986, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30305, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30800, 30850, 30851, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000]"  # Base kinds + NIP-52 Calendar (31922-31925) + economic health + N² Memory + 30305 (DU TrocZen Love Ledger)
-    if [[ "$INCLUDE_DMS" == "true" ]]; then
-        kinds_array="[0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1985, 1986, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30305, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30800, 30850, 30851, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000]"  # Include DMs + NIP-52 Calendar (31922-31925) + economic health + N² Memory + 30305 (DU TrocZen Love Ledger)
-        log "INFO" "Including direct messages (DMs), video events (kind 21/22), file metadata (kind 1063), comments (kind 1111), voice messages (kind 1222/1244 - NIP-A0), user tags (kind 1985 - NIP-32), TMDB enrichments (kind 1986/30001 - NIP-71 extension), channel messages/mute (kind 40-44 - NIP-28), playlists (kind 30005/10001 - NIP-51), user statuses (kind 30315 - NIP-38), economic health (kind 30850/30851 - NIP-101 extension), and cookie workflows (kind 31900-31902 - NIP-101 extension) in synchronization"
-    else
-        log "INFO" "Excluding direct messages (DMs) but including video events (kind 21/22), file metadata (kind 1063), comments (kind 1111), voice messages (kind 1222/1244 - NIP-A0), user tags (kind 1985 - NIP-32), TMDB enrichments (kind 1986/30001 - NIP-71 extension), channel messages/mute (kind 40-44 - NIP-28), playlists (kind 30005/10001 - NIP-51), user statuses (kind 30315 - NIP-38), economic health (kind 30850/30851 - NIP-101 extension), and cookie workflows (kind 31900-31902 - NIP-101 extension) in synchronization"
-    fi
-    log "INFO" "Including kind 1063 (file metadata - NIP-94) in synchronization"
-    log "INFO" "Including kind 1111 (video comments - NIP-22) in synchronization"
-    log "INFO" "Including kind 1222/1244 (voice messages - NIP-A0) in synchronization"
-    log "INFO" "Including kind 1985 (user tags - NIP-32) in synchronization"
-    log "INFO" "Including kind 1986/30001 (TMDB metadata enrichments - NIP-71 extension) in synchronization"
-    log "INFO" "Including kind 40-44 (channel creation/metadata/messages/mute - NIP-28) in synchronization"
-    log "INFO" "Including kind 30005/10001 (playlists - NIP-51) in synchronization"
-    log "INFO" "Including kind 30315 (user statuses - NIP-38) in synchronization"
-    log "INFO" "Including kind 30800 (DID documents - NIP-101) in synchronization"
-    log "INFO" "Including kind 30312-30313 (ORE Meeting Spaces and Verification Meetings) in synchronization"
-    log "INFO" "Including kind 21/22 (video events from process_youtube.sh) in synchronization"
-    log "INFO" "Including kind 8 (badge awards - NIP-58) in synchronization"
-    log "INFO" "Including kind 30008 (profile badges - NIP-58) in synchronization"
-    log "INFO" "Including kind 30009 (badge definitions - NIP-58) in synchronization"
-    log "INFO" "Including kind 30500-30503 (Oracle permit system) in synchronization"
-    log "INFO" "Including kind 30850-30851 (Economic health reports - NIP-101 extension) in synchronization"
-    log "INFO" "Including kind 31900-31902 (cookie workflows - NIP-101 extension) in synchronization"
-    log "INFO" "Including kind 30305 (DU TrocZen Love Ledger - Fraternité, 1❤️=1DU) in synchronization"
-    log "INFO" "Including kind 31910 (N² Memory System - AI recommendations, Captain TODOs, votes) in synchronization"
-    log "INFO" "Including kind 10000 (analytics events - NIP-10000, encrypted/non-encrypted determined by content) in synchronization"
-    
-    cat > "$temp_config" <<EOF
-# Temporary backfill configuration for $peer (targeted)
-connectionTimeout = 30
-
-streams {
-    backfill_${RANDOM} {
-        dir = "down"
-        
-        # Request events from constellation members in the last N days
-        filter = { 
-            "kinds": $kinds_array,  # Dynamic kinds based on --no-dms option
-            "authors": [$authors_filter],
-            "since": $since_timestamp,
-            "limit": 10000
-        }
-        
-        urls = [
-            "$peer"
-        ]
-    }
-}
-EOF
-    
-    echo "$temp_config"
-}
+# NOTE: create_backfill_request() supprimée — utilisait strfry router (negentropy).
+# La synchro passe exclusivement par WebSocket REQ via tunnel IPFS P2P (port 9999)
+# ou directement pour les relays routable. Voir execute_backfill_websocket().
 
 # Function to split HEX pubkeys into batches
 split_hex_pubkeys_into_batches() {
@@ -689,6 +607,11 @@ execute_backfill_websocket() {
     done
     
     log "INFO" "Completed processing ${#batches_array[@]} batches"
+
+    # Station events (kind 30850, 30851, 30800) are published by the STATION key,
+    # NOT by user MULTIPASS keys → do a separate pass WITHOUT authors filter
+    log "INFO" "Fetching station-published events (kind 30850/30851/30800) — no authors filter"
+    execute_backfill_websocket_station_events "$peer" "$since_timestamp"
     return 0
 }
 
@@ -752,6 +675,35 @@ execute_backfill_websocket_single_hex() {
         rm -f "$response_file"
         return 1
     fi
+}
+
+# Fetch station-level events (kind 30850 economic health, 30851, 30800 coop-config)
+# These are published by the STATION key, not user MULTIPASS keys → no authors filter
+execute_backfill_websocket_station_events() {
+    local peer="$1"
+    local since_timestamp="$2"
+
+    local req_message='["REQ", "station_events", {"kinds": [30800, 30850, 30851], "since": '"$since_timestamp"', "limit": 1000}]'
+    log "INFO" "Fetching station events (30800/30850/30851) from $peer (no authors filter)"
+
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
+    local response_file="$HOME/.zen/strfry/backfill-station-${RANDOM}.json"
+
+    local python_output
+    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 30 2>/dev/null)
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        local count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+        log "INFO" "Station events collected: $count"
+        process_and_import_events "$response_file"
+        rm -f "$response_file"
+    else
+        log "WARN" "Station events fetch failed or empty from $peer"
+        rm -f "$response_file"
+    fi
+    return 0
 }
 
 # Function to execute a single batch backfill using WebSocket connection
@@ -1090,58 +1042,7 @@ get_event_count() {
     fi
 }
 
-# Function to execute backfill
-execute_backfill() {
-    local temp_config="$1"
-    local peer="$2"
-    
-    log "INFO" "Executing backfill from peer: $peer"
-    
-    if [[ "$DRYRUN" == "true" ]]; then
-        log "INFO" "DRY RUN: Would execute: strfry router $temp_config"
-        return 0
-    fi
-    
-    # Get event count before backfill
-    local events_before=$(get_event_count)
-    log "INFO" "Events in database before backfill: $events_before"
-    
-    # Execute backfill
-    cd "$HOME/.zen/strfry"
-    timeout 300 ./strfry router "$temp_config" >> "$BACKFILL_LOG" 2>&1 &
-    local backfill_pid=$!
-    
-    # Wait for completion or timeout
-    local elapsed=0
-    while kill -0 "$backfill_pid" 2>/dev/null && [[ $elapsed -lt 300 ]]; do
-        sleep 5
-        elapsed=$((elapsed + 5))
-        
-        if [[ $((elapsed % 30)) -eq 0 ]]; then
-            log "INFO" "Backfill in progress... (${elapsed}s elapsed)"
-        fi
-    done
-    
-    # Check if process is still running
-    if kill -0 "$backfill_pid" 2>/dev/null; then
-        log "WARN" "Backfill timeout after 5 minutes, force killing"
-        kill -9 "$backfill_pid" 2>/dev/null
-        return 1
-    else
-        # Get event count after backfill
-        local events_after=$(get_event_count)
-        local events_added=$((events_after - events_before))
-        
-        if [[ $events_added -gt 0 ]]; then
-            log "INFO" "Backfill completed successfully - Added $events_added new events"
-            log "INFO" "Database: $events_before → $events_after events"
-        else
-            log "INFO" "Backfill completed successfully - No new events added"
-        fi
-        
-        return 0
-    fi
-}
+# NOTE: execute_backfill() supprimée — utilisait strfry router (negentropy), jamais appelée.
 
 
 
