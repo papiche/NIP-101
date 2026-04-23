@@ -61,6 +61,19 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
 
     MARKER_DIR="$KEY_DIR/$EMAIL"
 
+    # ── GESTION DU ROAMING ───────────────────────────────────────────────────
+    # Si le joueur vient du Swarm, son dossier local n'existe pas encore.
+    # On crée le répertoire, on y place le HEX pour l'API Python, 
+    # et SURTOUT on place le flag .roaming pour éviter que NOSTRCARD.refresh.sh
+    # ne tente de traiter/supprimer ce profil sans clés privées.
+    if [[ ! -d "$MARKER_DIR" ]]; then
+        mkdir -p "$MARKER_DIR"
+        echo "$pubkey" > "$MARKER_DIR/HEX"
+        touch "$MARKER_DIR/.roaming"
+        echo "SWARM_ROAMING" > "$MARKER_DIR/SOURCE"
+        log_event "ROAMING: Création du profil local éphémère pour $EMAIL"
+    fi
+    
     # ── A. pubkey-bound filename ─────────────────────────────────────────────
     # New secure name: .nip42_auth_<hex_pubkey>
     NIP42_MARKER="${MARKER_DIR}/.nip42_auth_${pubkey}"
