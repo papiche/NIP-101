@@ -71,8 +71,8 @@ check_amis_of_amis_and_remove_from_blacklist() {
         return 1 # Pubkey not in blacklist, nothing to remove
     fi
     
-    # Vérifier si la pubkey existe dans le fichier amisOfAmis.txt
-    if [[ -f "$AMIS_OF_AMIS_FILE" ]] && grep -q "^$pubkey$" "$AMIS_OF_AMIS_FILE"; then
+# Vérifier si la pubkey existe dans le fichier amisOfAmis.txt (local ou swarm)
+    if grep -q -h "^$pubkey$" "$AMIS_OF_AMIS_FILE" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null; then
         log_message "Found pubkey $pubkey in amisOfAmis.txt, removing from blacklist"
         
         # Créer un fichier temporaire sans la pubkey

@@ -30,10 +30,9 @@ is_key_authorized() {
         fi
     done < <(find "$KEY_DIR" -type f -name "HEX" -print0)
 
-    # Check amisOfAmis.txt — includes system keys (uplanet.G1.nostr, crowdfunding Biens, etc.)
-    local amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
-    if [[ -f "$amis_file" ]] && grep -q "^${pubkey}$" "$amis_file" 2>/dev/null; then
-        return 0 # Clé autorisée via amisOfAmis
+    # Check amisOfAmis.txt across local station and constellation (swarm)
+    if grep -q -h "^${pubkey}$" "$HOME/.zen/strfry/amisOfAmis.txt" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null; then
+        return 0 # Clé autorisée via amisOfAmis (local ou swarm)
     fi
 
     return 1 # Clé non autorisée

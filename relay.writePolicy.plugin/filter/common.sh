@@ -68,11 +68,13 @@ search_swarm_for_pubkey() {
     return 1
 }
 
-# Optimized function to check amisOfAmis.txt
+# Optimized function to check amisOfAmis.txt across local and constellation (swarm)
 check_amis_of_amis() {
     local pubkey="$1"
+    [[ -z "$pubkey" ]] && return 1
     
-    [[ -f "$AMISOFAMIS_FILE" && -n "$pubkey" ]] && grep -q "^$pubkey$" "$AMISOFAMIS_FILE"
+    # Check local file and all swarm files in a single fast grep call
+    grep -q -h "^$pubkey$" "$AMISOFAMIS_FILE" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null
 }
 
 # Main authorization function - consolidates all checks
