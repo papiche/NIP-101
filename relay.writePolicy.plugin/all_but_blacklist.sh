@@ -210,9 +210,10 @@ while IFS= read -r line; do
     # Vérifier si la ligne contient un JSON valide
     if echo "$line" | jq -e '.' > /dev/null 2>&1; then
         # Extraire le type d'événement
-        event_type=$(echo "$line" | jq -r '.type')
-        event_id=$(echo "$line" | jq -r '.event.id')
-        event_kind=$(echo "$line" | jq -r '.event.kind')
+        parsed=$(echo "$line" | jq -e '{type:.type, id:.event.id, kind:.event.kind}' 2>/dev/null) || { echo '{"action":"reject"}'; continue; }
+        event_type=$(echo "$parsed" | jq -r '.type')
+        event_id=$(echo "$parsed"   | jq -r '.id')
+        event_kind=$(echo "$parsed" | jq -r '.kind')
 
         if [[ "$event_type" == "new" ]]; then
             # Traiter les nouveaux événements
