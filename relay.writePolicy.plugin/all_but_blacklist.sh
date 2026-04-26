@@ -87,6 +87,19 @@ check_amis_of_amis_and_remove_from_blacklist() {
     return 1 # Pubkey not found in amisOfAmis.txt
 }
 
+# Vérifie si une pubkey appartient à un nœud connu du swarm (Astroport.ONE ou Picoport)
+# Cherche dans les fichiers HEX publiés via IPNS par chaque station
+check_swarm_node_hex() {
+    local pubkey="$1"
+    # Nœud local
+    [[ -n "$IPFSNODEID" && -f "$HOME/.zen/tmp/$IPFSNODEID/HEX" ]] && \
+        grep -q "^$pubkey$" "$HOME/.zen/tmp/$IPFSNODEID/HEX" 2>/dev/null && return 0
+    # Nœuds swarm : HEX (node) et HEX_CAPTAIN téléchargés par _12345.sh / picoport.sh
+    grep -rq "^$pubkey$" "$HOME/.zen/tmp/swarm/"*/HEX 2>/dev/null && return 0
+    grep -rq "^$pubkey$" "$HOME/.zen/tmp/swarm/"*/HEX_CAPTAIN 2>/dev/null && return 0
+    return 1
+}
+
 # Fonction pour vérifier si une clé est blacklistée
 is_key_blacklisted() {
     local pubkey="$1"
@@ -127,6 +140,9 @@ classify_user() {
         fi
     elif check_amis_of_amis "$pubkey"; then
         # In amisOfAmis.txt
+        user_type="uplanet"
+    elif check_swarm_node_hex "$pubkey"; then
+        # Nœud swarm connu (Astroport.ONE ou Picoport/SoundSpot)
         user_type="uplanet"
     fi
     
