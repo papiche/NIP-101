@@ -228,46 +228,28 @@ is_backfill_running() {
     return 1  # No backfill running
 }
 
-# Function to create lock file atomically (prevent race conditions)
+# File descriptor used to hold the flock for the process lifetime
+LOCK_FD=9
+
+# Function to create lock file atomically via flock (survives OOM-kill unlike mkdir dance)
 create_lock() {
-    # Try to create lock file atomically using mkdir (atomic operation)
-    local lock_dir="${LOCK_FILE}.dir"
-    
-    # Try to create directory (atomic operation)
-    if mkdir "$lock_dir" 2>/dev/null; then
-        # Successfully created directory, write PID
-        echo $$ > "$LOCK_FILE"
-        rmdir "$lock_dir" 2>/dev/null
-        log "INFO" "Created lock file with PID $$"
-        return 0
-    else
-        # Directory already exists, another process is creating lock
-        log "WARN" "Lock directory already exists, another process may be starting"
-        # Wait a moment and check again
-        sleep 1
-        if [[ -f "$LOCK_FILE" ]]; then
-            local pid=$(cat "$LOCK_FILE" 2>/dev/null)
-            if [[ -n "$pid" && -d "/proc/$pid" ]]; then
-                log "INFO" "Backfill already running with PID: $pid (confirmed after wait)"
-                return 1  # Lock is valid
-            fi
-        fi
-        # Lock file doesn't exist or PID is invalid, try again
-        rm -rf "$lock_dir" "$LOCK_FILE" 2>/dev/null
-        if mkdir "$lock_dir" 2>/dev/null; then
-            echo $$ > "$LOCK_FILE"
-            rmdir "$lock_dir" 2>/dev/null
-            log "INFO" "Created lock file with PID $$ (after retry)"
-            return 0
-        else
-            log "ERROR" "Failed to create lock file (race condition)"
-            return 1
-        fi
+    eval "exec ${LOCK_FD}>\"$LOCK_FILE\""
+    if ! flock -n "${LOCK_FD}"; then
+        local pid
+        pid=$(cat "$LOCK_FILE" 2>/dev/null)
+        log "INFO" "Backfill already running with PID: $pid"
+        eval "exec ${LOCK_FD}>&-"
+        return 1
     fi
+    echo $$ >&"${LOCK_FD}"
+    log "INFO" "Created lock file with PID $$"
+    return 0
 }
 
 # Function to remove lock file
 remove_lock() {
+    flock -u "${LOCK_FD}" 2>/dev/null
+    eval "exec ${LOCK_FD}>&-" 2>/dev/null
     rm -f "$LOCK_FILE"
     log "INFO" "Removed lock file"
 }

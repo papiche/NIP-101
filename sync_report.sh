@@ -15,6 +15,17 @@ REPORT_ERROR_LOG="$HOME/.zen/strfry/constellation-backfill.error.log"
 SYNC_PID_FILE="$HOME/.zen/strfry/constellation-backfill.pid"
 LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
 
+# Safe alternative to eval for loading stats key=value strings
+# Only accepts uppercase variable names, strips surrounding quotes
+_load_stats() {
+    local _stats="$1"
+    local _line
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^([A-Z_]+)=\"(.*)\"$ ]] || continue
+        printf -v "${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
+    done <<< "$_stats"
+}
+
 # Function to extract sync statistics from log
 extract_sync_stats() {
     local log_file="$1"
@@ -197,8 +208,8 @@ generate_html_report() {
     local stats="$1"
     local node_info="$2"
     
-    # Source the statistics
-    eval "$stats"
+    # Load statistics (safe: no eval, only uppercase variable names allowed)
+    _load_stats "$stats"
     
     # Calculate success rate
     local success_rate="0"
@@ -784,8 +795,8 @@ EOF
 should_send_report() {
     local stats="$1"
     
-    # Source the statistics
-    eval "$stats"
+    # Load statistics (safe: no eval, only uppercase variable names allowed)
+    _load_stats "$stats"
     
     # Check if there are imported events (synchronized messages)
     local has_imported_events=false
@@ -867,8 +878,8 @@ send_sync_report() {
     # Get IPFS gateway URL
     local ipfs_url="$(myIpfsGw)/ipfs/$report_ipfs"
     
-    # Prepare NOSTR message content
-    eval "$stats"
+    # Prepare NOSTR message content (load statistics safely)
+    _load_stats "$stats"
     
     # Get captain nprofile for reference (if available)
     local CAPTAIN_NPROFILE=""
