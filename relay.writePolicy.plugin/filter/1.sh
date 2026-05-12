@@ -165,13 +165,14 @@ cleanup_warning_messages() {
     local current_time=$(date +%s)
     local cutoff_time=$((current_time - WARNING_MESSAGE_TTL))
 
-    # Use UMAP 0.00,0.00 pubkey for cleanup
+    # Use UMAP 0.00,0.00 pubkey for cleanup — derive from NPUB (not NSEC) for correct public key hex
     local UMAP_PUBKEY=""
     local UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" -s)
     if [[ -n "$UMAPNSEC" ]]; then
-        UMAP_PUBKEY=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
+        local _UMAP_NPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" 2>/dev/null)
+        UMAP_PUBKEY=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$_UMAP_NPUB" 2>/dev/null)
         if [[ -z "$UMAP_PUBKEY" ]]; then
-            log_uplanet "Warning: Failed to convert UMAP NSEC to HEX for cleanup"
+            log_uplanet "Warning: Failed to convert UMAP NPUB to HEX for cleanup"
             return 1
         fi
     else
@@ -234,6 +235,16 @@ handle_visitor_message() {
     local event_id="$2"
     local visitor_content="$3"
 
+    # Compute UMAP 0.00,0.00 public key to detect self-messages and prevent self-blacklisting
+    local UMAP_NPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" 2>/dev/null)
+    local UMAP_HEX=""
+    [[ -n "$UMAP_NPUB" ]] && UMAP_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAP_NPUB" 2>/dev/null)
+    if [[ -n "$UMAP_HEX" && "$pubkey" == "$UMAP_HEX" ]]; then
+        log_uplanet "Skipping visitor handling for UMAP 0.00,0.00 key — adding to amisOfAmis"
+        add_to_amis_of_amis "$UMAP_HEX" "UMAP 0.00,0.00 key (auto-whitelist)"
+        return 0
+    fi
+
     # Nettoyer les anciens messages d'avertissement
     cleanup_warning_messages &
 
@@ -262,8 +273,8 @@ handle_visitor_message() {
         (
         # Use UMAP 0.00,0.00 key for visitor messages instead of captain key
         UMAPNSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${UPLANETNAME}0.00" "${UPLANETNAME}0.00" -s)
-        NPRIV_HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$UMAPNSEC")
-        if [[ "$pubkey" != "$NPRIV_HEX" && "$UMAPNSEC" != "" ]]; then
+        # Compare pubkey against UMAP *public* key hex (UMAP_HEX inherited from parent scope)
+        if [[ "$pubkey" != "$UMAP_HEX" && "$UMAPNSEC" != "" ]]; then
             log_uplanet "Notice: Astroport Relay Anonymous Usage (UMAP 0.00,0.00)"
             
             local ORIGIN="ORIGIN"
