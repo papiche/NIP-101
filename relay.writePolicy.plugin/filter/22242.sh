@@ -121,7 +121,8 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
             for _s in .secret.nostr .secret.dunikey .secret.ipns; do
                 _et=$(mktemp)
                 # Télécharger le secret chiffré depuis l'IPNS home du player
-                if timeout 20 ipfs cat "${_ROAM_NOSTRNS}/${EMAIL}/${_s}.uplanet.enc" \
+                # Fichier nommé _secret.TYPE.uplanet.enc (préfixe _ = visible dans ipfs add)
+                if timeout 20 ipfs cat "${_ROAM_NOSTRNS}/${EMAIL}/_${_s:1}.uplanet.enc" \
                         > "$_et" 2>/dev/null && [[ -s "$_et" ]]; then
                     # Déchiffrer avec la clé duniter UPLANET locale
                     if "${_ASTRO}/natools.py" decrypt -f pubsec \
