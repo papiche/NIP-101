@@ -97,57 +97,65 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
     # Si le player vient du swarm (SOURCE=swarm), télécharger ses secrets
     # chiffrés avec UPLANETNAME depuis son IPNS home, les déchiffrer localement,
     # et importer la clé IPNS pour permettre la publication du manifest uDRIVE.
+    # Lancé en background pour ne pas bloquer strfry (writePolicy synchrone).
     if [[ "$SOURCE" == "swarm" ]]; then
+        (
         _ASTRO="${HOME}/.zen/Astroport.ONE/tools"
 
         # Trouver NOSTRNS et G1PUBNOSTR dans les données swarm de la constellation
         _ROAM_NOSTRNS=$(cat "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}"/NOSTRNS 2>/dev/null | head -1)
         _ROAM_G1PUB=$(cat "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}"/G1PUBNOSTR 2>/dev/null | head -1)
 
+        # Secrets déjà présents — rien à re-télécharger
+        if [[ -s "${MARKER_DIR}/.secret.ipns" && -s "${MARKER_DIR}/.secret.nostr" ]]; then
+            log_event "ROAMING_SECRETS: Secrets déjà présents pour ${EMAIL}"
+            exit 0
+        fi
+
         # uplanet.dunikey créé par my.sh — présent si la station est initialisée
         if [[ -n "$_ROAM_NOSTRNS" && -s "${HOME}/.zen/game/uplanet.dunikey" ]]; then
 
             log_event "ROAMING_SECRETS: ${EMAIL} ← ${_ROAM_NOSTRNS:0:25}..."
-            # uplanet.dunikey est déjà validé non-vide par la condition parente
             _rk="${HOME}/.zen/game/uplanet.dunikey"
             _ok=0
-                for _s in .secret.nostr .secret.dunikey .secret.ipns; do
-                    _et=$(mktemp)
-                    # Télécharger le secret chiffré depuis l'IPNS home du player
-                    if timeout 20 ipfs cat "${_ROAM_NOSTRNS}/${EMAIL}/${_s}.uplanet.enc" \
-                            > "$_et" 2>/dev/null && [[ -s "$_et" ]]; then
-                        # Déchiffrer avec la clé duniter UPLANET locale
-                        if "${_ASTRO}/natools.py" decrypt -f pubsec \
-                                -i "$_et" -k "$_rk" \
-                                -o "${MARKER_DIR}/${_s}" 2>/dev/null \
-                                && [[ -s "${MARKER_DIR}/${_s}" ]]; then
-                            chmod 600 "${MARKER_DIR}/${_s}"
-                            _ok=$((_ok + 1))
-                            log_event "ROAMING_SECRETS: ✅ ${_s} déchiffré"
-                        fi
+            for _s in .secret.nostr .secret.dunikey .secret.ipns; do
+                _et=$(mktemp)
+                # Télécharger le secret chiffré depuis l'IPNS home du player
+                if timeout 20 ipfs cat "${_ROAM_NOSTRNS}/${EMAIL}/${_s}.uplanet.enc" \
+                        > "$_et" 2>/dev/null && [[ -s "$_et" ]]; then
+                    # Déchiffrer avec la clé duniter UPLANET locale
+                    if "${_ASTRO}/natools.py" decrypt -f pubsec \
+                            -i "$_et" -k "$_rk" \
+                            -o "${MARKER_DIR}/${_s}" 2>/dev/null \
+                            && [[ -s "${MARKER_DIR}/${_s}" ]]; then
+                        chmod 600 "${MARKER_DIR}/${_s}"
+                        _ok=$((_ok + 1))
+                        log_event "ROAMING_SECRETS: ✅ ${_s} déchiffré"
                     fi
-                    rm -f "$_et"
-                done
-
-                # Importer la clé IPNS dans le keystore local pour publish du manifest
-                if [[ -s "${MARKER_DIR}/.secret.ipns" && -n "$_ROAM_G1PUB" ]]; then
-                    _kname="${_ROAM_G1PUB}:NOSTR"
-                    if ! ipfs key list 2>/dev/null | grep -qF "$_kname"; then
-                        ipfs key import "$_kname" -f pem-pkcs8-cleartext \
-                            "${MARKER_DIR}/.secret.ipns" >/dev/null 2>&1 \
-                            && log_event "ROAMING_SECRETS: ✅ Clé IPNS importée: ${_kname}"
-                    else
-                        log_event "ROAMING_SECRETS: Clé IPNS déjà présente: ${_kname}"
-                    fi
-                    # Sauvegarder les métadonnées pour NOSTRCARD.refresh.sh roaming loop
-                    echo "$_ROAM_NOSTRNS" > "${MARKER_DIR}/NOSTRNS"
-                    echo "$_ROAM_G1PUB"  > "${MARKER_DIR}/G1PUBNOSTR"
                 fi
+                rm -f "$_et"
+            done
 
-                log_event "ROAMING_SECRETS: ${_ok}/3 secrets récupérés → roaming parfait activé"
+            # Importer la clé IPNS dans le keystore local pour publish du manifest
+            if [[ -s "${MARKER_DIR}/.secret.ipns" && -n "$_ROAM_G1PUB" ]]; then
+                _kname="${_ROAM_G1PUB}:NOSTR"
+                if ! ipfs key list 2>/dev/null | grep -qF "$_kname"; then
+                    ipfs key import "$_kname" -f pem-pkcs8-cleartext \
+                        "${MARKER_DIR}/.secret.ipns" >/dev/null 2>&1 \
+                        && log_event "ROAMING_SECRETS: ✅ Clé IPNS importée: ${_kname}"
+                else
+                    log_event "ROAMING_SECRETS: Clé IPNS déjà présente: ${_kname}"
+                fi
+                # Sauvegarder les métadonnées pour NOSTRCARD.refresh.sh roaming loop
+                echo "$_ROAM_NOSTRNS" > "${MARKER_DIR}/NOSTRNS"
+                echo "$_ROAM_G1PUB"  > "${MARKER_DIR}/G1PUBNOSTR"
+            fi
+
+            log_event "ROAMING_SECRETS: ${_ok}/3 secrets récupérés → roaming parfait activé"
         else
             log_event "ROAMING_SECRETS: NOSTRNS/uplanet.dunikey manquant pour ${EMAIL} (roaming partiel)"
         fi
+        ) &
     fi
 fi
 
