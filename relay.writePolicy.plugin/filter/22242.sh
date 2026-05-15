@@ -86,6 +86,14 @@ if [[ "$SOURCE" == "amisOfAmis" ]]; then
             if [[ -n "$_AMIS_EMAIL" ]]; then
                 EMAIL="$_AMIS_EMAIL"
                 SOURCE="amisOfAmis_roaming"
+                # Sauvegarder l'IPFSNODEID de la home station (extrait de l'URL website)
+                # Format : https://ipfs.domain/ipns/NOSTRNS/EMAIL/APP/uDRIVE
+                if [[ -z "$_AMIS_WEBSITE" ]]; then
+                    _AMIS_WEBSITE=$(echo "$_AMIS_PROFILE" | \
+                        jq -r '.content | fromjson | .website // ""' 2>/dev/null)
+                fi
+                _HOME_IPFSNODEID=$(echo "$_AMIS_WEBSITE" | \
+                    grep -oP '(?<=/ipns/)[A-Za-z0-9]+(?=/)' | head -1)
                 log_event "ROAMING_AMIS: Email identifié via profil kind 0 : $_AMIS_EMAIL (${pubkey:0:8}…)"
             fi
         fi
@@ -110,6 +118,9 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
         touch "$MARKER_DIR/.roaming"
         if [[ "$SOURCE" == "amisOfAmis_roaming" ]]; then
             echo "AMIS_ROAMING" > "$MARKER_DIR/SOURCE"
+            # Sauvegarder l'IPFSNODEID de la home station pour le routage DM
+            [[ -n "$_HOME_IPFSNODEID" ]] && \
+                echo "$_HOME_IPFSNODEID" > "$MARKER_DIR/HOME_IPFSNODEID"
         else
             echo "SWARM_ROAMING" > "$MARKER_DIR/SOURCE"
         fi
