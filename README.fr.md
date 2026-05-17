@@ -629,8 +629,8 @@ Les clés privées sont divisées en **3 fragments** :
 ### Documentation UPlanet
 - **Dépôt Principal :** [github.com/papiche/Astroport.ONE](https://github.com/papiche/Astroport.ONE)
 - **Dépôt NIP-101 :** [github.com/papiche/NIP-101](https://github.com/papiche/NIP-101)
-- **Système Oracle :** [docs/ORACLE_SYSTEM.md](../Astroport.ONE/docs/ORACLE_SYSTEM.md)
-- **Système ORE :** [docs/ORE_SYSTEM.md](../Astroport.ONE/docs/ORE_SYSTEM.md)
+- **Système Oracle :** [docs/explanation/ORACLE_SYSTEM.md](../Astroport.ONE/docs/explanation/ORACLE_SYSTEM.md)
+- **Système ORE :** [docs/explanation/ORE_SYSTEM.md](../Astroport.ONE/docs/explanation/ORE_SYSTEM.md)
 
 ---
 

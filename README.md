@@ -860,9 +860,9 @@ graph LR
 
 - **Main Repository:** [github.com/papiche/Astroport.ONE](https://github.com/papiche/Astroport.ONE)
 - **NIP-101 Repository:** [github.com/papiche/NIP-101](https://github.com/papiche/NIP-101)
-- **Oracle System:** [docs/ORACLE_SYSTEM.md](../Astroport.ONE/docs/ORACLE_SYSTEM.md)
-- **ORE System:** [docs/ORE_SYSTEM.md](../Astroport.ONE/docs/ORE_SYSTEM.md)
-- **DID Implementation:** [DID_IMPLEMENTATION.md](../Astroport.ONE/DID_IMPLEMENTATION.md)
+- **Oracle System:** [docs/explanation/ORACLE_SYSTEM.md](../Astroport.ONE/docs/explanation/ORACLE_SYSTEM.md)
+- **ORE System:** [docs/explanation/ORE_SYSTEM.md](../Astroport.ONE/docs/explanation/ORE_SYSTEM.md)
+- **DID Implementation:** [docs/explanation/DID_IMPLEMENTATION.md](../Astroport.ONE/docs/explanation/DID_IMPLEMENTATION.md)
 - **Public Portal:** [copylaradio.com](https://ipfs.copylaradio.com/ipns/copylaradio.com)
 
 ### Technical Tools

@@ -44,6 +44,72 @@ log_like() {
 }
 
 ################################################################################
+# ROAMING RELAY — forwarde un paiement ZEN vers la home station via DM NIP-44.
+# Appelé uniquement quand ZEN_AMOUNT > 0 et que le .secret.dunikey est absent
+# (utilisateur en roaming sur cette station visiteur).
+# Variables implicites (scope global) : $EMAIL, $pubkey, $event_id,
+# $reacted_event_id, $reacted_author_pubkey, $LOG_FILE
+################################################################################
+_relay_zen_payment_to_home() {
+    local _g1pub_dest="$1" _zen_amount="$2" _comment="$3"
+    local _is_cf="${4:-false}" _project_id="${5:-}" _bien_g1pub="${6:-}"
+
+    [[ -z "$EMAIL" || -z "$_g1pub_dest" ]] && return
+    [[ ! -f "${KEY_DIR}/${EMAIL}/.roaming" ]] && return
+
+    local _home_node_hex=""
+    local _home_station="${KEY_DIR}/${EMAIL}/home.station"
+    [[ -f "$_home_station" ]] && \
+        _home_node_hex=$(cut -d: -f2 < "$_home_station" | tr -d '[:space:]')
+    if [[ ${#_home_node_hex} -ne 64 ]]; then
+        log_like "ROAMING: ⚠️ home.station HEX introuvable pour $EMAIL — ZEN ${_zen_amount}Ẑ perdu"
+        return
+    fi
+
+    local _payload
+    _payload=$(python3 -c "
+import json, sys
+print(json.dumps({
+    'email':                sys.argv[1],
+    'sender_pubkey':        sys.argv[2],
+    'event_id':             sys.argv[3],
+    'reacted_event_id':     sys.argv[4],
+    'reacted_author_pubkey':sys.argv[5],
+    'zen_amount':           float(sys.argv[6]),
+    'comment':              sys.argv[7],
+    'g1pub_dest':           sys.argv[8],
+    'is_crowdfunding':      sys.argv[9] == 'true',
+    'project_id':           sys.argv[10],
+    'bien_g1pub':           sys.argv[11],
+}))
+" "$EMAIL" "$pubkey" "$event_id" "${reacted_event_id:-}" \
+  "$reacted_author_pubkey" "$_zen_amount" "$_comment" "$_g1pub_dest" \
+  "$_is_cf" "$_project_id" "$_bien_g1pub" 2>/dev/null)
+
+    [[ -z "$_payload" ]] && \
+        log_like "ROAMING: ⚠️ payload zen_like vide pour $EMAIL" && return
+
+    [[ ! -s "$HOME/.zen/game/secret.nostr" ]] && \
+        log_like "ROAMING: ⚠️ secret.nostr absent — impossible de relayer" && return
+
+    source "$HOME/.zen/game/secret.nostr"
+    local _NODE_NSEC="${NSEC:-}"
+    unset NSEC NPUB HEX
+
+    (
+        python3 "$HOME/.zen/Astroport.ONE/tools/nostr_node_intercom.py" send \
+            --nsec    "$_NODE_NSEC" \
+            --to      "$_home_node_hex" \
+            --channel "zen_like" \
+            --payload "$_payload" \
+            --relays  "wss://relay.copylaradio.com" \
+            >> "$LOG_FILE" 2>&1 \
+        && log_like "ROAMING: ✈️ zen_like relayé → ${_home_node_hex:0:12}... pour $EMAIL (${_zen_amount}Ẑ)" \
+        || log_like "ROAMING: ⚠️ zen_like relay FAILED pour $EMAIL"
+    ) &
+}
+
+################################################################################
 # INITIALIZATION
 ################################################################################
 
@@ -171,9 +237,19 @@ case "$content" in
                             PAYMENT_METHOD="MULTIPASS:($EMAIL)"
                         else
                             log_like "CROWDFUNDING: Cannot send - missing wallet for ${EMAIL}"
+                            ## Roaming ZEN > 0 : relayer vers home station
+                            if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
+                                _cf_comment=""
+                                [[ "$is_vote" == "true" ]] \
+                                    && _cf_comment="CF:${BIEN_PROJECT_ID}:VOTE:${ZEN_AMOUNT}:${pubkey:0:8}" \
+                                    || _cf_comment="CF:${BIEN_PROJECT_ID}:ZEN:${ZEN_AMOUNT}:${pubkey:0:8}"
+                                _relay_zen_payment_to_home \
+                                    "$BIEN_G1PUB" "$ZEN_AMOUNT" "$_cf_comment" \
+                                    "true" "$BIEN_PROJECT_ID" "$BIEN_G1PUB"
+                            fi
                         fi
                     fi
-                    
+
                     if [[ -n "$PAYMENT_WALLET" ]]; then
                         # Convert ZEN to G1
                         AMOUNT=$(echo "scale=2; $ZEN_AMOUNT * 0.1" | bc -l)
@@ -268,9 +344,16 @@ case "$content" in
                             PAYMENT_METHOD="MULTIPASS:($EMAIL)"
                         else
                             log_like "PAYMENT: Cannot send - missing wallet for ${EMAIL}"
+                            ## Roaming ZEN > 0 : relayer vers home station
+                            if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
+                                _relay_zen_payment_to_home \
+                                    "$G1PUBNOSTR" "$ZEN_AMOUNT" \
+                                    "UPLANET:${UPLANETG1PUB:0:8}:${EMAIL}:LIKE:${ZEN_AMOUNT}Z:${reacted_event_id}" \
+                                    "false" "" ""
+                            fi
                         fi
                     fi
-                    
+
                     if [[ -n "$PAYMENT_WALLET" ]]; then
                         AMOUNT=$(echo "scale=2; $ZEN_AMOUNT * 0.1" | bc -l)
                         if (( $(echo "$AMOUNT < 1" | bc -l) )); then
