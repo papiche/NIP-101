@@ -146,26 +146,24 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
     [[ -f "$OLD_MARKER" ]] && rm -f "$OLD_MARKER" 2>/dev/null && \
         log_event "CLEANUP: Removed legacy .nip42_auth marker for $EMAIL"
 
-    # ── ROAMING CONTEXT : Sauvegarde des métadonnées pour la home station ──────
-    # Si le player vient du swarm, sauvegarder NOSTRNS + G1PUBNOSTR pour que
-    # NOSTRCARD.refresh.sh puisse router les DMs de sync vers la home station.
-    # La publication IPNS reste EXCLUSIVEMENT sur la home station via DM NIP-04.
+    # ── ROAMING CONTEXT : Sauvegarde des métadonnées depuis le cache swarm ──────
+    # Si le player vient du swarm, copier tous les fichiers disponibles dans TW/EMAIL/
+    # pour que geo.py (/api/myGPS) puisse résoudre le GPS via /ipns/NOSTRNS/EMAIL/GPS
+    # et que NOSTRCARD.refresh.sh puisse router les DMs NIP-44 vers la home station.
     if [[ "$SOURCE" == "swarm" ]]; then
         (
-        _ROAM_NOSTRNS=$(cat "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}"/NOSTRNS 2>/dev/null | head -1)
-        _ROAM_G1PUB=$(cat "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}"/G1PUBNOSTR 2>/dev/null | head -1)
+        _SWARM_TW_DIR=$(ls -d "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}" 2>/dev/null | head -1)
 
-        if [[ -n "$_ROAM_NOSTRNS" ]]; then
-            echo "$_ROAM_NOSTRNS" > "${MARKER_DIR}/NOSTRNS"
-            log_event "ROAMING_CONTEXT: NOSTRNS sauvegardé pour ${EMAIL}"
-        fi
-        if [[ -n "$_ROAM_G1PUB" ]]; then
-            echo "$_ROAM_G1PUB" > "${MARKER_DIR}/G1PUBNOSTR"
-            log_event "ROAMING_CONTEXT: G1PUBNOSTR sauvegardé pour ${EMAIL}"
-        fi
+        for _swarm_file in NOSTRNS G1PUBNOSTR GPS NPUB HEX; do
+            _val=$(cat "${_SWARM_TW_DIR}/${_swarm_file}" 2>/dev/null)
+            if [[ -n "$_val" ]]; then
+                echo "$_val" > "${MARKER_DIR}/${_swarm_file}"
+                log_event "ROAMING_CONTEXT: ${_swarm_file} sauvegardé pour ${EMAIL}"
+            fi
+        done
 
-        if [[ -n "$_ROAM_NOSTRNS" ]]; then
-            log_event "ROAMING_CONTEXT: ${EMAIL} enregistré pour sync DM via home station"
+        if [[ -s "${MARKER_DIR}/NOSTRNS" ]]; then
+            log_event "ROAMING_CONTEXT: ${EMAIL} prêt pour sync GPS+DM via home station (NOSTRNS=$(cat ${MARKER_DIR}/NOSTRNS))"
         else
             log_event "ROAMING_CONTEXT: NOSTRNS introuvable pour ${EMAIL} dans le swarm"
         fi
