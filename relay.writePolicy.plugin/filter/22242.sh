@@ -45,13 +45,61 @@ log_event() {
 event_json="$1"
 extract_event_data "$event_json"
 
+# DEBUG NIP-42 — inspecter les valeurs reçues pour diagnostiquer les rejets
+RELAY_TAG=$(echo "$tags" | jq -r '.[] | select(.[0]=="relay") | .[1]' 2>/dev/null || true)
+log_event "DEBUG: Challenge=${challenge:-<vide>}"
+log_event "DEBUG: RelayTag=${RELAY_TAG:-<vide>}"
+log_event "DEBUG: Pubkey=${pubkey:-<vide>}"
+
 # Extract event_id (= the 'id' field of the event – sha256 of the serialised event)
 event_id="${id:-}"
 
 # Check authorization using common function
 # Sets global: AUTHORIZED, EMAIL, SOURCE
 if ! check_authorization "$pubkey" "log_event"; then
-    exit 1
+    log_event "ROAMING_UNKNOWN: ${pubkey:0:8}... non reconnu localement — tentative roaming éphémère"
+
+    # Tenter de récupérer l'email depuis le profil kind 0 dans strfry local
+    _ROAM_EMAIL=""
+    if cd "${HOME}/.zen/strfry" 2>/dev/null; then
+        _ROAM_PROFILE=$(./strfry scan \
+            "{\"authors\":[\"${pubkey}\"],\"kinds\":[0]}" 2>/dev/null | \
+            jq -s 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
+        cd - >/dev/null 2>&1
+        if [[ -n "$_ROAM_PROFILE" && "$_ROAM_PROFILE" != "null" ]]; then
+            # 1. Tag ["i", "email:ADDR", ""] — source la plus fiable
+            _ROAM_EMAIL=$(echo "$_ROAM_PROFILE" | \
+                jq -r '(.tags // [])[] | select(.[0] == "i" and (.[1] | startswith("email:"))) | .[1][6:]' \
+                2>/dev/null | head -1)
+            # 2. Fallback : nip05
+            if [[ -z "$_ROAM_EMAIL" ]]; then
+                _ROAM_NIP05=$(echo "$_ROAM_PROFILE" | \
+                    jq -r '.content | fromjson | .nip05 // ""' 2>/dev/null)
+                _ROAM_EMAIL=$(echo "$_ROAM_NIP05" | \
+                    grep -oP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' | head -1)
+            fi
+        fi
+    fi
+
+    if [[ -n "$_ROAM_EMAIL" ]]; then
+        EMAIL="$_ROAM_EMAIL"
+        SOURCE="unknown_roaming"
+        log_event "ROAMING_UNKNOWN: email récupéré via kind 0 → $EMAIL (${pubkey:0:8}…)"
+        # Continue vers la création du marker (pas d'exit)
+    else
+        # Fallback pubkey-only : créer un répertoire éphémère minimal
+        _PUBKEY_DIR="${HOME}/.zen/game/nostr/.pubkey_${pubkey}"
+        mkdir -p "$_PUBKEY_DIR"
+        echo "$pubkey" > "$_PUBKEY_DIR/HEX"
+        touch "$_PUBKEY_DIR/.roaming"
+        echo "UNKNOWN_ROAMING" > "$_PUBKEY_DIR/SOURCE"
+        NIP42_MARKER="${_PUBKEY_DIR}/.nip42_auth_${pubkey}"
+        NOW_TS=$(date +%s)
+        printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
+            "$pubkey" "$event_id" "$NOW_TS" > "$NIP42_MARKER" 2>/dev/null
+        log_event "ACCEPTED_EPHEMERAL: ${pubkey:0:8}... marker pubkey-only créé (répertoire ${_PUBKEY_DIR##*/})"
+        exit 0
+    fi
 fi
 
 # ── ROAMING AMIS : Identification email via profil kind 0 ───────────────────
