@@ -15,6 +15,13 @@ BACKFILL_ERROR_LOG="$HOME/.zen/strfry/constellation-backfill.error.log"
 BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
 LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
 
+# Public fallback relays for profile recovery (kind 0) when constellation peers are unreachable
+PUBLIC_FALLBACK_RELAYS=(
+    "wss://relay.damus.io"
+    "wss://nos.lol"
+    "wss://relay.nostr.band"
+)
+
 # Log rotation settings (for error log only)
 # Adapt to hardware: RPi Zero has limited storage
 if [[ "$(uname -m)" == "aarch64" ]] && [[ $(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}') -lt 1048576 ]]; then
@@ -688,6 +695,33 @@ execute_backfill_websocket_station_events() {
     return 0
 }
 
+# Targeted kind-0 fetch for a single pubkey — 10s timeout, used for public relay fallback
+fetch_profile_kind0() {
+    local peer="$1"
+    local hex_pubkey="$2"
+
+    local req_message='["REQ","prof0",{"kinds":[0],"authors":["'"$hex_pubkey"'"],"limit":1}]'
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
+    local response_file="$HOME/.zen/strfry/backfill-prof-${RANDOM}.json"
+
+    local python_output
+    python_output=$(python3 "$python_script" "$peer" "$req_message" "$response_file" 10 2>/dev/null)
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        local count
+        count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+        if [[ ${count:-0} -gt 0 ]]; then
+            process_and_import_events "$response_file"
+            rm -f "$response_file"
+            return 0
+        fi
+    fi
+    rm -f "$response_file"
+    return 1
+}
+
 # Function to execute a single batch backfill using WebSocket connection
 execute_backfill_websocket_batch() {
     local peer="$1"
@@ -924,6 +958,8 @@ process_and_import_events() {
         # This prevents re-importing messages that have been marked for deletion
         local deletion_filter=""
         for deleted_id in "${deleted_message_ids[@]}"; do
+            # Validation stricte : les event IDs NOSTR valides font exactement 64 hex chars
+            [[ "$deleted_id" =~ ^[0-9a-fA-F]{64}$ ]] || continue
             if [[ -n "$deletion_filter" ]]; then
                 deletion_filter+=" and .id != \"$deleted_id\""
             else
@@ -1141,12 +1177,14 @@ main() {
     # Process each peer
     local success_count=0
     local total_peers=${#peers[@]}
-    
+    local DEAD_PEERS=()  # peers injoignables ce run — évite de les réessayer
+
     for peer in "${peers[@]}"; do
         log "INFO" "Processing peer: $peer"
-        
+
         local is_p2p=false
         local ipfsnodeid=""
+        local backfill_success=false
         
         # Get HEX pubkeys for targeted backfill (same for all relay types)
         # OPT #1: Use cached HEX pubkeys
@@ -1206,12 +1244,21 @@ main() {
             local relay_url=$(echo "$peer" | sed 's/^routable://')
             log "INFO" "Processing routable relay: $relay_url"
             
+            # Skip peers already known down this run
+            local is_dead=false
+            for _dead in "${DEAD_PEERS[@]}"; do [[ "$relay_url" == "$_dead" ]] && is_dead=true && break; done
+            if [[ "$is_dead" == "true" ]]; then
+                log "WARN" "Skipping known dead peer: $relay_url"
+                continue
+            fi
+
             # Execute WebSocket backfill for routable relay
             if execute_backfill_websocket "$relay_url" "$since_timestamp" "$hex_pubkeys"; then
                 log "INFO" "✅ WebSocket backfill successful for $relay_url"
                 backfill_success=true
             else
                 log "ERROR" "❌ WebSocket backfill failed for $relay_url"
+                DEAD_PEERS+=("$relay_url")
             fi
         fi
         
@@ -1365,6 +1412,18 @@ main() {
                                     fi
                                 done
                                 
+                                # Exclure les peers connus down ce run
+                                if [[ ${#DEAD_PEERS[@]} -gt 0 ]]; then
+                                    local live_rp=()
+                                    for _rp in "${routable_peers[@]}"; do
+                                        local _rp_dead=false
+                                        for _dp in "${DEAD_PEERS[@]}"; do [[ "$_rp" == "$_dp" ]] && _rp_dead=true && break; done
+                                        [[ "$_rp_dead" == "false" ]] && live_rp+=("$_rp")
+                                    done
+                                    [[ ${#live_rp[@]} -gt 0 ]] && routable_peers=("${live_rp[@]}")
+                                    log "INFO" "Dead-peer filter: ${#routable_peers[@]} live peers for full sync"
+                                fi
+
                                 if [[ ${#routable_peers[@]} -eq 0 ]]; then
                                     log "WARN" "No routable peers available for parallel full sync"
                                 else
@@ -1387,7 +1446,7 @@ main() {
                                             # Try each routable peer until successful
                                             for relay_url in "${routable_peers[@]}"; do
                                                 log "INFO" "    📡 Syncing ${missing_hex:0:8} from: $relay_url"
-                                        
+
                                         # Execute full backfill for this HEX (since=0 means all messages)
                                         if execute_backfill_websocket_single_hex "$relay_url" "0" "$missing_hex"; then
                                             log "INFO" "    ✅ Full sync successful for ${missing_hex:0:8}"
@@ -1397,9 +1456,24 @@ main() {
                                             log "WARN" "    ❌ Full sync failed for ${missing_hex:0:8} from $relay_url"
                                         fi
                                     done
-                                    
+
+                                    # Constellation peers unavailable — fetch kind 0 only from public relays
+                                    if [[ "$sync_success" == "false" ]] && [[ ${#PUBLIC_FALLBACK_RELAYS[@]} -gt 0 ]]; then
+                                        log "INFO" "    🌐 Trying public fallback relays (kind 0 only) for ${missing_hex:0:8}..."
+                                        for relay_url in "${PUBLIC_FALLBACK_RELAYS[@]}"; do
+                                            log "INFO" "    📡 Public relay: $relay_url"
+                                            if fetch_profile_kind0 "$relay_url" "$missing_hex"; then
+                                                log "INFO" "    ✅ Profile recovered from public relay for ${missing_hex:0:8}"
+                                                sync_success=true
+                                                break
+                                            else
+                                                log "WARN" "    ❌ Public relay failed for ${missing_hex:0:8} from $relay_url"
+                                            fi
+                                        done
+                                    fi
+
                                     if [[ "$sync_success" == "false" ]]; then
-                                        log "ERROR" "  ❌ Failed to sync ${missing_hex:0:8} from all peers"
+                                        log "WARN" "  ⚠️  No profile found for ${missing_hex:0:8} in constellation or public relays"
                                                 exit 1
                                             fi
                                             exit 0
