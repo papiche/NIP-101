@@ -45,11 +45,13 @@ log_event() {
 event_json="$1"
 extract_event_data "$event_json"
 
-# DEBUG NIP-42 — inspecter les valeurs reçues pour diagnostiquer les rejets
-RELAY_TAG=$(echo "$tags" | jq -r '.[] | select(.[0]=="relay") | .[1]' 2>/dev/null || true)
-log_event "DEBUG: Challenge=${challenge:-<vide>}"
-log_event "DEBUG: RelayTag=${RELAY_TAG:-<vide>}"
-log_event "DEBUG: Pubkey=${pubkey:-<vide>}"
+if [[ "${DEBUG:-0}" == "1" ]]; then
+    RELAY_TAG=$(echo "$event_json" | jq -r '(.event.tags // [])[] | select(.[0]=="relay") | .[1]' 2>/dev/null || true)
+    CHALLENGE_TAG=$(echo "$event_json" | jq -r '(.event.tags // [])[] | select(.[0]=="challenge") | .[1]' 2>/dev/null || true)
+    log_event "DEBUG: Challenge=${CHALLENGE_TAG:-<vide>}"
+    log_event "DEBUG: RelayTag=${RELAY_TAG:-<vide>}"
+    log_event "DEBUG: Pubkey=${pubkey:-<vide>}"
+fi
 
 # Extract event_id (= the 'id' field of the event – sha256 of the serialised event)
 event_id="${id:-}"
@@ -59,30 +61,8 @@ event_id="${id:-}"
 if ! check_authorization "$pubkey" "log_event"; then
     log_event "ROAMING_UNKNOWN: ${pubkey:0:8}... non reconnu localement — tentative roaming éphémère"
 
-    # Tenter de récupérer l'email depuis le profil kind 0 dans strfry local
-    _ROAM_EMAIL=""
-    if cd "${HOME}/.zen/strfry" 2>/dev/null; then
-        _ROAM_PROFILE=$(./strfry scan \
-            "{\"authors\":[\"${pubkey}\"],\"kinds\":[0]}" 2>/dev/null | \
-            jq -s 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
-        cd - >/dev/null 2>&1
-        if [[ -n "$_ROAM_PROFILE" && "$_ROAM_PROFILE" != "null" ]]; then
-            # 1. Tag ["i", "email:ADDR", ""] — source la plus fiable
-            _ROAM_EMAIL=$(echo "$_ROAM_PROFILE" | \
-                jq -r '(.tags // [])[] | select(.[0] == "i" and (.[1] | startswith("email:"))) | .[1][6:]' \
-                2>/dev/null | head -1)
-            # 2. Fallback : nip05
-            if [[ -z "$_ROAM_EMAIL" ]]; then
-                _ROAM_NIP05=$(echo "$_ROAM_PROFILE" | \
-                    jq -r '.content | fromjson | .nip05 // ""' 2>/dev/null)
-                _ROAM_EMAIL=$(echo "$_ROAM_NIP05" | \
-                    grep -oP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' | head -1)
-            fi
-        fi
-    fi
-
-    if [[ -n "$_ROAM_EMAIL" ]]; then
-        EMAIL="$_ROAM_EMAIL"
+    if resolve_email_from_kind0 "$pubkey"; then
+        EMAIL="$_RESOLVED_EMAIL"
         SOURCE="unknown_roaming"
         log_event "ROAMING_UNKNOWN: email récupéré via kind 0 → $EMAIL (${pubkey:0:8}…)"
         # Continue vers la création du marker (pas d'exit)
@@ -90,9 +70,9 @@ if ! check_authorization "$pubkey" "log_event"; then
         # Fallback pubkey-only : créer un répertoire éphémère minimal
         _PUBKEY_DIR="${HOME}/.zen/game/nostr/.pubkey_${pubkey}"
         mkdir -p "$_PUBKEY_DIR"
-        echo "$pubkey" > "$_PUBKEY_DIR/HEX"
+        printf '%s\n' "$pubkey" > "$_PUBKEY_DIR/HEX"
         touch "$_PUBKEY_DIR/.roaming"
-        echo "UNKNOWN_ROAMING" > "$_PUBKEY_DIR/SOURCE"
+        printf '%s\n' "UNKNOWN_ROAMING" > "$_PUBKEY_DIR/SOURCE"
         NIP42_MARKER="${_PUBKEY_DIR}/.nip42_auth_${pubkey}"
         NOW_TS=$(date +%s)
         printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
@@ -102,56 +82,26 @@ if ! check_authorization "$pubkey" "log_event"; then
     fi
 fi
 
-# ── ROAMING AMIS : Identification email via profil kind 0 ───────────────────
-# Quand SOURCE=amisOfAmis, le joueur vient d'un réseau hors-swarm local.
-# On tente d'extraire son email depuis son profil NOSTR (kind 0) pour activer
-# le répertoire roaming éphémère et permettre la création du marker NIP-42.
+# ── WHITELIST AMIS : marker pubkey-only immédiat ────────────────────────────
+# amisOfAmis = whitelist de comptes NOSTR tiers (pas de MULTIPASS, pas d'email).
+# Pas de roaming, pas de résolution email — marker minimal et on accepte.
 if [[ "$SOURCE" == "amisOfAmis" ]]; then
-    if cd "${HOME}/.zen/strfry" 2>/dev/null; then
-        _AMIS_PROFILE=$(./strfry scan \
-            "{\"authors\":[\"${pubkey}\"],\"kinds\":[0]}" 2>/dev/null | \
-            jq -s 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
-        cd - >/dev/null 2>&1
-        if [[ -n "$_AMIS_PROFILE" && "$_AMIS_PROFILE" != "null" ]]; then
-            # 1. Tag ["i", "email:ADDR", ""] — source la plus fiable (nostr_setup_profile.py)
-            _AMIS_EMAIL=$(echo "$_AMIS_PROFILE" | \
-                jq -r '(.tags // [])[] | select(.[0] == "i" and (.[1] | startswith("email:"))) | .[1][6:]' \
-                2>/dev/null | head -1)
-            # 2. Fallback : email extrait du champ website (URL IPNS UPlanet)
-            if [[ -z "$_AMIS_EMAIL" ]]; then
-                _AMIS_WEBSITE=$(echo "$_AMIS_PROFILE" | \
-                    jq -r '.content | fromjson | .website // ""' 2>/dev/null)
-                _AMIS_EMAIL=$(echo "$_AMIS_WEBSITE" | \
-                    grep -oP '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' | head -1)
-            fi
-            # 3. Fallback : champ nip05
-            if [[ -z "$_AMIS_EMAIL" ]]; then
-                _AMIS_NIP05=$(echo "$_AMIS_PROFILE" | \
-                    jq -r '.content | fromjson | .nip05 // ""' 2>/dev/null)
-                _AMIS_EMAIL=$(echo "$_AMIS_NIP05" | \
-                    grep -oP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' | head -1)
-            fi
-            if [[ -n "$_AMIS_EMAIL" ]]; then
-                EMAIL="$_AMIS_EMAIL"
-                SOURCE="amisOfAmis_roaming"
-                # Sauvegarder l'IPFSNODEID de la home station (extrait de l'URL website)
-                # Format : https://ipfs.domain/ipns/NOSTRNS/EMAIL/APP/uDRIVE
-                if [[ -z "$_AMIS_WEBSITE" ]]; then
-                    _AMIS_WEBSITE=$(echo "$_AMIS_PROFILE" | \
-                        jq -r '.content | fromjson | .website // ""' 2>/dev/null)
-                fi
-                _HOME_IPFSNODEID=$(echo "$_AMIS_WEBSITE" | \
-                    grep -oP '(?<=/ipns/)[A-Za-z0-9]+(?=/)' | head -1)
-                log_event "ROAMING_AMIS: Email identifié via profil kind 0 : $_AMIS_EMAIL (${pubkey:0:8}…)"
-            fi
-        fi
-    fi
+    _PUBKEY_DIR="${HOME}/.zen/game/nostr/.pubkey_${pubkey}"
+    mkdir -p "$_PUBKEY_DIR"
+    printf '%s\n' "$pubkey" > "$_PUBKEY_DIR/HEX"
+    printf '%s\n' "AMIS" > "$_PUBKEY_DIR/SOURCE"
+    NIP42_MARKER="${_PUBKEY_DIR}/.nip42_auth_${pubkey}"
+    NOW_TS=$(date +%s)
+    printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
+        "$pubkey" "$event_id" "$NOW_TS" > "$NIP42_MARKER" 2>/dev/null
+    log_event "ACCEPTED_AMIS: ${pubkey:0:8}... marker pubkey-only créé (whitelist amisOfAmis)"
+    exit 0
 fi
 
 # ── Create / refresh the secure local NIP-42 auth marker ────────────────────
 # EMAIL is set by check_authorization (e.g. "fred@example.com").
 # Only create the marker for real email addresses (skip "amisOfAmis" sentinel).
-if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
 
     MARKER_DIR="$KEY_DIR/$EMAIL"
 
@@ -162,15 +112,14 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
     # ne tente de traiter ce profil.
     if [[ ! -d "$MARKER_DIR" ]]; then
         mkdir -p "$MARKER_DIR"
-        echo "$pubkey" > "$MARKER_DIR/HEX"
+        printf '%s\n' "$pubkey" > "$MARKER_DIR/HEX"
         touch "$MARKER_DIR/.roaming"
         if [[ "$SOURCE" == "amisOfAmis_roaming" ]]; then
-            echo "AMIS_ROAMING" > "$MARKER_DIR/SOURCE"
-            # Sauvegarder l'IPFSNODEID de la home station pour le routage DM
+            printf '%s\n' "AMIS_ROAMING" > "$MARKER_DIR/SOURCE"
             [[ -n "$_HOME_IPFSNODEID" ]] && \
-                echo "$_HOME_IPFSNODEID" > "$MARKER_DIR/HOME_IPFSNODEID"
+                printf '%s\n' "$_HOME_IPFSNODEID" > "$MARKER_DIR/HOME_IPFSNODEID"
         else
-            echo "SWARM_ROAMING" > "$MARKER_DIR/SOURCE"
+            printf '%s\n' "SWARM_ROAMING" > "$MARKER_DIR/SOURCE"
         fi
         log_event "ROAMING: Création du profil local éphémère pour $EMAIL (source: $SOURCE)"
     fi
@@ -205,7 +154,7 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
         for _swarm_file in NOSTRNS G1PUBNOSTR GPS NPUB HEX; do
             _val=$(cat "${_SWARM_TW_DIR}/${_swarm_file}" 2>/dev/null)
             if [[ -n "$_val" ]]; then
-                echo "$_val" > "${MARKER_DIR}/${_swarm_file}"
+                printf '%s\n' "$_val" > "${MARKER_DIR}/${_swarm_file}"
                 log_event "ROAMING_CONTEXT: ${_swarm_file} sauvegardé pour ${EMAIL}"
             fi
         done
@@ -216,6 +165,7 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}
             log_event "ROAMING_CONTEXT: NOSTRNS introuvable pour ${EMAIL} dans le swarm"
         fi
         ) &
+        disown
     fi
 fi
 

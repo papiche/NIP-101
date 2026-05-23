@@ -14,6 +14,7 @@ fi
 # Global variables
 KEY_DIR="$HOME/.zen/game/nostr"
 AMISOFAMIS_FILE="${HOME}/.zen/strfry/amisOfAmis.txt"
+EMAIL_REGEX='^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
 
 # Optimized function to extract multiple values from event JSON in one jq call
 extract_event_data() {
@@ -127,6 +128,61 @@ check_authorization() {
     fi
     
     return 0
+}
+
+# Resolve email from local strfry kind 0 profile for a given pubkey.
+# Priority: tag ["i","email:ADDR",""] → content.email → nip05 → ipns_vault IPNS.
+# Sets globals: _RESOLVED_EMAIL (empty if not found), _KIND0_PROFILE (raw jq object).
+# Returns 0 if email found, 1 otherwise.
+resolve_email_from_kind0() {
+    local pubkey="$1"
+    _RESOLVED_EMAIL=""
+    _KIND0_PROFILE=""
+
+    [[ -z "$pubkey" ]] && return 1
+
+    if cd "${HOME}/.zen/strfry" 2>/dev/null; then
+        _KIND0_PROFILE=$(./strfry scan \
+            "{\"authors\":[\"${pubkey}\"],\"kinds\":[0]}" 2>/dev/null | \
+            jq -s 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
+        cd - >/dev/null 2>&1
+    fi
+
+    [[ -z "$_KIND0_PROFILE" || "$_KIND0_PROFILE" == "null" ]] && return 1
+
+    # 1. Tag ["i", "email:ADDR", ""] — source la plus fiable
+    _RESOLVED_EMAIL=$(echo "$_KIND0_PROFILE" | \
+        jq -r '(.tags // [])[] | select(.[0] == "i" and (.[1] | startswith("email:"))) | .[1][6:] | select(length > 0)' \
+        2>/dev/null | head -1)
+
+    # 2. Fallback : champ email dans le contenu du profil kind 0
+    if [[ -z "$_RESOLVED_EMAIL" ]]; then
+        _RESOLVED_EMAIL=$(echo "$_KIND0_PROFILE" | \
+            jq -r '.content | fromjson | .email // "" | select(length > 0)' \
+            2>/dev/null | head -1)
+    fi
+
+    # 3. Fallback : nip05
+    if [[ -z "$_RESOLVED_EMAIL" ]]; then
+        local _nip05
+        _nip05=$(echo "$_KIND0_PROFILE" | \
+            jq -r '.content | fromjson | .nip05 // "" | select(length > 0)' 2>/dev/null)
+        _RESOLVED_EMAIL=$(echo "$_nip05" | grep -oP "$EMAIL_REGEX" | head -1)
+    fi
+
+    # 4. Fallback : résolution IPNS via ipns_vault tag
+    if [[ -z "$_RESOLVED_EMAIL" ]]; then
+        local _nostrns
+        _nostrns=$(echo "$_KIND0_PROFILE" | \
+            jq -r '(.tags // [])[] | select(.[0] == "i" and (.[1] | startswith("ipns_vault:"))) | .[1][10:] | select(length > 0)' \
+            2>/dev/null | head -1)
+        if [[ -n "$_nostrns" ]]; then
+            _RESOLVED_EMAIL=$(ipfs ls "/ipns/${_nostrns}" 2>/dev/null | \
+                grep -oP "$EMAIL_REGEX" | head -1)
+        fi
+    fi
+
+    [[ -n "$_RESOLVED_EMAIL" ]] && return 0 || return 1
 }
 
 # Function to extract specific tags from event JSON
