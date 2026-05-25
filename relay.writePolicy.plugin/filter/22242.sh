@@ -59,7 +59,7 @@ event_id="${id:-}"
 # Check authorization using common function
 # Sets global: AUTHORIZED, EMAIL, SOURCE
 if ! check_authorization "$pubkey" "log_event"; then
-    log_event "ROAMING_UNKNOWN: ${pubkey:0:8}... non reconnu localement — tentative roaming éphémère"
+    log_event "ROAMING_UNKNOWN: ${pubkey}... non reconnu localement — tentative roaming éphémère"
 
     if resolve_email_from_kind0 "$pubkey"; then
         EMAIL="$_RESOLVED_EMAIL"
@@ -77,7 +77,7 @@ if ! check_authorization "$pubkey" "log_event"; then
         NOW_TS=$(date +%s)
         printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
             "$pubkey" "$event_id" "$NOW_TS" > "$NIP42_MARKER" 2>/dev/null
-        log_event "ACCEPTED_EPHEMERAL: ${pubkey:0:8}... marker pubkey-only créé (répertoire ${_PUBKEY_DIR##*/})"
+        log_event "ACCEPTED_EPHEMERAL: ${pubkey}... marker pubkey-only créé (répertoire ${_PUBKEY_DIR##*/})"
         exit 0
     fi
 fi
@@ -94,7 +94,7 @@ if [[ "$SOURCE" == "amisOfAmis" ]]; then
     NOW_TS=$(date +%s)
     printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
         "$pubkey" "$event_id" "$NOW_TS" > "$NIP42_MARKER" 2>/dev/null
-    log_event "ACCEPTED_AMIS: ${pubkey:0:8}... marker pubkey-only créé (whitelist amisOfAmis)"
+    log_event "ACCEPTED_AMIS: ${pubkey}... marker pubkey-only créé (whitelist amisOfAmis)"
     exit 0
 fi
 
@@ -160,7 +160,15 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
         done
 
         if [[ -s "${MARKER_DIR}/NOSTRNS" ]]; then
-            log_event "ROAMING_CONTEXT: ${EMAIL} prêt pour sync GPS+DM via home station (NOSTRNS=$(cat ${MARKER_DIR}/NOSTRNS))"
+            _NOSTRNS_PATH=$(cat "${MARKER_DIR}/NOSTRNS")
+            log_event "ROAMING_IPNS: ipfs get ${_NOSTRNS_PATH}/${EMAIL} → ${HOME}/.zen/game/nostr"
+            ipfs get --timeout=60s \
+                --output="${HOME}/.zen/game/nostr" \
+                "${_NOSTRNS_PATH}/${EMAIL}" 2>/dev/null \
+                && log_event "ROAMING_IPNS: vault récupéré OK pour ${EMAIL}" \
+                || log_event "ROAMING_IPNS_WARN: ipfs get échoué (${_NOSTRNS_PATH}/${EMAIL})"
+            # Préserver le flag .roaming pour que NOSTRCARD.refresh.sh ignore ce profil
+            touch "${MARKER_DIR}/.roaming"
         else
             log_event "ROAMING_CONTEXT: NOSTRNS introuvable pour ${EMAIL} dans le swarm"
         fi
