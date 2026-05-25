@@ -434,10 +434,6 @@ get_timestamp_days_ago() {
     echo "$timestamp"
 }
 
-# NOTE: create_backfill_request() supprimée — utilisait strfry router (negentropy).
-# La synchro passe exclusivement par WebSocket REQ via tunnel IPFS P2P (port 9999)
-# ou directement pour les relays routable. Voir execute_backfill_websocket().
-
 # Function to split HEX pubkeys into batches
 split_hex_pubkeys_into_batches() {
     local hex_pubkeys="$1"
@@ -1059,10 +1055,6 @@ get_event_count() {
         echo "0"
     fi
 }
-
-# NOTE: execute_backfill() supprimée — utilisait strfry router (negentropy), jamais appelée.
-
-
 
 # Main execution
 main() {
