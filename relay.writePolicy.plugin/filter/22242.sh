@@ -145,8 +145,8 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
 
     # ── ROAMING CONTEXT : Sauvegarde des métadonnées depuis le cache swarm ──────
     # Si le player vient du swarm, copier tous les fichiers disponibles dans TW/EMAIL/
-    # pour que geo.py (/api/myGPS) puisse résoudre le GPS via /ipns/NOSTRNS/EMAIL/GPS
-    # et que NOSTRCARD.refresh.sh puisse router les DMs NIP-44 vers la home station.
+    # pour que geo.py (/api/myGPS) puisse résoudre le GPS et retourner home_node_hex
+    # (nécessaire à BRO_chat.js pour adresser les DMs NIP-44 à la bonne home station).
     if [[ "$SOURCE" == "swarm" ]]; then
         (
         _SWARM_TW_DIR=$(ls -d "${HOME}/.zen/tmp/swarm/"*/TW/"${EMAIL}" 2>/dev/null | head -1)
@@ -159,11 +159,33 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
             fi
         done
 
+        # ── Résoudre HOME_IPFSNODEID + HOME_NODEHEX depuis le path swarm ──────
+        # Le répertoire swarm est ~/.zen/tmp/swarm/<HOME_IPFSNODEID>/TW/<email>/
+        # Le NODEHEX de la home station est dans son 12345.json.
+        # Ces deux valeurs sont nécessaires à BRO_chat.js pour router les DMs
+        # via le relay constellation (wss://relay.copylaradio.com) vers le bon NODE.
+        if [[ -n "$_SWARM_TW_DIR" ]]; then
+            _HOME_IPFSNODEID=$(echo "$_SWARM_TW_DIR" | sed 's|.*/swarm/\([^/]*\)/TW/.*|\1|')
+            if [[ -n "$_HOME_IPFSNODEID" ]]; then
+                printf '%s\n' "$_HOME_IPFSNODEID" > "${MARKER_DIR}/HOME_IPFSNODEID"
+                log_event "ROAMING_CONTEXT: HOME_IPFSNODEID=$_HOME_IPFSNODEID sauvegardé pour ${EMAIL}"
+
+                _HOME_12345="${HOME}/.zen/tmp/swarm/${_HOME_IPFSNODEID}/12345.json"
+                if [[ -s "$_HOME_12345" ]]; then
+                    _HOME_NODEHEX=$(jq -r '.NODEHEX // ""' "$_HOME_12345" 2>/dev/null)
+                    if [[ -n "$_HOME_NODEHEX" && ${#_HOME_NODEHEX} -eq 64 ]]; then
+                        printf '%s\n' "$_HOME_NODEHEX" > "${MARKER_DIR}/HOME_NODEHEX"
+                        log_event "ROAMING_CONTEXT: HOME_NODEHEX=${_HOME_NODEHEX:0:12}… sauvegardé pour ${EMAIL}"
+                    fi
+                fi
+            fi
+        fi
+
         if [[ -s "${MARKER_DIR}/NOSTRNS" ]]; then
             _NOSTRNS_PATH=$(cat "${MARKER_DIR}/NOSTRNS")
             log_event "ROAMING_IPNS: ipfs get ${_NOSTRNS_PATH}/${EMAIL} → ${HOME}/.zen/game/nostr"
             ipfs get --timeout=60s \
-                --output="${HOME}/.zen/game/nostr" \
+                --output="${HOME}/.zen/game/nostr/${EMAIL}" \
                 "${_NOSTRNS_PATH}/${EMAIL}" 2>/dev/null \
                 && log_event "ROAMING_IPNS: vault récupéré OK pour ${EMAIL}" \
                 || log_event "ROAMING_IPNS_WARN: ipfs get échoué (${_NOSTRNS_PATH}/${EMAIL})"
