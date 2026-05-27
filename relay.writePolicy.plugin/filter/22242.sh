@@ -158,6 +158,26 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
                 log_event "ROAMING_CONTEXT: ${_swarm_file} sauvegardé pour ${EMAIL}"
             fi
         done
+        # Vérification d'intégrité : HEX swarm doit être identique à la NOSTR pubkey NIP-42
+        _swarm_hex=$(cat "${_SWARM_TW_DIR}/HEX" 2>/dev/null | tr -d '[:space:]')
+        if [[ -n "$_swarm_hex" && "$_swarm_hex" != "$pubkey" ]]; then
+            log_event "SECURITY_ALERT: HEX divergence pour ${EMAIL} — NIP42=${pubkey:0:16}… SWARM=${_swarm_hex:0:16}…"
+            _captainemail=$(cat "${HOME}/.zen/game/players/.current/.player" 2>/dev/null | tr -d '[:space:]')
+            if [[ -n "$_captainemail" ]]; then
+                _mailjet="${HOME}/.zen/Astroport.ONE/tools/mailjet.sh"
+                _alert_html="<p>⚠️ Divergence HEX détectée lors du roaming NIP-42 pour <strong>${EMAIL}</strong></p>
+<table><tr><td>NIP-42 pubkey</td><td><code>${pubkey}</code></td></tr>
+<tr><td>HEX swarm TW</td><td><code>${_swarm_hex}</code></td></tr>
+<tr><td>Répertoire</td><td><code>${MARKER_DIR}</code></td></tr></table>
+<p>La clé NIP-42 a été imposée comme référence.</p>"
+                [[ -x "$_mailjet" ]] && \
+                    "$_mailjet" --template "$0" --expire 48h \
+                        "$_captainemail" "$_alert_html" \
+                        "🚨 HEX divergence roaming ${EMAIL}" 2>/dev/null &
+            fi
+            # Imposer la NOSTR pubkey NIP-42 comme référence (les deux doivent être identiques)
+            printf '%s\n' "$pubkey" > "${MARKER_DIR}/HEX"
+        fi
 
         # ── Résoudre HOME_IPFSNODEID + HOME_NODEHEX depuis le path swarm ──────
         # Le répertoire swarm est ~/.zen/tmp/swarm/<HOME_IPFSNODEID>/TW/<email>/
