@@ -26,15 +26,32 @@ show_help() {
 mkdir -p "$WORKSPACE_DIR"
 mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/"
 
-# Fonction pour installer les dépendances (basée sur Ubuntu/Debian)
+# Détection gestionnaire de paquets (agnostique apt/pacman)
+_STRFRY_PKG_MGR="apt"; command -v pacman >/dev/null 2>&1 && _STRFRY_PKG_MGR="pacman"
+
+# Fonction pour installer les dépendances (Debian/Ubuntu ET Arch Linux)
 install_dependencies() {
-    for i in git g++ make libssl-dev zlib1g-dev liblmdb-dev libflatbuffers-dev libsecp256k1-dev libzstd-dev; do
-        if [ $(dpkg-query -W -f='${Status}' $i 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-            echo ">>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Installation $i <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-            sudo apt install -y $i
-            [[ $? != 0 ]] && echo "INSTALL $i FAILED." && echo "INSTALL $i FAILED." >> /tmp/install.errors.log && continue
-        fi
-    done
+    if [[ "$_STRFRY_PKG_MGR" == "pacman" ]]; then
+        # Arch Linux / SteamOS — noms de paquets différents
+        # base-devel inclut g++, make ; lmdb=liblmdb ; flatbuffers=libflatbuffers ; zstd=libzstd
+        local arch_pkgs="base-devel openssl zlib lmdb flatbuffers libsecp256k1 zstd"
+        for i in $arch_pkgs; do
+            if ! pacman -Qs "^${i}$" >/dev/null 2>&1; then
+                echo ">>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Installation $i <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+                sudo pacman -S --noconfirm --needed "$i" 2>/dev/null \
+                    || echo "INSTALL $i FAILED." | tee -a /tmp/install.errors.log
+            fi
+        done
+    else
+        # Debian / Ubuntu / Mint
+        for i in git g++ make libssl-dev zlib1g-dev liblmdb-dev libflatbuffers-dev libsecp256k1-dev libzstd-dev; do
+            if [ $(dpkg-query -W -f='${Status}' $i 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+                echo ">>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Installation $i <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+                sudo apt install -y $i
+                [[ $? != 0 ]] && echo "INSTALL $i FAILED." && echo "INSTALL $i FAILED." >> /tmp/install.errors.log && continue
+            fi
+        done
+    fi
 }
 
 # Fonction pour cloner ou mettre à jour le dépôt strfry
