@@ -34,14 +34,8 @@ install_dependencies() {
     if [[ "$_STRFRY_PKG_MGR" == "pacman" ]]; then
         # Arch Linux / SteamOS — noms de paquets différents
         # base-devel inclut g++, make ; lmdb=liblmdb ; flatbuffers=libflatbuffers ; zstd=libzstd
-        local arch_pkgs="base-devel openssl zlib lmdb flatbuffers libsecp256k1 zstd"
-        for i in $arch_pkgs; do
-            if ! pacman -Qs "^${i}$" >/dev/null 2>&1; then
-                echo ">>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Installation $i <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-                sudo pacman -S --noconfirm --needed "$i" 2>/dev/null \
-                    || echo "INSTALL $i FAILED." | tee -a /tmp/install.errors.log
-            fi
-        done
+        local arch_pkgs="base-devel openssl zlib lmdb flatbuffers libsecp256k1 zstd git"
+        sudo pacman -S --noconfirm --needed $arch_pkgs 2>/dev/null
     else
         # Debian / Ubuntu / Mint
         for i in git g++ make libssl-dev zlib1g-dev liblmdb-dev libflatbuffers-dev libsecp256k1-dev libzstd-dev; do
@@ -72,14 +66,14 @@ compile_strfry() {
     echo "Compilation de strfry..."
     git submodule update --init
     make setup-golpe
-    make -j3
+    make -j$(nproc)
 }
 
 # Fonction pour mettre à jour strfry
 update_strfry() {
     echo "Mise à jour de strfry..."
     make update-submodules
-    make -j3
+    make -j$(nproc)
 }
 
 # Fonction pour installer ou mettre à jour strfry
