@@ -34,6 +34,9 @@ amount="$amount"
 if ! check_authorization "$pubkey" "log_zap"; then
     exit 1
 fi
+# Save zapper identity before second check_authorization call overwrites globals
+zapper_email="$EMAIL"
+zapper_source="$SOURCE"
 
 # Validate required tags
 if [[ -z "$recipient_pubkey" ]]; then
@@ -51,7 +54,7 @@ if [[ -z "$description" ]]; then
     exit 1
 fi
 
-# Check if recipient is part of UPlanet using common function
+# Check if recipient is part of UPlanet (second call — overwrites EMAIL/SOURCE globals)
 if check_authorization "$recipient_pubkey" "log_zap" 2>/dev/null; then
     recipient_in_uplanet=true
     recipient_email="$EMAIL"
@@ -61,6 +64,9 @@ else
     recipient_in_uplanet=false
     log_zap "ZAP: ${pubkey:0:8}... zapped external user ${recipient_pubkey:0:8}..."
 fi
+# Restore zapper identity for final log
+EMAIL="$zapper_email"
+SOURCE="$zapper_source"
 
 # Log zap details
 [[ -n "$zapped_event_id" ]] && log_zap "ZAP: Event being zapped: ${zapped_event_id:0:8}..."

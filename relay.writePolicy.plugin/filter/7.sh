@@ -222,31 +222,25 @@ case "$content" in
                     PAYMENT_WALLET=""
                     PAYMENT_METHOD=""
                     
+                    _EFFECTIVE_EMAIL="$EMAIL"
                     if [[ "$EMAIL" == "CAPTAIN" ]]; then
-                        CAPTAIN_WALLET_DIR="$KEY_DIR/$CAPTAINEMAIL"
-                        if [[ -s "${CAPTAIN_WALLET_DIR}/.secret.dunikey" ]]; then
-                            PAYMENT_WALLET="${CAPTAIN_WALLET_DIR}/.secret.dunikey"
-                            PAYMENT_METHOD="MULTIPASS:($CAPTAINEMAIL)"
-                        else
-                            log_like "CROWDFUNDING: Cannot send - missing wallet for CAPTAIN"
-                        fi
+                        _EFFECTIVE_EMAIL=$(get_captain_email)
+                    fi
+                    PLAYER_DIR="$KEY_DIR/$_EFFECTIVE_EMAIL"
+                    if [[ -n "$_EFFECTIVE_EMAIL" && -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
+                        PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
+                        PAYMENT_METHOD="MULTIPASS:($_EFFECTIVE_EMAIL)"
                     else
-                        PLAYER_DIR="$KEY_DIR/$EMAIL"
-                        if [[ -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
-                            PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
-                            PAYMENT_METHOD="MULTIPASS:($EMAIL)"
-                        else
-                            log_like "CROWDFUNDING: Cannot send - missing wallet for ${EMAIL}"
-                            ## Roaming ZEN > 0 : relayer vers home station
-                            if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
-                                _cf_comment=""
-                                [[ "$is_vote" == "true" ]] \
-                                    && _cf_comment="CF:${BIEN_PROJECT_ID}:VOTE:${ZEN_AMOUNT}:${pubkey:0:8}" \
-                                    || _cf_comment="CF:${BIEN_PROJECT_ID}:ZEN:${ZEN_AMOUNT}:${pubkey:0:8}"
-                                _relay_zen_payment_to_home \
-                                    "$BIEN_G1PUB" "$ZEN_AMOUNT" "$_cf_comment" \
-                                    "true" "$BIEN_PROJECT_ID" "$BIEN_G1PUB"
-                            fi
+                        log_like "CROWDFUNDING: Cannot send - missing wallet for ${_EFFECTIVE_EMAIL:-CAPTAIN}"
+                        ## Roaming ZEN > 0 : relayer vers home station
+                        if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
+                            _cf_comment=""
+                            [[ "$is_vote" == "true" ]] \
+                                && _cf_comment="CF:${BIEN_PROJECT_ID}:VOTE:${ZEN_AMOUNT}:${pubkey:0:8}" \
+                                || _cf_comment="CF:${BIEN_PROJECT_ID}:ZEN:${ZEN_AMOUNT}:${pubkey:0:8}"
+                            _relay_zen_payment_to_home \
+                                "$BIEN_G1PUB" "$ZEN_AMOUNT" "$_cf_comment" \
+                                "true" "$BIEN_PROJECT_ID" "$BIEN_G1PUB"
                         fi
                     fi
 
@@ -328,29 +322,22 @@ case "$content" in
                     PAYMENT_WALLET=""
                     PAYMENT_METHOD=""
                     
+                    _EFFECTIVE_EMAIL="$EMAIL"
                     if [[ "$EMAIL" == "CAPTAIN" ]]; then
-                        CAPTAIN_WALLET_DIR="$KEY_DIR/$CAPTAINEMAIL"
-                        if [[ -s "${CAPTAIN_WALLET_DIR}/.secret.dunikey" ]]; then
-                            PAYMENT_WALLET="${CAPTAIN_WALLET_DIR}/.secret.dunikey"
-                            PAYMENT_METHOD="MULTIPASS:($CAPTAINEMAIL)"
-                            log_like "PAYMENT: CAPTAIN using wallet from $CAPTAINEMAIL"
-                        else
-                            log_like "PAYMENT: Cannot send - missing wallet for CAPTAIN"
-                        fi
+                        _EFFECTIVE_EMAIL=$(get_captain_email)
+                    fi
+                    PLAYER_DIR="$KEY_DIR/$_EFFECTIVE_EMAIL"
+                    if [[ -n "$_EFFECTIVE_EMAIL" && -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
+                        PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
+                        PAYMENT_METHOD="MULTIPASS:($_EFFECTIVE_EMAIL)"
                     else
-                        PLAYER_DIR="$KEY_DIR/$EMAIL"
-                        if [[ -s "${PLAYER_DIR}/.secret.dunikey" ]]; then
-                            PAYMENT_WALLET="${PLAYER_DIR}/.secret.dunikey"
-                            PAYMENT_METHOD="MULTIPASS:($EMAIL)"
-                        else
-                            log_like "PAYMENT: Cannot send - missing wallet for ${EMAIL}"
-                            ## Roaming ZEN > 0 : relayer vers home station
-                            if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
-                                _relay_zen_payment_to_home \
-                                    "$G1PUBNOSTR" "$ZEN_AMOUNT" \
-                                    "UPLANET:${UPLANETG1PUB:0:8}:${EMAIL}:LIKE:${ZEN_AMOUNT}Z:${reacted_event_id}" \
-                                    "false" "" ""
-                            fi
+                        log_like "PAYMENT: Cannot send - missing wallet for ${_EFFECTIVE_EMAIL:-CAPTAIN}"
+                        ## Roaming ZEN > 0 : relayer vers home station
+                        if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )); then
+                            _relay_zen_payment_to_home \
+                                "$G1PUBNOSTR" "$ZEN_AMOUNT" \
+                                "UPLANET:${UPLANETG1PUB:0:8}:${_EFFECTIVE_EMAIL:-CAPTAIN}:LIKE:${ZEN_AMOUNT}Z:${reacted_event_id}" \
+                                "false" "" ""
                         fi
                     fi
 

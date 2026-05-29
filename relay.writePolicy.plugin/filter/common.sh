@@ -130,6 +130,14 @@ check_authorization() {
     return 0
 }
 
+# Resolve the real captain email from ~/.zen/game/players/.current/.player.
+# Returns the email on stdout, empty string if not found.
+get_captain_email() {
+    local _e
+    _e=$(tr -d '[:space:]' < "${HOME}/.zen/game/players/.current/.player" 2>/dev/null)
+    [[ "$_e" =~ $EMAIL_REGEX ]] && echo "$_e" || echo ""
+}
+
 # Resolve email from local strfry kind 0 profile for a given pubkey.
 # Priority: tag ["i","email:ADDR",""] → content.email → nip05 → ipns_vault IPNS.
 # Sets globals: _RESOLVED_EMAIL (empty if not found), _KIND0_PROFILE (raw jq object).
@@ -226,10 +234,9 @@ parse_zen_amount() {
         ""|"+"|"👍"|"❤️"|"♥️"|"♥")
             amount="1"
             ;;
-        "+[0-9]"*|"+[0-9][0-9]"*|"+[0-9][0-9][0-9]"*)
-            # Extract number after +
+        +[0-9]*)
+            # Extract number after + (unquoted [0-9] = character class, not literal)
             amount=$(echo "$content" | sed 's/^+\([0-9]\+\).*/\1/')
-            # Validate it's a reasonable number (1-1000 ẐEN max)
             if [[ "$amount" -gt 1000 ]]; then
                 amount="1000"
             elif [[ "$amount" -lt 1 ]]; then
@@ -237,7 +244,6 @@ parse_zen_amount() {
             fi
             ;;
         *)
-            # For other content, default to 1
             amount="1"
             ;;
     esac

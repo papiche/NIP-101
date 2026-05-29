@@ -25,7 +25,7 @@ log_with_timestamp "$LOG_FILE" "Pubkey: $pubkey"
 log_with_timestamp "$LOG_FILE" "Event ID: $event_id"
 log_with_timestamp "$LOG_FILE" "Full content: $content"
 if check_amis_of_amis "$pubkey"; then
-    log_with_timestamp "Pubkey is in amisOfAmis.txt"
+    log_with_timestamp "$LOG_FILE" "Pubkey $pubkey is in amisOfAmis.txt"
 fi
 log_with_timestamp "$LOG_FILE" "================================"
 

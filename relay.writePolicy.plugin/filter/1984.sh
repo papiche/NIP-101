@@ -32,6 +32,9 @@ reason="$reason"
 if ! check_authorization "$pubkey" "log_report"; then
     exit 1
 fi
+# Save reporter identity before second check_authorization call overwrites globals
+reporter_email="$EMAIL"
+reporter_source="$SOURCE"
 
 # Validate required tags
 if [[ -z "$reported_pubkey" ]]; then
@@ -44,7 +47,7 @@ if [[ -z "$report_type" ]]; then
     exit 1
 fi
 
-# Check if reported user is part of UPlanet using common function
+# Check if reported user is part of UPlanet (second call — overwrites EMAIL/SOURCE globals)
 if check_authorization "$reported_pubkey" "log_report" 2>/dev/null; then
     reported_in_uplanet=true
     reported_email="$EMAIL"
@@ -54,6 +57,9 @@ else
     reported_in_uplanet=false
     log_report "REPORT: ${pubkey:0:8}... reported external user ${reported_pubkey:0:8}..."
 fi
+# Restore reporter identity for final log
+EMAIL="$reporter_email"
+SOURCE="$reporter_source"
 
 # Log report details
 log_report "REPORT: Type: $report_type"

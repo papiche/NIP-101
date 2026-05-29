@@ -12,6 +12,21 @@ source "$MY_PATH/common.sh"
 event_json="$1"
 extract_event_data "$event_json"
 
+# Video logging directory
+TMP_LOG_DIR="$HOME/.zen/tmp"
+mkdir -p "$TMP_LOG_DIR"
+
+# Long video log file
+LONG_VIDEO_LOG_FILE="$TMP_LOG_DIR/nostr_long_video_events.log"
+
+# Long video statistics file
+LONG_VIDEO_STATS_FILE="$TMP_LOG_DIR/nostr_long_video_stats.json"
+
+# Logging function — defined before any use
+log_long_video() {
+    log_with_timestamp "$LONG_VIDEO_LOG_FILE" "$1"
+}
+
 # Extract video-specific tags
 extract_tags "$event_json" "title" "imeta" "duration" "published_at" "g" "location" "application" "url" "latitude" "longitude"
 title="$title"
@@ -26,30 +41,11 @@ latitude="$latitude"
 longitude="$longitude"
 
 # Extract coordinates from "g" tag if latitude/longitude not directly provided
-# Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
 if [[ -z "$latitude" || -z "$longitude" ]] && [[ -n "$g" ]]; then
     latitude=$(echo "$g" | cut -d',' -f1 | xargs)
     longitude=$(echo "$g" | cut -d',' -f2 | xargs)
     log_long_video "Extracted coordinates from 'g' tag: lat=$latitude, lon=$longitude"
 fi
-
-# Initialize full_content with content if not already set
-[[ -z "$full_content" ]] && full_content="$content"
-
-# Video logging directory
-TMP_LOG_DIR="$HOME/.zen/tmp"
-mkdir -p "$TMP_LOG_DIR"
-
-# Long video log file
-LONG_VIDEO_LOG_FILE="$TMP_LOG_DIR/nostr_long_video_events.log"
-
-# Long video statistics file
-LONG_VIDEO_STATS_FILE="$TMP_LOG_DIR/nostr_long_video_stats.json"
-
-# Logging functions
-log_long_video() {
-    log_with_timestamp "$LONG_VIDEO_LOG_FILE" "$1"
-}
 
 # Ensure log directories exist
 ensure_log_dir "$LONG_VIDEO_LOG_FILE"

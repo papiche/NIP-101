@@ -217,6 +217,21 @@ if [[ -n "$EMAIL" && "$EMAIL" =~ $EMAIL_REGEX ]]; then
         ) &
         disown
     fi
+elif [[ "$EMAIL" == "CAPTAIN" ]]; then
+    # CAPTAIN directory is named literally "CAPTAIN" (not an email), so it bypasses
+    # EMAIL_REGEX. Resolve the real captain email from .current/.player and write
+    # the NIP-42 marker into the captain's actual nostr home directory.
+    _CAPTAIN_EMAIL=$(tr -d '[:space:]' < "${HOME}/.zen/game/players/.current/.player" 2>/dev/null)
+    if [[ -n "$_CAPTAIN_EMAIL" && "$_CAPTAIN_EMAIL" =~ $EMAIL_REGEX && -d "${KEY_DIR}/${_CAPTAIN_EMAIL}" ]]; then
+        NIP42_MARKER="${KEY_DIR}/${_CAPTAIN_EMAIL}/.nip42_auth_${pubkey}"
+        NOW_TS=$(date +%s)
+        printf '{"pubkey":"%s","event_hash":"%s","created_at":%s}' \
+            "$pubkey" "$event_id" "$NOW_TS" > "$NIP42_MARKER" 2>/dev/null \
+            && log_event "MARKER: NIP-42 auth marker for CAPTAIN (${_CAPTAIN_EMAIL}) → ${NIP42_MARKER##*/}" \
+            || log_event "MARKER_WARN: Could not write NIP-42 auth marker for CAPTAIN (path: $NIP42_MARKER)"
+    else
+        log_event "MARKER_WARN: CAPTAIN email not resolved (got: ${_CAPTAIN_EMAIL:-empty}) — no marker written"
+    fi
 fi
 
 # Log the successful event
