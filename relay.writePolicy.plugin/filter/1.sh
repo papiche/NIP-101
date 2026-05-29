@@ -115,27 +115,11 @@ fi
 [[ "$latitude" == "" ]] && latitude="0.00"
 [[ "$longitude" == "" ]] && longitude="0.00"
 
-# Optimized early tag detection
+# Tag detection
 is_secret_message=false
-is_rec_message=false
-memory_slot=0
-
-# Early detection optimizations
 if [[ "$content" == *"#secret"* ]]; then
     is_secret_message=true
     log_uplanet "SECRET message detected, will return 1 to reject event from relay"
-fi
-
-# Detect #rec and slot in one pass
-if [[ "$content" == *"#rec"* && "$content" != *"#rec2"* ]]; then
-    is_rec_message=true
-    # Detect slot tag (#1 to #12) efficiently
-    for i in {1..12}; do
-        if [[ "$content" =~ \#${i}\b ]]; then
-            memory_slot=$i
-            break
-        fi
-    done
 fi
 
 # PlantNet detection (handled by UPlanet_IA_Responder.sh)
@@ -144,21 +128,6 @@ if [[ "$content" == *"#plantnet"* ]]; then
     is_plantnet_message=true
     log_uplanet "PLANTNET message detected - will be processed by UPlanet_IA_Responder.sh"
 fi
-
-# Consolidated memory handling function
-handle_memory_storage() {
-    local user_id="$KNAME"
-    [[ -z "$user_id" ]] && user_id="$pubkey"
-    
-    # Check memory slot access
-    if check_memory_slot_access "$user_id" "$memory_slot"; then
-        log_uplanet "SHORT_MEMORY: $event_json $latitude $longitude $memory_slot $user_id"
-        $HOME/.zen/Astroport.ONE/IA/short_memory.py "$event_json" "$latitude" "$longitude" "$memory_slot" "$user_id"
-    else
-        log_uplanet "Memory access denied for user: $user_id, slot: $memory_slot"
-        send_memory_access_denied "$pubkey" "$event_id" "$memory_slot"
-    fi
-}
 
 # Optimized cleanup function with better logging
 cleanup_warning_messages() {
@@ -458,8 +427,6 @@ process_queue() {
             fi
         fi
         
-        # Handle memory storage
-        [[ "$is_rec_message" == true ]] && handle_memory_storage
         exit 0
     else
         # Launch process directly
@@ -500,13 +467,8 @@ if [[ "$check" != "nobody" ]]; then
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
-        [[ "$is_rec_message" == true ]] && handle_memory_storage
-
-        # Return appropriately for secret messages
         [[ "$is_secret_message" == true ]] && exit 1 || exit 0
     else
-        # Handle memory for other authorized users
-        [[ "$is_rec_message" == true ]] && handle_memory_storage
         exit 0
     fi
 else

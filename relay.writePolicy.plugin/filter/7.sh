@@ -113,9 +113,14 @@ print(json.dumps({
 # INITIALIZATION
 ################################################################################
 
-# Sync all Crowdfunding Bien hex keys to amisOfAmis at startup
-# This ensures all Biens can receive payments
-sync_crowdfunding_biens_to_amis "log_like"
+# Sync Bien hex keys to amisOfAmis — cache horodaté 5 min pour éviter la relecture
+# à chaque kind 7 reçu (I/O coûteux sur relay actif)
+_BIENS_SYNC_CACHE="$HOME/.zen/tmp/cf_biens_amis.cache"
+if [[ ! -f "$_BIENS_SYNC_CACHE" ]] || \
+   [[ $(( $(date +%s) - $(stat -c %Y "$_BIENS_SYNC_CACHE" 2>/dev/null || echo 0) )) -gt 300 ]]; then
+    sync_crowdfunding_biens_to_amis "log_like"
+    touch "$_BIENS_SYNC_CACHE"
+fi
 
 # Extract event data
 event_json="$1"
