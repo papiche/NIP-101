@@ -75,13 +75,14 @@ Each `{kind}.sh` receives the full event JSON as `$1`. Must `exit 0` to accept, 
 | `7.sh` | 7 | Reactions — ZEN payments, crowdfunding contributions, ASSETS votes |
 | `21.sh` | 21 | Video normal |
 | `22.sh` | 22 | Video short |
-| `1984.sh` | 1984 | Reports |
+| `1984.sh` | 1984 | Reports — `report-type=friction` → queue Kind 30506 via `ASTROBOT/N1Mediation.sh` |
 | `9735.sh` | 9735 | Zap receipts |
 | `22242.sh` | 22242 | Auth (NIP-42 twin-key) |
 | `30023.sh` | 30023 | Long-form articles |
 | `30078.sh` | 30078 | App-specific data |
 | `30303.sh` | 30303 | Custom kind |
 | `30500.sh` | 30500 | Permit definitions (Oracle system) |
+| `30506.sh` | 30506 | Dossier de médiation WoTx² — n'accepte que `t=friction`, pubkeys autorisées |
 | `30904.sh` | 30904 | Crowdfunding campaigns — validates structure, registers Bien keys |
 
 ### Common Functions (`filter/common.sh`)
