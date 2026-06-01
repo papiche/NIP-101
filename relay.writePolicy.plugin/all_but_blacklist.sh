@@ -139,8 +139,12 @@ classify_user() {
             user_type="uplanet"
         fi
     elif check_amis_of_amis "$pubkey"; then
-        # In amisOfAmis.txt
-        user_type="uplanet"
+        # amisOfAmis : uplanet par défaut, player si cert ATOM4LOVE vérifiée
+        if check_atom4love_cert "$pubkey"; then
+            user_type="player"
+        else
+            user_type="uplanet"
+        fi
     elif check_swarm_node_hex "$pubkey"; then
         # Nœud swarm connu (Astroport.ONE ou Picoport/SoundSpot)
         user_type="uplanet"

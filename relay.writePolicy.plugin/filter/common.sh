@@ -78,6 +78,54 @@ check_amis_of_amis() {
     grep -q -h "^$pubkey$" "$AMISOFAMIS_FILE" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null
 }
 
+# Charge la liste des proof salts autorisés depuis le cache cooperative config.
+# Retourne une liste séparée par des sauts de ligne ; fallback = "ATOM4LOVE_v1".
+_load_authorized_app_ids() {
+    local cache="${HOME}/.zen/tmp/cooperative_config.cache.json"
+    if [[ -f "$cache" ]]; then
+        local ids
+        ids=$(jq -r '.AUTHORIZED_APPS // empty' "$cache" 2>/dev/null)
+        if [[ -n "$ids" && "$ids" != "null" ]]; then
+            echo "$ids" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$'
+            return 0
+        fi
+    fi
+    echo "ATOM4LOVE_v1"
+}
+
+# Vérifie si un pubkey a publié un certificat d'incarnation ATOM4LOVE valide.
+# Un Kind 30078 d=atom4love avec personal_phase ∈ [0,7) et omega_bio ∈ (0.1,50) suffit.
+# Retourne 0 si présent et valide, 1 sinon.
+check_atom4love_cert() {
+    local pubkey="$1"
+    [[ -z "$pubkey" ]] && return 1
+    local strfry_dir="${HOME}/.zen/strfry"
+    [[ ! -x "${strfry_dir}/strfry" ]] && return 1
+
+    local cert
+    cert=$(cd "$strfry_dir" && ./strfry scan \
+        "{\"authors\":[\"${pubkey}\"],\"kinds\":[30078],\"#d\":[\"atom4love\"]}" \
+        2>/dev/null | jq -sc 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
+    [[ -z "$cert" || "$cert" == "null" ]] && return 1
+
+    # Vérifier le marqueur d'app contre la liste des apps autorisées (config coopérative)
+    local actual_proof valid_proof=false app_id
+    actual_proof=$(echo "$cert" | jq -r '.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
+    while IFS= read -r app_id; do
+        [[ -z "$app_id" ]] && continue
+        local expected_proof
+        expected_proof=$(printf '%s' "${pubkey}:${app_id}" | sha256sum | awk '{print $1}')
+        [[ "$actual_proof" == "$expected_proof" ]] && valid_proof=true && break
+    done < <(_load_authorized_app_ids)
+    [[ "$valid_proof" == "false" ]] && return 1
+
+    # Vérifier les plages biométriques
+    local phase omega
+    phase=$(echo "$cert" | jq -r '.content | fromjson | .personal_phase // -1' 2>/dev/null)
+    omega=$(echo "$cert" | jq -r '.content | fromjson | .omega_bio // -1' 2>/dev/null)
+    awk "BEGIN{exit !($phase >= 0 && $phase < 7 && $omega > 0.1 && $omega < 50)}"
+}
+
 # Main authorization function - consolidates all checks
 check_authorization() {
     local pubkey="$1"
@@ -116,7 +164,18 @@ check_authorization() {
             $log_func "AUTHORIZED: Pubkey ${pubkey:0:8}... found in amisOfAmis.txt"
         fi
     fi
-    
+
+    # Dernier recours : cert d'incarnation ATOM4LOVE (Kind 30078 d=atom4love)
+    if [[ "$authorized" == "false" ]]; then
+        if check_atom4love_cert "$pubkey"; then
+            authorized=true
+            email="atom4love"
+            source="atom4love"
+            add_to_amis_of_amis "$pubkey" "ATOM4LOVE certified (auto)"
+            $log_func "AUTHORIZED: Pubkey ${pubkey:0:8}... via certificat ATOM4LOVE — ajouté aux amisOfAmis"
+        fi
+    fi
+
     # Return results via global variables
     AUTHORIZED="$authorized"
     EMAIL="$email"

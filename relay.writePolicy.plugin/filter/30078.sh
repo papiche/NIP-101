@@ -28,6 +28,35 @@ emoji="$emoji"
 status_type="$status"
 expiration="$expiration"
 
+# ── Certificat d'incarnation ATOM4LOVE (bootstrap) ──────────────────────────
+# La signature secp256k1 est déjà vérifiée par strfry.
+# On valide les plages biométriques et on enregistre le pubkey dans amisOfAmis.
+if [[ "$status_id" == "atom4love" ]]; then
+    # 1. Vérifier le marqueur d'app contre la liste des apps autorisées (config coopérative)
+    actual_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
+    valid_proof=false
+    while IFS= read -r app_id; do
+        [[ -z "$app_id" ]] && continue
+        expected_proof=$(printf '%s' "${pubkey}:${app_id}" | sha256sum | awk '{print $1}')
+        [[ "$actual_proof" == "$expected_proof" ]] && valid_proof=true && break
+    done < <(_load_authorized_app_ids)
+    if [[ "$valid_proof" == "false" ]]; then
+        log_status "REJECTED: Marqueur app non autorisé pour ${pubkey:0:8}... (reçu=${actual_proof:0:8}…)"
+        exit 1
+    fi
+    # 2. Vérifier les plages biométriques
+    phase=$(echo "$content" | jq -r '.personal_phase // -1' 2>/dev/null)
+    omega=$(echo "$content"  | jq -r '.omega_bio // -1'       2>/dev/null)
+    if awk "BEGIN{exit !($phase >= 0 && $phase < 7 && $omega > 0.1 && $omega < 50)}"; then
+        add_to_amis_of_amis "$pubkey" "ATOM4LOVE certified"
+        log_status "ATOM4LOVE: Certificat accepté — ${pubkey:0:8}... ajouté aux amisOfAmis (φ=$phase ω=$omega)"
+        exit 0
+    else
+        log_status "REJECTED: Certificat ATOM4LOVE invalide pour ${pubkey:0:8}... (φ=$phase ω=$omega)"
+        exit 1
+    fi
+fi
+
 # Check authorization using common function
 if ! check_authorization "$pubkey" "log_status"; then
     exit 1
