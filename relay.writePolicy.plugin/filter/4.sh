@@ -27,7 +27,14 @@ SECRET_FILE="$HOME/.zen/game/secret.nostr"
 NODE_HEX=$(grep -oP 'HEX=\K[^;]+' "$SECRET_FILE" 2>/dev/null | tr -d '[:space:]')
 [[ -z "$NODE_HEX" || ${#NODE_HEX} -ne 64 ]] && _accept
 
-## Vérifier le tag #p du DM
+## Ne jamais enqueuer un DM envoyé PAR le NODE lui-même.
+## _send_dm envoie les réponses sur tous les relays connus (constellation + local).
+## Sans cette garde, chaque réponse passant par le relay local serait re-enqueuée
+## et traitée comme une nouvelle commande → boucle de rétroaction infinie.
+sender_hex=$(echo "$event_json" | jq -r '.event.pubkey // ""' 2>/dev/null)
+[[ "$sender_hex" == "$NODE_HEX" ]] && _accept
+
+## Vérifier le tag #p : le DM doit être adressé à ce NODE
 is_for_node=$(echo "$event_json" | jq -r --arg h "$NODE_HEX" \
     '.event.tags // [] | map(select(.[0]=="p" and .[1]==$h)) | length > 0' 2>/dev/null)
 
