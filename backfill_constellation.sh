@@ -1021,6 +1021,121 @@ process_and_import_events() {
     log "INFO" "Import process completed successfully"
 }
 
+# ══════════════════════════════════════════════════════════════════════════════
+# FETCH PARALLÈLE NOSTR — full sync : tous les peers interrogés simultanément
+# Premier résultat valide gagne (mv -n = rename atomique sans écrasement)
+# Évite de bloquer 60s sur chaque peer mort avant de passer au suivant
+# ══════════════════════════════════════════════════════════════════════════════
+parallel_full_sync_hex() {
+    local hex_pubkey="$1"; shift
+    local relay_urls=("$@")
+    [[ ${#relay_urls[@]} -eq 0 ]] && return 1
+
+    local SCRIPT_DIR; SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
+    local tmpdir; tmpdir=$(mktemp -d)
+    local result_file="$tmpdir/result"
+    local PIDS=()
+
+    # Construire req_message une seule fois (respecte $INCLUDE_DMS)
+    local req_message
+    if [[ "$INCLUDE_DMS" == "true" ]]; then
+        req_message='["REQ","backfill_full",{"kinds":[0,1,3,4,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
+    else
+        req_message='["REQ","backfill_full",{"kinds":[0,1,3,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
+    fi
+
+    log "INFO" "Parallel full sync for ${hex_pubkey:0:8}... across ${#relay_urls[@]} peers"
+
+    for relay_url in "${relay_urls[@]}"; do
+        (
+            exec 2>/dev/null
+            local response_file="$tmpdir/r.$BASHPID.json"
+            local python_output
+            python_output=$(python3 "$python_script" "$relay_url" "$req_message" "$response_file" 60)
+            [[ $? -ne 0 ]] && exit 1
+            local count
+            count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+            [[ ${count:-0} -eq 0 ]] && rm -f "$response_file" && exit 1
+            # mv -n : atomique, ne remplace pas si déjà présent → 1er valide gagne
+            mv -n "$response_file" "$result_file" 2>/dev/null || rm -f "$response_file"
+        ) &
+        PIDS+=($!)
+    done
+
+    # Polling léger : max 65s (timeout python 60s + marge), intervalle 200ms
+    local i=0
+    while [[ $i -lt 325 && ! -s "$result_file" ]]; do
+        sleep 0.2
+        (( i++ ))
+    done
+
+    # Arrêter les workers encore actifs
+    for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null; done
+    wait "${PIDS[@]}" 2>/dev/null
+
+    if [[ -s "$result_file" ]]; then
+        process_and_import_events "$result_file"
+        local ret=$?
+        rm -rf "$tmpdir"
+        return $ret
+    fi
+    rm -rf "$tmpdir"
+    return 1
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FETCH PARALLÈLE NOSTR — kind 0 uniquement : relays publics en parallèle
+# Premier résultat valide gagne (mv -n atomique)
+# ══════════════════════════════════════════════════════════════════════════════
+parallel_profile_kind0_fetch() {
+    local hex_pubkey="$1"; shift
+    local relay_urls=("$@")
+    [[ ${#relay_urls[@]} -eq 0 ]] && return 1
+
+    local SCRIPT_DIR; SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local python_script="$SCRIPT_DIR/nostr_websocket_backfill.py"
+    local tmpdir; tmpdir=$(mktemp -d)
+    local result_file="$tmpdir/result"
+    local PIDS=()
+
+    local req_message='["REQ","prof0",{"kinds":[0],"authors":["'"$hex_pubkey"'"],"limit":1}]'
+
+    for relay_url in "${relay_urls[@]}"; do
+        (
+            exec 2>/dev/null
+            local response_file="$tmpdir/r.$BASHPID.json"
+            local python_output
+            python_output=$(python3 "$python_script" "$relay_url" "$req_message" "$response_file" 10)
+            [[ $? -ne 0 ]] && exit 1
+            local count
+            count=$(echo "$python_output" | grep -o "Collected [0-9]* events" | grep -o "[0-9]*" || echo "0")
+            [[ ${count:-0} -eq 0 ]] && rm -f "$response_file" && exit 1
+            mv -n "$response_file" "$result_file" 2>/dev/null || rm -f "$response_file"
+        ) &
+        PIDS+=($!)
+    done
+
+    # Polling léger : max 12s, intervalle 100ms
+    local i=0
+    while [[ $i -lt 120 && ! -s "$result_file" ]]; do
+        sleep 0.1
+        (( i++ ))
+    done
+
+    for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null; done
+    wait "${PIDS[@]}" 2>/dev/null
+
+    if [[ -s "$result_file" ]]; then
+        process_and_import_events "$result_file"
+        local ret=$?
+        rm -rf "$tmpdir"
+        return $ret
+    fi
+    rm -rf "$tmpdir"
+    return 1
+}
+
 # Function to execute WebSocket backfill via P2P tunnel for localhost relays
 execute_p2p_websocket_backfill() {
     local ipfsnodeid="$1"
@@ -1429,46 +1544,26 @@ main() {
                                     local start_parallel=$(date +%s%3N)
                                     
                                 for missing_hex in "${missing_profiles[@]}"; do
-                                    log "INFO" "  🔄 FULL SYNC for ${missing_hex:0:8}... (all messages, no time limit)"
-                                    
-                                        # Launch in background if < MAX_PARALLEL
+                                    log "INFO" "  🔄 FULL SYNC for ${missing_hex:0:8}... (all peers in parallel)"
+
                                         (
-                                    local sync_success=false
-                                    
-                                            # Try each routable peer until successful
-                                            for relay_url in "${routable_peers[@]}"; do
-                                                log "INFO" "    📡 Syncing ${missing_hex:0:8} from: $relay_url"
-
-                                        # Execute full backfill for this HEX (since=0 means all messages)
-                                        if execute_backfill_websocket_single_hex "$relay_url" "0" "$missing_hex"; then
+                                        # Tous les peers constellation en parallèle — premier valide gagne
+                                        if parallel_full_sync_hex "$missing_hex" "${routable_peers[@]}"; then
                                             log "INFO" "    ✅ Full sync successful for ${missing_hex:0:8}"
-                                            sync_success=true
-                                            break  # Move to next HEX after successful sync
-                                        else
-                                            log "WARN" "    ❌ Full sync failed for ${missing_hex:0:8} from $relay_url"
-                                        fi
-                                    done
-
-                                    # Constellation peers unavailable — fetch kind 0 only from public relays
-                                    if [[ "$sync_success" == "false" ]] && [[ ${#PUBLIC_FALLBACK_RELAYS[@]} -gt 0 ]]; then
-                                        log "INFO" "    🌐 Trying public fallback relays (kind 0 only) for ${missing_hex:0:8}..."
-                                        for relay_url in "${PUBLIC_FALLBACK_RELAYS[@]}"; do
-                                            log "INFO" "    📡 Public relay: $relay_url"
-                                            if fetch_profile_kind0 "$relay_url" "$missing_hex"; then
-                                                log "INFO" "    ✅ Profile recovered from public relay for ${missing_hex:0:8}"
-                                                sync_success=true
-                                                break
-                                            else
-                                                log "WARN" "    ❌ Public relay failed for ${missing_hex:0:8} from $relay_url"
-                                            fi
-                                        done
-                                    fi
-
-                                    if [[ "$sync_success" == "false" ]]; then
-                                        log "WARN" "  ⚠️  No profile found for ${missing_hex:0:8} in constellation or public relays"
-                                                exit 1
-                                            fi
                                             exit 0
+                                        fi
+
+                                        # Repli relays publics (kind 0 uniquement) — aussi en parallèle
+                                        if [[ ${#PUBLIC_FALLBACK_RELAYS[@]} -gt 0 ]]; then
+                                            log "INFO" "    🌐 Trying public fallback relays (kind 0) for ${missing_hex:0:8}..."
+                                            if parallel_profile_kind0_fetch "$missing_hex" "${PUBLIC_FALLBACK_RELAYS[@]}"; then
+                                                log "INFO" "    ✅ Profile recovered from public relay for ${missing_hex:0:8}"
+                                                exit 0
+                                            fi
+                                        fi
+
+                                        log "WARN" "  ⚠️  No profile found for ${missing_hex:0:8} in constellation or public relays"
+                                        exit 1
                                         ) &
                                         
                                         ((parallel_count++))
