@@ -1,5 +1,5 @@
 #!/bin/bash
-# Astroport constellation backfill script
+# Astroport backfill_constellation.sh script
 # This script requests and copies messages from the current day to ensure complete synchronization
 
 ## SET ASTROPORT ENVIRONNEMENT

@@ -90,7 +90,7 @@ _load_authorized_app_ids() {
             return 0
         fi
     fi
-    echo "ATOM4LOVE_v1"
+    echo "ATOM4LOVE_ALPHA"
 }
 
 # Vérifie si un pubkey a publié un certificat d'incarnation ATOM4LOVE valide.
