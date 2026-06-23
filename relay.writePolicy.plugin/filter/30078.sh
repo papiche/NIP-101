@@ -89,12 +89,61 @@ if [[ "$status_id" == "atom4love" ]]; then
 
         a4l_log "ACCEPTED[${_conform_flag}]: ${pubkey:0:8}... φ=$phase ω=$omega${_a5l_str}"
         log_status "ATOM4LOVE: Certificat accepté [${_conform_flag}] — ${pubkey:0:8}... (φ=$phase ω=$omega${_a5l_str})"
+
+        # Persistance dans atom4love_certified.txt (survit au reset 20h12 de amisOfAmis)
+        _cert_file="$HOME/.zen/strfry/atom4love_certified.txt"
+        touch "$_cert_file"
+        grep -v "^${pubkey}:" "$_cert_file" > "${_cert_file}.tmp" && mv "${_cert_file}.tmp" "$_cert_file"
+        echo "${pubkey}:${created_at}" >> "$_cert_file"
+
         exit 0
     else
         a4l_log "REJECTED: Biométrie invalide — ${pubkey:0:8}... φ=$phase ω=$omega"
         log_status "REJECTED: Certificat ATOM4LOVE invalide pour ${pubkey:0:8}... (φ=$phase ω=$omega)"
         exit 1
     fi
+fi
+
+# ── d=atom4love-home — localisation home semi-publique ────────────────────────
+# Seule contrainte : a4l_proof valide. Rafraîchit l'horodatage dans certified.txt.
+if [[ "$status_id" == "atom4love-home" ]]; then
+    _home_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
+    _home_valid=false
+    while IFS= read -r _app_id; do
+        [[ -z "$_app_id" ]] && continue
+        _home_expected=$(printf '%s' "${pubkey}:${_app_id}" | sha256sum | awk '{print $1}')
+        [[ "$_home_proof" == "$_home_expected" ]] && _home_valid=true && break
+    done < <(_load_authorized_app_ids)
+    if [[ "$_home_valid" == "false" ]]; then
+        log_status "REJECTED: atom4love-home sans preuve valide — ${pubkey:0:8}..."
+        exit 1
+    fi
+    # Rafraîchir l'horodatage dans certified.txt (crée l'entrée si nouvelle, renouvelle le TTL 180j)
+    _cert_file="$HOME/.zen/strfry/atom4love_certified.txt"
+    touch "$_cert_file"
+    grep -v "^${pubkey}:" "$_cert_file" > "${_cert_file}.tmp" && mv "${_cert_file}.tmp" "$_cert_file"
+    echo "${pubkey}:${created_at}" >> "$_cert_file"
+    log_status "ATOM4LOVE-HOME: TTL rafraîchi — ${pubkey:0:8}..."
+    log_status "ACCEPTED: atom4love-home — ${pubkey:0:8}..."
+    exit 0
+fi
+
+# ── d=atom4love-priv — données privées chiffrées NIP-44 ──────────────────────
+# Seule contrainte : a4l_proof valide. Le contenu est opaque (chiffré).
+if [[ "$status_id" == "atom4love-priv" ]]; then
+    _priv_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
+    _priv_valid=false
+    while IFS= read -r _app_id; do
+        [[ -z "$_app_id" ]] && continue
+        _priv_expected=$(printf '%s' "${pubkey}:${_app_id}" | sha256sum | awk '{print $1}')
+        [[ "$_priv_proof" == "$_priv_expected" ]] && _priv_valid=true && break
+    done < <(_load_authorized_app_ids)
+    if [[ "$_priv_valid" == "false" ]]; then
+        log_status "REJECTED: atom4love-priv sans preuve valide — ${pubkey:0:8}..."
+        exit 1
+    fi
+    log_status "ACCEPTED: atom4love-priv (chiffré) — ${pubkey:0:8}..."
+    exit 0
 fi
 
 # Check authorization using common function

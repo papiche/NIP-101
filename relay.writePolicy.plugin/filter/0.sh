@@ -39,18 +39,9 @@ if [[ -n "$nip05" ]] && echo "$nip05" | grep -qiE "@atomstr\.data\.haus$"; then
     exit 1
 fi
 
-# Vérifier l'autorisation : accepter uniquement les joueurs MULTIPASS ou amisOfAmis
-_log_key() { log_with_timestamp "$LOG_FILE" "$1"; }
-check_authorization "$pubkey" "_log_key"
-
-if [[ "$AUTHORIZED" != "true" ]]; then
-    log_with_timestamp "$LOG_FILE" "REJECTED: Unauthorized pubkey $pubkey (not in MULTIPASS, swarm, or amisOfAmis)"
-    exit 1
-fi
-
-if [[ "$SOURCE" == "amisOfAmis" ]]; then
-    log_with_timestamp "$LOG_FILE" "Pubkey $pubkey is in amisOfAmis.txt"
-fi
+# Kind 0 ouvert : tout profil étranger est accepté (le relay sert d'annuaire).
+# Les Kind 1 visiteurs sont limités à 3 messages dans 1.sh.
+# Les autres kinds sensibles (7, 30078, 30904…) ont leurs propres contrôles.
 
 # Log the profile update with more fields
 log_with_timestamp "$LOG_FILE" "=== Profile update (kind 0) ==="
@@ -68,7 +59,7 @@ log_with_timestamp "$LOG_FILE" "G1PUB: $g1pub"
 log_with_timestamp "$LOG_FILE" "Full content: $content"
 log_with_timestamp "$LOG_FILE" "================================"
 
-log_with_timestamp "$LOG_FILE" "ACCEPTED: Authorized pubkey $pubkey (source: $SOURCE, email: $EMAIL)"
+log_with_timestamp "$LOG_FILE" "ACCEPTED: pubkey $pubkey (name: $name, nip05: $nip05)"
 
 # Accept the event
 exit 0

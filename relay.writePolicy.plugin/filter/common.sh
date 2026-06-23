@@ -11,6 +11,16 @@ else
     IPFSNODEID=""
 fi
 
+# ✅ UPLANETNAME depuis swarm.key (identique à UPlanetSharedSecret() dans my.sh)
+# Nécessaire pour les filtres qui dérivent des clés UMAP (1.sh, 21.sh, 30078.sh…)
+if [[ -z "${UPLANETNAME:-}" ]]; then
+    _swarm_key="$HOME/.ipfs/swarm.key"
+    if [[ -f "$_swarm_key" ]]; then
+        UPLANETNAME=$(tail -n 1 "$_swarm_key" 2>/dev/null)
+    fi
+    : "${UPLANETNAME:=0000000000000000000000000000000000000000000000000000000000000000}"
+fi
+
 # Global variables
 KEY_DIR="$HOME/.zen/game/nostr"
 AMISOFAMIS_FILE="${HOME}/.zen/strfry/amisOfAmis.txt"
@@ -155,6 +165,17 @@ check_authorization() {
         fi
     fi
     
+    # atom4love_certified.txt — persistant, non effacé par 20h12 (TTL 180j géré par le relay)
+    if [[ "$authorized" == "false" ]]; then
+        local _cert_file="${HOME}/.zen/strfry/atom4love_certified.txt"
+        if [[ -f "$_cert_file" ]] && grep -q "^${pubkey}:" "$_cert_file" 2>/dev/null; then
+            authorized=true
+            email="atom4love"
+            source="atom4love_certified"
+            $log_func "AUTHORIZED: Pubkey ${pubkey:0:8}... in atom4love_certified.txt"
+        fi
+    fi
+
     # If still not found, check amisOfAmis.txt
     if [[ "$authorized" == "false" ]]; then
         if check_amis_of_amis "$pubkey"; then
