@@ -132,7 +132,7 @@ Tout événement NOSTR partage la structure de base suivante (NIP-01) :
 | REPLACEABLE | 10000–19999 | Replaceable | 2 |
 | ÉPHÉMÈRE | 20000–29999 | Ephemeral | 2 |
 | ADRESSABLE | 30000–39999 | Addressable | 18 |
-| **TOTAL** | | | **40** |
+| **TOTAL** | | | **41** |
 
 ---
 
@@ -1584,6 +1584,66 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 
 ---
 
+### Kind 30851 — ZEN Emission Proof (Preuve de paiement ẐEN)
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `30851` |
+| **Nom de service** | ZEN Emission Proof / OC Payment Record |
+| **Type** | Addressable |
+| **Statut NIP** | UPLANET (NIP-101 Economic Health) |
+| **Filtre NIP-101** | `all_but_blacklist.sh` |
+| **Sync constellation** | OUI — Economic |
+
+**Description :** Preuve cryptographique d'une émission ẐEN déclenchée par une contribution OpenCollective. Sert de **source de vérité distribuée pour l'idempotence** : avant tout traitement, la station primaire interroge le relay local pour vérifier que la transaction n'a pas déjà été émise. Remplace le fichier `emission.log` local.
+
+**Clé d'adressabilité `d` :**
+
+```
+oc-emission-{raw_email}:{amount}:{oc_created_at}
+```
+
+**Tags :**
+
+```
+["d",           "oc-emission-{raw_email}:{amount}:{oc_created_at}"]  — Clé d'adressabilité unique par TX OC
+["t",           "uplanet"]
+["t",           "oc-emission"]
+["s",           "OK|FAIL"]          — Single-letter tag : filtrable via #s (NIP-01)
+["email",       "<email-effectif>"] — MULTIPASS ciblé (peut différer de raw_email pour tiers labo/R&D)
+["amount",      "<float>"]          — Montant EUR brut (issu de l'API OC)
+["tier",        "<tier-slug>"]      — Slug OC du niveau de contribution
+["constellation","<UPLANETG1PUB>"]  — Swarm d'appartenance
+```
+
+**Structure JSON — `content` :**
+
+```json
+{
+  "email":         "user@example.com",
+  "raw_email":     "user+alias@example.com",
+  "amount":        25,
+  "tier_slug":     "satellite",
+  "oc_created_at": "2026-06-15T10:30:00.000Z",
+  "status":        "OK",
+  "generated_at":  "2026-06-30T20:12:00Z",
+  "uplanet":       "<UPLANETG1PUB>"
+}
+```
+
+**Politique d'idempotence :**
+
+```
+Avant traitement : strfry scan {"kinds":[30851], "#d":["oc-emission-TX_ID"]}
+  → résultat non vide  → TX déjà traitée → skip
+  → résultat vide      → TX nouvelle     → traiter + publier kind 30851
+```
+
+**Implémentation :** `OC2UPlanet/oc2uplanet.sh` — `_check_emission_nostr()` / `_publish_emission_proof()`  
+**Backup :** `OC2UPlanet/data/emission.log` — écriture parallèle (fallback si relay hors-ligne)
+
+---
+
 ### Kind 30904 — Crowdfunding Campaign (Campagne de financement)
 
 | Champ | Valeur |
@@ -1775,7 +1835,7 @@ all_but_blacklist.sh
 | **Identité** | 30800 | 1 |
 | **Oracle WoTx2** | 30500, 30501, 30502, 30503, 30504 | 5 |
 | **ORE Environnement** | 30312, 30313 | 2 |
-| **Santé économique** | 30850 | 1 |
+| **Santé économique** | 30850, 30851 | 2 |
 | **Workflows** | 31900, 31901, 31902, 31903 | 4 |
 | **Crowdfunding** | 30904 | 1 |
 | **TOTAL** | | **34+** |
