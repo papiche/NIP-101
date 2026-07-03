@@ -6,6 +6,13 @@
 # ~/.zen/tmp/bro_dm_queue/ pour traitement immédiat par bro_dm_daemon.sh
 # (via inotifywait) sans attendre le cycle NOSTRCARD.refresh.sh.
 ## Le NODE_HEX est lu depuis ~/.zen/game/secret.nostr
+#
+# Cas "self-DM" (author == #p == propre clé MULTIPASS, canal BRO personnel —
+# voir bro_watch_core.py) : enqueué séparément dans ~/.zen/tmp/bro_self_dm_queue/
+# avec un marqueur {"self_dm":true,...} — bro_dm_daemon.sh ne peut PAS déchiffrer
+# ces events (seule la clé propre du propriétaire le peut, pas NODE_HEX) ; il se
+# contente de résoudre l'email depuis le sender hex et de déclencher
+# `bro_watch_core.py check-commands EMAIL`, qui fait son propre fetch+déchiffrement.
 
 MY_PATH="$(dirname "$0")"
 MY_PATH="$(cd "$MY_PATH" && pwd)"
@@ -46,6 +53,22 @@ if [[ "$is_for_node" == "true" ]]; then
     _tmp=$(mktemp -p "$QUEUE_DIR" "${event_id}_XXXXXX.json.tmp")
     echo "$event_json" > "$_tmp"
     mv "$_tmp" "$QUEUE_DIR/${event_id}.json"
+fi
+
+## Cas "self-DM" (author == #p == propre clé MULTIPASS, canal BRO personnel) :
+## enqueue séparé, sans déchiffrement ici (NODE_NSEC ne peut PAS déchiffrer un
+## self-DM — seule la propre clé du propriétaire le peut). bro_dm_daemon.sh
+## résout l'email depuis sender_hex et route localement ou relaie vers la
+## home station si le joueur est en roaming sur cette station.
+is_self_dm=$(echo "$event_json" | jq -r --arg s "$sender_hex" \
+    '.event.tags // [] | map(select(.[0]=="p" and .[1]==$s)) | length > 0' 2>/dev/null)
+
+if [[ "$is_self_dm" == "true" && ${#sender_hex} -eq 64 ]]; then
+    SELF_QUEUE_DIR="$HOME/.zen/tmp/bro_self_dm_queue"
+    mkdir -p "$SELF_QUEUE_DIR"
+    _self_tmp=$(mktemp -p "$SELF_QUEUE_DIR" "${event_id}_XXXXXX.json.tmp")
+    echo "{\"self_dm\":true,\"event\":$(echo "$event_json" | jq -c '.event')}" > "$_self_tmp"
+    mv "$_self_tmp" "$SELF_QUEUE_DIR/${event_id}.json"
 fi
 
 _accept
