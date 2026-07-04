@@ -429,11 +429,8 @@ process_queue() {
         
         exit 0
     else
-        # Launch process directly
-        local secret_flag=""
-        [[ "$is_secret_message" == true ]] && secret_flag="--secret"
-        
-        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" $secret_flag &
+        # Launch process directly (réponse toujours en DM privé NIP-44, signée NODE)
+        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" &
     fi
 }
 
@@ -460,10 +457,8 @@ if [[ "$check" != "nobody" ]]; then
             fi
         else
             log_ia "PROCESSING UPlanet_IA_Responder.sh $pubkey $event_id $latitude $longitude $full_content $url $KNAME"
-            secret_flag=""
-            [[ "$is_secret_message" == true ]] && secret_flag="--secret"
-            
-            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" $secret_flag 2>&1 >> "$HOME/.zen/tmp/IA.log" &
+            # Réponse toujours en DM privé NIP-44, signée NODE (cf. process_queue ci-dessus)
+            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
         fi
 
         echo "$event_id" > "$COUNT_DIR/lastevent"
