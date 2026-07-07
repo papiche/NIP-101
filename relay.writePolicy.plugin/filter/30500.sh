@@ -29,5 +29,7 @@ if check_amis_of_amis "$pubkey"; then
 fi
 log_with_timestamp "$LOG_FILE" "================================"
 
+nip101_log_event "30500" "accepted" 1 "{\"pubkey\":\"${pubkey:0:12}\"}"
+
 # Accept the event
 exit 0

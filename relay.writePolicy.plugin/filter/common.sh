@@ -305,6 +305,72 @@ ensure_log_dir() {
     mkdir -p "$(dirname "$log_file")"
 }
 
+########################################################################
+# nip101_log_event KIND ACTION SUCCESS [EXTRA_JSON]
+#   Journalise un évènement STRUCTURÉ (JSONL) niveau STATION/NODE, EN PLUS
+#   des logs texte libre par kind (nostr_kindN.log) écrits ci-dessus par
+#   log_with_timestamp() — additif, ne remplace rien. Écrit dans le MÊME
+#   fichier que IA/bro/bro_common_lib.sh::bro_log_event() côté Astroport.ONE
+#   (~/.zen/tmp/$IPFSNODEID/observability/node-activity.jsonl) : les décisions
+#   du relay NOSTR (accept/reject par kind) apparaissent donc automatiquement
+#   dans le digest NODE de 20h12.process.sh, sans nouvelle section à ajouter.
+#
+#   KIND         kind Nostr filtré (ex: "0", "1984", "30303") -> category
+#   ACTION       libellé court ("accepted", "rejected", "friction"...)
+#   SUCCESS      0/1/true/false — accepté=1, rejeté=0
+#   EXTRA_JSON   optionnel — objet JSON fusionné (ex: pubkey, event_id)
+#
+#   Échoue TOUJOURS silencieusement — jamais de blocage du relay pour un
+#   problème d'observabilité (même philosophie que bro_log_event()).
+########################################################################
+nip101_log_event() {
+    local _kind="$1" _action="$2" _success="$3" _extra="${4:-}"
+    local _node="${IPFSNODEID:-_local}"
+    local _dir="$HOME/.zen/tmp/${_node}/observability"
+    local _path="${_dir}/node-activity.jsonl"
+
+    mkdir -p "$_dir" 2>/dev/null || return 0
+
+    local _ok="false"
+    case "$_success" in
+        1|true|TRUE|True) _ok="true" ;;
+    esac
+
+    python3 - "$_path" "$_kind" "$_action" "$_ok" "$_extra" <<'PYEOF' 2>/dev/null
+import sys, json, time
+
+path, kind, action, ok, extra = sys.argv[1:6]
+RING_LIMIT = 200
+
+event = {
+    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    "script": "nip101_filter",
+    "category": f"kind{kind}",
+    "action": action,
+    "success": ok == "true",
+}
+if extra:
+    try:
+        d = json.loads(extra)
+        if isinstance(d, dict):
+            event.update(d)
+    except Exception:
+        pass
+
+try:
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    if len(lines) > RING_LIMIT:
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(lines[-RING_LIMIT:])
+except Exception:
+    pass
+PYEOF
+    return 0
+}
+
 # Function to parse ẐEN amount from reaction content
 parse_zen_amount() {
     local content="$1"
