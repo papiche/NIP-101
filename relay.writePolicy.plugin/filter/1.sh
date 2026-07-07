@@ -300,65 +300,11 @@ Get a #MULTIPASS to access localized content
             touch "$warning_file"
             log_uplanet "Warning message sent (ID: $WARNING_MSG_ID) and tracked for pubkey: $pubkey"
             log_uplanet "$WARNING_MSG_OUTPUT"
-            
-            # Send automatic BRO response after visitor warning (only for first message)
-            if [[ -n "$WARNING_MSG_ID" && "$next_count" == "1" ]]; then
-                log_uplanet "Sending automatic BRO response for visitor: $pubkey"
-                
-                # Generate intelligent BRO response using AstroBot personas
-                if [[ -n "$visitor_content" ]]; then
-                    # Use AstroBot persona selector for personalized response
-                    BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
-                      "$pubkey" \
-                      "$visitor_content" \
-                      2>/dev/null)
-                else
-                    # Fallback for empty content
-                    BRO_RESPONSE_CONTENT=$($MY_PATH/astrobot_visitor_response.py \
-                      "$pubkey" \
-                      "Hello" \
-                      2>/dev/null)
-                fi
-                
-                # Add captain reference and UMAP explanation to AI-generated response
-                if [[ -n "$BRO_RESPONSE_CONTENT" && "$BRO_RESPONSE_CONTENT" != *"ERROR"* ]]; then
-                    BRO_RESPONSE_CONTENT="$BRO_RESPONSE_CONTENT
-
-🌍 I'm speaking from UMAP_0.00_0.00 - the global meeting point for users without GPS coordinates.
-
-#Captain:$CAPTAIN_NPROFILE
-#UMAP_0.00_0.00"
-                fi
-                
-                # Fallback if AI response fails
-                if [[ -z "$BRO_RESPONSE_CONTENT" || "$BRO_RESPONSE_CONTENT" == *"ERROR"* ]]; then
-                    BRO_RESPONSE_CONTENT="Hello visitor! I'm AstroBot, UPlanet AI assistant. I noticed you're new here. Would you like to learn more about our community? Feel free to ask me anything about #UPlanet, #CopyLaRadio, or how to get started!
-
-🌍 I'm speaking from UMAP_0.00_0.00 - the global meeting point for users without GPS coordinates. This is where non-geolocated messages are collected and shared.
-
-#Captain:$CAPTAIN_NPROFILE
-#UMAP_0.00_0.00"
-                fi
-                
-                # Send BRO response as UMAP 0.00,0.00
-                # Create temp keyfile for nostr_send_note.py
-                TMP_KEYFILE=$(mktemp)
-                echo "NSEC=$UMAPNSEC;" > "$TMP_KEYFILE"
-
-                BRO_MSG_OUTPUT=$(python3 $HOME/.zen/Astroport.ONE/tools/nostr_send_note.py \
-                  --keyfile "$TMP_KEYFILE" \
-                  --kind 1 \
-                  --content "$BRO_RESPONSE_CONTENT" \
-                  --tags "[[\"e\", \"$event_id\"], [\"p\", \"$pubkey\"], [\"t\", \"BRO\"], [\"t\", \"VisitorWelcome\"], [\"expiration\", \"$EXPIRY_TIMESTAMP\"]]" \
-                  --relays "$myRELAY" \
-                  --json 2>&1)
-                
-                rm "$TMP_KEYFILE"
-                
-                BRO_MSG_ID=$(echo "$BRO_MSG_OUTPUT" | grep -oE '"event_id": "[a-f0-9]{64}"' | cut -d'"' -f4 | head -n 1)
-                log_uplanet "BRO response sent (ID: $BRO_MSG_ID) for visitor: $pubkey"
-                log_uplanet "$BRO_MSG_OUTPUT"
-            fi
+            # Note (2026-07-07) : la réponse IA de bienvenue automatique
+            # (astrobot_visitor_response.py) a été retirée ici — un appel LLM
+            # par premier message de N'IMPORTE QUI sur l'internet public était
+            # la surface de charge la plus large et la moins contrôlée du
+            # relais. Le rate-limit/warning/blacklist ci-dessus reste inchangé.
         fi
         ) &
     else
