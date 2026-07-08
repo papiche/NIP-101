@@ -1457,21 +1457,35 @@ main() {
                         local end_batch_scan=$(date +%s%3N)
                         log "PERF" "Batch strfry scan for all HEX: $((end_batch_scan - start_batch_scan))ms"
                         
+                        # OPT #8: Pré-extraction en 1 SEUL appel jq (au lieu de 4 par
+                        # HEX dans la boucle ci-dessous — sur une constellation de
+                        # plusieurs centaines de pubkeys, ça faisait autant de
+                        # spawns jq, coûteux sur un node léger type Raspberry Pi).
+                        # Résultat indexé en mémoire via des tableaux associatifs bash.
+                        declare -A _profile_name _profile_display _profile_nip05
+                        while IFS=$'\t' read -r _hex _name _display _nip05; do
+                            [[ -n "$_hex" ]] || continue
+                            _profile_name["$_hex"]="$_name"
+                            _profile_display["$_hex"]="$_display"
+                            _profile_nip05["$_hex"]="$_nip05"
+                        done < <(echo "$all_profiles" | jq -r '
+                            (.content | fromjson) as $c
+                            | [.pubkey, ($c.name // ""), ($c.display_name // ""), ($c.nip05 // "")]
+                            | @tsv
+                        ' 2>/dev/null)
+
                         # Parse results in memory (much faster than N separate scans)
                         while IFS= read -r hex_pubkey; do
                             if [[ -n "$hex_pubkey" && ${#hex_pubkey} -eq 64 ]]; then
-                                # Check if this HEX has a profile in the batch results
-                                local profile_event=$(echo "$all_profiles" | jq -c "select(.pubkey == \"$hex_pubkey\")" 2>/dev/null | head -1)
-                                
-                                if [[ -n "$profile_event" && "$profile_event" != "null" && "$profile_event" != "" ]]; then
+                                # Check if this HEX a un profil dans les résultats pré-extraits
+                                if [[ -v _profile_name["$hex_pubkey"] ]]; then
                                     # Profile found
                                     ((recent_hex_count++))
-                                    
-                                    # Try to get profile name
-                                    local profile_name=$(echo "$profile_event" | jq -r '.content | fromjson | .name // empty' 2>/dev/null)
-                                    local profile_display=$(echo "$profile_event" | jq -r '.content | fromjson | .display_name // empty' 2>/dev/null)
-                                    local profile_nip05=$(echo "$profile_event" | jq -r '.content | fromjson | .nip05 // empty' 2>/dev/null)
-                                    
+
+                                    local profile_name="${_profile_name[$hex_pubkey]}"
+                                    local profile_display="${_profile_display[$hex_pubkey]}"
+                                    local profile_nip05="${_profile_nip05[$hex_pubkey]}"
+
                                     if [[ -n "$profile_name" && "$profile_name" != "null" && "$profile_name" != "" ]]; then
                                         log "INFO" "  ✅ ${hex_pubkey:0:8}... Profile: $profile_name"
                                         if [[ -n "$profile_display" && "$profile_display" != "null" ]]; then
