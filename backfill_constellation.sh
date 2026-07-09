@@ -14,6 +14,9 @@ BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
 BACKFILL_ERROR_LOG="$HOME/.zen/strfry/constellation-backfill.error.log"
 BACKFILL_PID="$HOME/.zen/strfry/constellation-backfill.pid"
 LOCK_FILE="$HOME/.zen/strfry/constellation-backfill.lock"
+FAILING_PEERS_FILE="$HOME/.zen/strfry/failing_peers.txt"
+PEER_FAILURE_THRESHOLD=3   # suspendre après N échecs consécutifs
+PEER_COOLDOWN=21600         # durée de suspension en secondes (6h)
 
 # Public fallback relays for profile recovery (kind 0) when constellation peers are unreachable
 PUBLIC_FALLBACK_RELAYS=(
@@ -125,19 +128,23 @@ while [[ $# -gt 0 ]]; do
             # Comptes par source
             nostr_dir="$HOME/.zen/game/nostr"
             multipass_count=0
-            [[ -d "$nostr_dir" ]] && multipass_count=$(cat "$nostr_dir"/*/HEX 2>/dev/null | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+            [[ -d "$nostr_dir" ]] && multipass_count=$(cat "$nostr_dir"/*/HEX 2>/dev/null | grep -cE '^[0-9a-fA-F]{64}$' 2>/dev/null)
+            multipass_count=${multipass_count:-0}
 
             amis_file="$HOME/.zen/strfry/amisOfAmis.txt"
             amis_count=0
-            [[ -f "$amis_file" ]] && amis_count=$(grep -cE '^[0-9a-fA-F]{64}$' "$amis_file" 2>/dev/null || echo 0)
+            [[ -f "$amis_file" ]] && amis_count=$(grep -cE '^[0-9a-fA-F]{64}$' "$amis_file" 2>/dev/null)
+            amis_count=${amis_count:-0}
 
             swarm_captain_count=$(find "$HOME/.zen/tmp/swarm" -name "12345.json" -print0 2>/dev/null \
                 | xargs -0 -I{} jq -r '.captainHEX // empty, .NODEHEX // empty' {} 2>/dev/null \
-                | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+                | grep -cE '^[0-9a-fA-F]{64}$' 2>/dev/null)
+            swarm_captain_count=${swarm_captain_count:-0}
 
             geo_count=$(find "$HOME/.zen/flashmem" -name "HEX" -print0 2>/dev/null \
                 | xargs -0 cat 2>/dev/null \
-                | grep -cE '^[0-9a-fA-F]{64}$' || echo 0)
+                | grep -cE '^[0-9a-fA-F]{64}$' 2>/dev/null)
+            geo_count=${geo_count:-0}
 
             echo "MULTIPASS locaux     : $multipass_count"
             echo "amisOfAmis.txt       : $amis_count"
@@ -263,6 +270,54 @@ remove_lock() {
 
 # Trap to ensure lock file is removed on exit
 trap remove_lock EXIT INT TERM
+
+# ── Suivi persistant des peers défaillants ─────────────────────────────────────
+# Format de FAILING_PEERS_FILE : "RELAY_URL FAILURE_COUNT LAST_FAILURE_EPOCH"
+# Un peer suspendu (≥ THRESHOLD échecs dans la fenêtre COOLDOWN) est ignoré
+# jusqu'à ce que le cooldown expire ou qu'il réussisse à nouveau.
+
+is_peer_suspended() {
+    local peer_url="$1"
+    [[ -f "$FAILING_PEERS_FILE" ]] || return 1
+    local entry count epoch now
+    entry=$(grep -F "$peer_url	" "$FAILING_PEERS_FILE" 2>/dev/null | head -1)
+    [[ -z "$entry" ]] && return 1
+    count=$(echo "$entry" | awk '{print $2}')
+    epoch=$(echo "$entry" | awk '{print $3}')
+    now=$(date +%s)
+    if [[ ${count:-0} -ge $PEER_FAILURE_THRESHOLD ]] && [[ $(( now - ${epoch:-0} )) -lt $PEER_COOLDOWN ]]; then
+        local remaining=$(( PEER_COOLDOWN - (now - epoch) ))
+        log "WARN" "Peer $peer_url suspendu ($count échecs, cooldown restant : ${remaining}s)"
+        return 0
+    fi
+    return 1
+}
+
+record_peer_failure() {
+    local peer_url="$1"
+    local now count=0
+    now=$(date +%s)
+    if [[ -f "$FAILING_PEERS_FILE" ]]; then
+        local prev
+        prev=$(grep -F "$peer_url	" "$FAILING_PEERS_FILE" 2>/dev/null | head -1 | awk '{print $2}')
+        count=${prev:-0}
+        grep -vF "$peer_url	" "$FAILING_PEERS_FILE" > "${FAILING_PEERS_FILE}.tmp" 2>/dev/null \
+            && mv "${FAILING_PEERS_FILE}.tmp" "$FAILING_PEERS_FILE"
+    fi
+    (( count++ ))
+    printf '%s\t%d\t%d\n' "$peer_url" "$count" "$now" >> "$FAILING_PEERS_FILE"
+    log "WARN" "Peer $peer_url : échec #${count} enregistré"
+}
+
+record_peer_success() {
+    local peer_url="$1"
+    [[ -f "$FAILING_PEERS_FILE" ]] || return 0
+    if grep -qF "$peer_url	" "$FAILING_PEERS_FILE" 2>/dev/null; then
+        grep -vF "$peer_url	" "$FAILING_PEERS_FILE" > "${FAILING_PEERS_FILE}.tmp" 2>/dev/null \
+            && mv "${FAILING_PEERS_FILE}.tmp" "$FAILING_PEERS_FILE"
+        log "INFO" "Peer $peer_url : compteur d'échecs remis à zéro"
+    fi
+}
 
 # Function to get all HEX pubkeys from nostr directory and amisOfAmis.txt file
 get_constellation_hex_pubkeys() {
@@ -1196,7 +1251,17 @@ main() {
     fi
     
     log "INFO" "Backfilling $DAYS_BACK day(s) of events"
-    
+
+    # Purge des entrées failing_peers > 24h (nettoyage quotidien)
+    if [[ -f "$FAILING_PEERS_FILE" ]]; then
+        local _cutoff=$(( $(date +%s) - 86400 ))
+        awk -v cut="$_cutoff" '$3+0 > cut' "$FAILING_PEERS_FILE" > "${FAILING_PEERS_FILE}.tmp" 2>/dev/null \
+            && mv "${FAILING_PEERS_FILE}.tmp" "$FAILING_PEERS_FILE"
+        local _suspended
+        _suspended=$(wc -l < "$FAILING_PEERS_FILE" 2>/dev/null || echo 0)
+        [[ $_suspended -gt 0 ]] && log "INFO" "$_suspended peer(s) en cours de suspension dans failing_peers.txt"
+    fi
+
     # OPT #1: Cache HEX pubkeys (appelé 3+ fois dans le script)
     local start_hex_cache=$(date +%s%3N)
     CONSTELLATION_HEX_CACHE=$(get_constellation_hex_pubkeys)
@@ -1359,13 +1424,20 @@ main() {
                 continue
             fi
 
+            # Skip peers suspendus par le suivi persistant inter-runs
+            if is_peer_suspended "$relay_url"; then
+                continue
+            fi
+
             # Execute WebSocket backfill for routable relay
             if execute_backfill_websocket "$relay_url" "$since_timestamp" "$hex_pubkeys"; then
                 log "INFO" "✅ WebSocket backfill successful for $relay_url"
                 backfill_success=true
+                record_peer_success "$relay_url"
             else
                 log "ERROR" "❌ WebSocket backfill failed for $relay_url"
                 DEAD_PEERS+=("$relay_url")
+                record_peer_failure "$relay_url"
             fi
         fi
         
