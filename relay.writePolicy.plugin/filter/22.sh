@@ -27,10 +27,9 @@ log_long_video() {
     log_with_timestamp "$LONG_VIDEO_LOG_FILE" "$1"
 }
 
-# Extract video-specific tags
-extract_tags "$event_json" "title" "imeta" "duration" "published_at" "g" "location" "application" "url" "latitude" "longitude"
+# Extract video-specific tags (imeta est extrait séparément via jq, cf. extract_video_metadata)
+extract_tags "$event_json" "title" "duration" "published_at" "g" "location" "application" "url" "latitude" "longitude"
 title="$title"
-imeta="$imeta"
 duration="$duration"
 published_at="$published_at"
 g="$g"
@@ -50,29 +49,27 @@ fi
 # Ensure log directories exist
 ensure_log_dir "$LONG_VIDEO_LOG_FILE"
 
-# Extract video metadata from imeta tag
+# Extract video metadata from the "imeta" tag (NIP-71/NIP-92 multi-value tag:
+# ["imeta", "dim ...", "url ...", "m ...", "x ...", ...]).
+# On interroge directement le tableau JSON de l'event via jq (select par
+# préfixe exact) plutôt que de reconstruire puis reparser une chaîne
+# concaténée par regex : ça élimine toute ambiguïté (ex: le "m" final de
+# "dim 640x360" ne peut pas être confondu avec la clé "m" du MIME type,
+# puisque chaque élément du tableau reste un élément distinct).
 extract_video_metadata() {
-    local imeta_content="$1"
-    local dimensions=""
-    local url=""
-    local hash=""
-    local mime_type=""
-    
-    # Parse imeta content
-    if [[ -n "$imeta_content" ]]; then
-        # Extract dimensions (dim WIDTHxHEIGHT)
-        dimensions=$(echo "$imeta_content" | grep -o 'dim [0-9]*x[0-9]*' | sed 's/dim //')
-        
-        # Extract URL (url URL)
-        url=$(echo "$imeta_content" | grep -o 'url [^ ]*' | sed 's/url //')
-        
-        # Extract hash (x HASH)
-        hash=$(echo "$imeta_content" | grep -o 'x [a-f0-9]*' | sed 's/x //')
-        
-        # Extract MIME type (m MIME_TYPE)
-        mime_type=$(echo "$imeta_content" | grep -o 'm [^ ]*' | sed 's/m //')
+    local event_json="$1"
+    local dimensions="" url="" hash="" mime_type=""
+    local imeta_json
+
+    imeta_json=$(echo "$event_json" | jq -c '[(.tags[]? // empty) | select(.[0] == "imeta") | .[1:][]]' 2>/dev/null)
+
+    if [[ -n "$imeta_json" && "$imeta_json" != "null" ]]; then
+        dimensions=$(echo "$imeta_json" | jq -r '.[] | select(startswith("dim ")) | .[4:]' 2>/dev/null | head -1)
+        url=$(echo "$imeta_json"        | jq -r '.[] | select(startswith("url ")) | .[4:]' 2>/dev/null | head -1)
+        hash=$(echo "$imeta_json"       | jq -r '.[] | select(startswith("x ")) | .[2:]'   2>/dev/null | head -1)
+        mime_type=$(echo "$imeta_json"  | jq -r '.[] | select(startswith("m ")) | .[2:]'   2>/dev/null | head -1)
     fi
-    
+
     echo "$dimensions|$url|$hash|$mime_type"
 }
 
@@ -177,8 +174,8 @@ process_nostr_long_video_event() {
     local latitude="$6"
     local longitude="$7"
     
-    # Extract video metadata
-    local metadata=$(extract_video_metadata "$imeta")
+    # Extract video metadata (event_json = variable globale définie en tête de script)
+    local metadata=$(extract_video_metadata "$event_json")
     local dimensions=$(echo "$metadata" | cut -d'|' -f1)
     local url=$(echo "$metadata" | cut -d'|' -f2)
     local hash=$(echo "$metadata" | cut -d'|' -f3)

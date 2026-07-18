@@ -285,7 +285,10 @@ extract_tags() {
         if [[ -n "$jq_query" ]]; then
             jq_query="$jq_query + \";\" + "
         fi
-        jq_query="$jq_query\"${tag_name}=\" + (((.event.tags[] | select(.[0] == \"${tag_name}\") | .[1]) // \"\") | @sh)"
+        # .[1:] | join(" ") : pour un tag simple (1 valeur), identique à .[1].
+        # Pour un tag multi-valeurs NIP-71/NIP-92 (ex: imeta = ["imeta","dim ...","url ...","m ...",...]),
+        # rejoint TOUTES les valeurs au lieu de tronquer à la première ("dim ...").
+        jq_query="$jq_query\"${tag_name}=\" + (((.event.tags[] | select(.[0] == \"${tag_name}\") | (.[1:] | join(\" \"))) // \"\") | @sh)"
     done
     
     # Execute single jq call and eval the results
