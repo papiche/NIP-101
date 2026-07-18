@@ -13,6 +13,15 @@
 # ces events (seule la clé propre du propriétaire le peut, pas NODE_HEX) ; il se
 # contente de résoudre l'email depuis le sender hex et de déclencher
 # `bro_watch_core.py check-commands EMAIL`, qui fait son propre fetch+déchiffrement.
+#
+# Cas "LOVE DM" (adressé au HEX_LOVE dédié d'un compte local, cf.
+# atom4love_publish.py::write_secret_love) : enqueué dans
+# ~/.zen/tmp/bro_love_dm_queue/ avec {"love_dm":true,"email":"...","event":{...}}
+# — l'email est résolu ICI (le filtre connaît déjà tous les HEX_LOVE locaux),
+# évitant à bro_dm_daemon.sh de le re-chercher. Contrairement au self-DM,
+# déchiffrable côté daemon : la station détient déjà .secret.love de ce compte
+# (dérivée server-side par atom4love_publish.py), donc pas besoin d'un aller-
+# retour navigateur.
 
 MY_PATH="$(dirname "$0")"
 MY_PATH="$(cd "$MY_PATH" && pwd)"
@@ -57,6 +66,13 @@ NODE_HEX=$(grep -oP 'HEX=\K[^;]+' "$SECRET_FILE" 2>/dev/null | tr -d '[:space:]'
 ## et traitée comme une nouvelle commande → boucle de rétroaction infinie.
 [[ "$sender_hex" == "$NODE_HEX" ]] && _accept "self_echo_skip"
 
+## Ne jamais enqueuer une réponse envoyée PAR une clé LOVE elle-même (même
+## garde anti-boucle que ci-dessus, appliquée à _send_dm_as_love).
+if [[ ${#sender_hex} -eq 64 ]]; then
+    _love_echo_file=$(grep -l "^${sender_hex}$" "$HOME"/.zen/game/nostr/*/HEX_LOVE 2>/dev/null | head -1)
+    [[ -n "$_love_echo_file" ]] && _accept "love_echo_skip"
+fi
+
 ## Vérifier le tag #p : le DM doit être adressé à ce NODE
 is_for_node=$(echo "$event_json" | jq -r --arg h "$NODE_HEX" \
     '.event.tags // [] | map(select(.[0]=="p" and .[1]==$h)) | length > 0' 2>/dev/null)
@@ -92,6 +108,32 @@ if [[ "$is_self_dm" == "true" && ${#sender_hex} -eq 64 ]]; then
     _queued_something=1
     log_with_timestamp "$LOG_FILE" "QUEUED (self_dm): event ${event_id:0:16}... from ${sender_hex:0:12}..."
     nip101_log_event "4" "queued_self_dm" 1 "{\"sender\":\"${sender_hex:0:12}\"}"
+fi
+
+## Cas "LOVE DM" (adressé au HEX_LOVE dédié d'un compte local) : enqueue
+## séparé, email résolu ici (le filtre a un accès direct au filesystem local).
+love_email=""
+p_tags=$(echo "$event_json" | jq -r '.event.tags // [] | map(select(.[0]=="p")) | .[].[1]' 2>/dev/null)
+if [[ -n "$p_tags" ]]; then
+    while IFS= read -r _p; do
+        [[ ${#_p} -ne 64 ]] && continue
+        _love_file=$(grep -l "^${_p}$" "$HOME"/.zen/game/nostr/*/HEX_LOVE 2>/dev/null | head -1)
+        if [[ -n "$_love_file" ]]; then
+            love_email=$(basename "$(dirname "$_love_file")")
+            break
+        fi
+    done <<< "$p_tags"
+fi
+
+if [[ -n "$love_email" ]]; then
+    LOVE_QUEUE_DIR="$HOME/.zen/tmp/bro_love_dm_queue"
+    mkdir -p "$LOVE_QUEUE_DIR"
+    _love_tmp=$(mktemp -p "$LOVE_QUEUE_DIR" "${event_id}_XXXXXX.json.tmp")
+    echo "{\"love_dm\":true,\"email\":\"${love_email}\",\"event\":$(echo "$event_json" | jq -c '.event')}" > "$_love_tmp"
+    mv "$_love_tmp" "$LOVE_QUEUE_DIR/${event_id}.json"
+    _queued_something=1
+    log_with_timestamp "$LOG_FILE" "QUEUED (love_dm): event ${event_id:0:16}... from ${sender_hex:0:12}... to ${love_email}"
+    nip101_log_event "4" "queued_love_dm" 1 "{\"sender\":\"${sender_hex:0:12}\"}"
 fi
 
 if [[ "$_queued_something" -eq 0 ]]; then
