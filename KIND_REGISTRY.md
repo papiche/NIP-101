@@ -1584,7 +1584,7 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 
 ---
 
-### Kind 30851 — ZEN Emission Proof (Preuve de paiement ẐEN)
+### Kind 30851 — ZEN Emission Proof (Preuve de paiement ẐEN, crédit **et** débit)
 
 | Champ | Valeur |
 |---|---|
@@ -1595,28 +1595,44 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 | **Filtre NIP-101** | `all_but_blacklist.sh` |
 | **Sync constellation** | OUI — Economic |
 
-**Description :** Preuve cryptographique d'une émission ẐEN déclenchée par une contribution OpenCollective. Sert de **source de vérité distribuée pour l'idempotence** : avant tout traitement, la station primaire interroge le relay local pour vérifier que la transaction n'a pas déjà été émise. Remplace le fichier `emission.log` local.
+**Description :** Preuve cryptographique d'un mouvement de Ẑen lié à OpenCollective, dans les
+deux sens :
+- **Crédit** (`type` absent, historique) : émission ẐEN déclenchée par une contribution OC entrante.
+  Sert de source de vérité distribuée pour l'idempotence des contributions.
+- **Débit** (`type: "debit"`, ajouté pour la facturation Armateur/Capitaine) : preuve d'un *burn*
+  Ẑen lié à un remboursement/facture OC sortant (hébergement Armateur, rémunération Capitaine).
+  Le tag `type` est **additif** : son absence est équivalente à `credit`, aucun consommateur
+  existant du kind 30851 n'est cassé par cet ajout.
 
 **Clé d'adressabilité `d` :**
 
 ```
-oc-emission-{raw_email}:{amount}:{oc_created_at}
+Crédit : oc-emission-{raw_email}:{amount}:{oc_created_at}
+Débit  : oc-burn-{period_key}:{role}:{node_id}:{payee_email}
 ```
 
-**Tags :**
+**Tags (communs + spécifiques débit) :**
 
 ```
-["d",           "oc-emission-{raw_email}:{amount}:{oc_created_at}"]  — Clé d'adressabilité unique par TX OC
-["t",           "uplanet"]
-["t",           "oc-emission"]
-["s",           "OK|FAIL"]          — Single-letter tag : filtrable via #s (NIP-01)
-["email",       "<email-effectif>"] — MULTIPASS ciblé (peut différer de raw_email pour tiers labo/R&D)
-["amount",      "<float>"]          — Montant EUR brut (issu de l'API OC)
-["tier",        "<tier-slug>"]      — Slug OC du niveau de contribution
-["constellation","<UPLANETG1PUB>"]  — Swarm d'appartenance
+["d",             "oc-emission-..." | "oc-burn-..."]  — clé d'adressabilité (voir ci-dessus)
+["t",             "uplanet"]
+["t",             "oc-emission" | "oc-burn"]           — distingue le flux au niveau tag texte
+["type",          "debit"]            — DÉBIT uniquement ; absent = crédit (rétro-compatible)
+["s",             "PENDING|OK|FAIL"]  — PENDING n'existe que pour les débits (facture composée
+                                        avant confirmation du burn réel)
+["email",         "<email-effectif>"] — MULTIPASS ciblé (crédit) ou payee (débit)
+["amount",        "<float>"]          — Montant Ẑen
+["tier",          "<tier-slug>"]      — Crédit uniquement : slug OC du niveau de contribution
+["role",          "armateur|capitaine"] — Débit uniquement : rôle rémunéré par cette ligne
+["node",          "<IPFSNODEID>"]       — Débit uniquement : nœud concerné par le PAF facturé
+["invoice_id",    "<id facture>"]       — Débit uniquement : regroupe les lignes d'une même facture consolidée
+["expense_id",    "<OC expense id>"]    — Débit uniquement : renseigné une fois l'Expense OC créée
+["pdf_cid",       "<CID IPFS>"]         — Débit uniquement : PDF de facture
+["cert_cid",      "<CID IPFS>"]         — Débit uniquement : page de certification
+["constellation", "<UPLANETG1PUB>"]  — Swarm d'appartenance
 ```
 
-**Structure JSON — `content` :**
+**Structure JSON — `content` (crédit, historique) :**
 
 ```json
 {
@@ -1631,16 +1647,46 @@ oc-emission-{raw_email}:{amount}:{oc_created_at}
 }
 ```
 
+**Structure JSON — `content` (débit, nouveau) :**
+
+```json
+{
+  "type":        "debit",
+  "role":        "armateur",
+  "node_id":     "12D3KooW...",
+  "email":       "armateur@example.com",
+  "amount":      140,
+  "period_key":  "2026-P7",
+  "description": "PAF35 - Hébergement Infrastructure Physique",
+  "invoice_id":  "FACTURE-20260601",
+  "expense_id":  null,
+  "pdf_cid":     null,
+  "cert_cid":    null,
+  "status":      "PENDING",
+  "generated_at":"2026-06-30T20:12:00Z",
+  "uplanet":     "<UPLANETG1PUB>"
+}
+```
+
 **Politique d'idempotence :**
 
 ```
-Avant traitement : strfry scan {"kinds":[30851], "#d":["oc-emission-TX_ID"]}
-  → résultat non vide  → TX déjà traitée → skip
-  → résultat vide      → TX nouvelle     → traiter + publier kind 30851
+Avant traitement : strfry scan {"kinds":[30851], "#d":["oc-emission-TX_ID"]}   (crédit)
+                    strfry scan {"kinds":[30851], "#d":["oc-burn-PERIOD:ROLE:NODE:EMAIL"]}  (débit)
+  → résultat non vide et #s != PENDING → déjà traité → skip
+  → résultat vide ou #s == PENDING     → à traiter/finaliser → publier/mettre à jour kind 30851
 ```
 
-**Implémentation :** `OC2UPlanet/oc2uplanet.sh` — `_check_emission_nostr()` / `_publish_emission_proof()`  
-**Backup :** `OC2UPlanet/data/emission.log` — écriture parallèle (fallback si relay hors-ligne)
+**Cycle de vie d'un débit** (contrairement au crédit, publié en un seul événement) :
+`PENDING` (facture composée, PDF généré, burn pas encore confirmé) → `OK` (burn + Expense OC
+réussis, `expense_id`/`pdf_cid`/`cert_cid` renseignés) ou `FAIL` (burn ou soumission OC échoués —
+à corriger et retenter, jamais silencieux).
+
+**Implémentation :**
+- Crédit : `OC2UPlanet/oc2uplanet.sh` — `_check_emission_nostr()` / `_publish_emission_proof()`
+  (backup : `OC2UPlanet/data/emission.log`)
+- Débit : `Astroport.ONE/RUNTIME/ZEN.INVOICE.sh` (nouveau — voir ce script pour le détail du burn
+  + soumission `createExpense` + publication de la preuve)
 
 ---
 
