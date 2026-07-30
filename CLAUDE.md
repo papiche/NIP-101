@@ -72,7 +72,8 @@ Each `{kind}.sh` receives the full event JSON as `$1`. Must `exit 0` to accept, 
 |--------|------|---------|
 | `0.sh` | 0 | Profile updates — logs fields, accepts |
 | `1.sh` | 1 | Text notes — visitor rate-limiting, #BRO/#BOT AI queue, #rec memory, #secret handling, #plantnet |
-| `7.sh` | 7 | Reactions — ZEN payments, crowdfunding contributions, ASSETS votes |
+| `5.sh` | 5 | Deletion requests — rejects any deletion targeting a kind in `PROTECTED_KINDS` (`../protected_kinds.sh`), even by the legitimate author |
+| `7.sh` | 7 | Reactions — ZEN payments, crowdfunding contributions, ASSETS votes. Reactions authored by a LOVE identity (`HEX_LOVE`, not the MULTIPASS) route to Ğ1-N² (`g1n2_pay.sh`, backgrounded — never call it synchronously, it publishes to this same relay and would deadlock the single-threaded writer) instead of G1/Duniter |
 | `21.sh` | 21 | Video normal |
 | `22.sh` | 22 | Video short |
 | `1984.sh` | 1984 | Reports — `report-type=friction` → queue Kind 30506 via `ASTROBOT/N1Mediation.sh` |
@@ -83,6 +84,7 @@ Each `{kind}.sh` receives the full event JSON as `$1`. Must `exit 0` to accept, 
 | `30303.sh` | 30303 | Custom kind |
 | `30500.sh` | 30500 | Permit definitions (Oracle system) |
 | `30506.sh` | 30506 | Dossier de médiation WoTx² — n'accepte que `t=friction`, pubkeys autorisées |
+| `30852.sh` | 30852 | Ğ1-Nostr (N²) ledger transfer — anti-double-spend (`prev` chain + balance check via `n2_ledger_lib.sh`), anti-replay (`d` dup check). Replication across the constellation is intended (signed events, balance recomputed identically anywhere) and revalidated at import time (`backfill_constellation.sh::reject_invalid_ledger_events()` replays the same mint/prev/balance checks before allowing import — `strfry import` never invokes writePolicy). What must never happen is its **deletion** — protected against even via constellation sync (see `filter/5.sh` + `backfill_constellation.sh::reject_protected_kind_deletions()`) |
 | `30904.sh` | 30904 | Crowdfunding campaigns — validates structure, registers Bien keys |
 
 ### Common Functions (`filter/common.sh`)

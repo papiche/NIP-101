@@ -54,6 +54,23 @@ get_key_email() {
     return 1
 }
 
+# Résout un HEX_LOVE (clé NOSTR dédiée ATOM4LOVE, .secret.love — DISTINCTE du
+# HEX principal du MULTIPASS) vers l'EMAIL local propriétaire, via le fichier
+# HEX_LOVE (cf. atom4love_publish.py::write_secret_love()). Utilisé pour
+# distinguer une réaction/paiement kind 7 émise par une identité LOVE (à
+# router vers le ledger Ğ1-N², cf. filter/7.sh) d'une émise par le MULTIPASS
+# principal (paiement Ğ1/Duniter classique, inchangé).
+get_love_email() {
+    local pubkey="$1"
+    local found_file=$(grep -l "^$pubkey$" "$KEY_DIR"/*/HEX_LOVE 2>/dev/null | head -1)
+    if [[ -n "$found_file" ]]; then
+        basename "$(dirname "$found_file")"
+        return 0
+    fi
+    echo ""
+    return 1
+}
+
 # Optimized function to search for pubkey in swarm
 # Uses single grep call instead of cat|grep then grep -l
 search_swarm_for_pubkey() {

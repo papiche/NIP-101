@@ -176,7 +176,12 @@ ZEN_AMOUNT=$(parse_zen_amount "$content")
 ################################################################################
 
 case "$content" in
-    ""|"+"|"👍"|"❤️"|"♥️"|"♥"|"+[0-9]"*|"+[0-9][0-9]"*|"+[0-9][0-9][0-9]"*)
+    ""|"+"|"👍"|"❤️"|"♥️"|"♥"|+[0-9]*)
+        # NOTE : les crochets [0-9] doivent être NON quotés pour être une classe
+        # de caractères glob (bug historique corrigé ici — "+[0-9]"* aurait
+        # cherché la séquence LITTÉRALE "+[0-9]", ne matchant donc jamais un
+        # vrai montant "+10" etc. — cf. parse_zen_amount() ci-dessous, qui a
+        # toujours eu la bonne syntaxe, avec ce même commentaire explicite).
         
         #=======================================================================
         # CROWDFUNDING CONTRIBUTION OR VOTE (Payment to Bien wallet)
@@ -303,7 +308,55 @@ case "$content" in
         #=======================================================================
         if [[ "$is_crowdfunding" == "false" ]]; then
             reaction_type="LIKE (${ZEN_AMOUNT}Ẑ)"
-            
+
+            #===================================================================
+            # LOVE (Ğ1-N²) — réaction émise par une identité LOVE (.secret.love),
+            # PAS le MULTIPASS principal (contexte : atomic_chat.html / Zelkova
+            # love_screen.dart, chat LOVE↔LOVE). Ledger Ğ1-N² local (kind 30852),
+            # JAMAIS Ğ1/Duniter — routage entièrement distinct du chemin
+            # G1PUBNOSTR/PAYforSURE.sh ci-dessous, qui reste inchangé pour toute
+            # réaction émise par le MULTIPASS classique. Le destinataire (tag p)
+            # est attendu comme un HEX_LOVE (le contact du chat LOVE) — validé
+            # comme hex64 par g1n2_pay.sh lui-même, jamais fait confiance ici
+            # au-delà du format. Conversion Ẑen→Ğ1-N² : même taux que
+            # Ẑen→Ğ1 (×0.1) — un envoi "N Ẑen de love" transfère N×0.1 unités.
+            #
+            # CRITIQUE — g1n2_pay.sh est un outil CLIENT (publie sur le relay et
+            # ATTEND une confirmation, jusqu'à 3×~30s). L'appeler de façon
+            # SYNCHRONE ici bloquerait le writer strfry (mono-thread,
+            # RelayServer::runWriter()) sur SA PROPRE pipe de plugin — un
+            # blocage auto-infligé, puisque le nested publish attend une
+            # réponse du MÊME relay dont le writer est occupé à exécuter CE
+            # script. Constaté en test réel : ~90s de gel, échec systématique
+            # (le relay ne peut jamais répondre à sa propre requête pendante).
+            # Fix : backgrounder l'appel (même pattern que
+            # _relay_zen_payment_to_home ci-dessus) — le filtre accepte l'event
+            # kind 7 immédiatement, le transfert Ğ1-N² s'exécute ensuite dès
+            # que le writer est libre.
+            #===================================================================
+            LOVE_EMAIL=$(get_love_email "$pubkey")
+            if [[ -n "$LOVE_EMAIL" ]]; then
+                log_like "LOVE: réaction (${ZEN_AMOUNT}Ẑ) de ${pubkey:0:8}... (${LOVE_EMAIL}) → ${reacted_author_pubkey:0:8}..."
+                if (( $(echo "$ZEN_AMOUNT > 0" | bc -l) )) && [[ -n "$reacted_author_pubkey" ]]; then
+                    LOVE_KEYFILE="${KEY_DIR}/${LOVE_EMAIL}/.secret.love"
+                    if [[ -s "$LOVE_KEYFILE" ]]; then
+                        N2_AMOUNT=$(awk "BEGIN{printf \"%.2f\", $ZEN_AMOUNT * 0.1}")
+                        (
+                            _n2_evid=$("$HOME/.zen/Astroport.ONE/tools/g1n2_pay.sh" "$LOVE_KEYFILE" "$N2_AMOUNT" "$reacted_author_pubkey" "LOVE:${ZEN_AMOUNT}Z:${reacted_event_id}" 2>>"$LOG_FILE")
+                            if [[ -n "$_n2_evid" ]]; then
+                                log_like "LOVE: ✅ ${N2_AMOUNT} Ğ1-N² envoyé (${LOVE_EMAIL} → ${reacted_author_pubkey:0:8}...) — event ${_n2_evid:0:16}..."
+                            else
+                                log_like "LOVE: ❌ échec envoi Ğ1-N² pour ${LOVE_EMAIL} (solde insuffisant ou rejet relay)"
+                            fi
+                        ) &
+                        disown
+                    else
+                        log_like "LOVE: ⚠️ .secret.love introuvable pour ${LOVE_EMAIL} — envoi impossible"
+                    fi
+                fi
+
+            else
+            # ── Chemin G1/Duniter existant (MULTIPASS classique), INCHANGÉ ──
             # Check if destination is a Bien (direct reaction to Bien profile)
             BIEN_PROJECT_ID=$(is_crowdfunding_bien "$reacted_author_pubkey")
             if [[ -n "$BIEN_PROJECT_ID" ]]; then
@@ -373,6 +426,7 @@ case "$content" in
                 fi
             else
                 log_like "REACTION: $reaction_type from ${pubkey:0:8}... - destination not in UPlanet"
+            fi
             fi
         fi
         ;;

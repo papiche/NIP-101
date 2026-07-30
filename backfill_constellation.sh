@@ -9,6 +9,28 @@
 
 source ~/.zen/Astroport.ONE/tools/my.sh
 
+# Kinds immuables (jamais supprimables) — source unique partagée avec filter/5.sh.
+# cf. relay.writePolicy.plugin/protected_kinds.sh pour le contexte de sécurité complet :
+# `strfry import` (utilisé plus bas pour la synchro constellation) déclenche la
+# suppression réelle d'un event kind 5 importé SANS jamais invoquer writePolicy —
+# exclure un kind des allowlists kinds:[...] ci-dessous ne suffit donc PAS à le
+# protéger, il faut EN PLUS exclure de l'import tout event kind 5 qui le cible
+# (cf. process_and_import_events()).
+BACKFILL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$BACKFILL_SCRIPT_DIR/relay.writePolicy.plugin/protected_kinds.sh"
+
+# Kind 30852 (Ğ1-N² ledger) EST synchronisé (cf. kinds:[...] plus bas) — sa
+# réplication est voulue (chaque event est signé, la validité ne dépend pas de
+# la station qui l'héberge). Mais `strfry import` n'invoque JAMAIS
+# filter/30852.sh : sans revalidation ICI, un event 30852 forgé (mint usurpé,
+# ou simple transaction créditant un solde qui n'a jamais légitimement existé)
+# se propagerait tel quel. reject_invalid_ledger_events() rejoue EXACTEMENT la
+# même logique que le filtre live (structure, autorité de mint, chaîne `prev`,
+# solde) — une seule implémentation partagée, jamais deux qui pourraient
+# diverger, cf. n2_ledger_lib.sh.
+source "$BACKFILL_SCRIPT_DIR/relay.writePolicy.plugin/filter/n2_ledger_lib.sh"
+N2_MINT_AUTHORITIES_FILE="${N2_MINT_AUTHORITIES_FILE:-$HOME/.zen/strfry/n2_mint_authorities.txt}"
+
 # Configuration
 BACKFILL_LOG="$HOME/.zen/strfry/constellation-backfill.log"
 BACKFILL_ERROR_LOG="$HOME/.zen/strfry/constellation-backfill.error.log"
@@ -668,9 +690,9 @@ execute_backfill_websocket_single_hex() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Include DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30852, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Include DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Exclude DMs + WoTx² (30503-30506) + Justice (1506,1984) + Crowdfunding (30904)
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30852, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Exclude DMs + WoTx² (30503-30506) + Justice (1506,1984) + Crowdfunding (30904)
     fi
 
     req_message+="\"since\": $since_timestamp, "
@@ -784,9 +806,9 @@ execute_backfill_websocket_batch() {
     
     # Build kinds array based on INCLUDE_DMS setting
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Include DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
+        req_message+='"kinds": [0, 1, 3, 4, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30852, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Include DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
     else
-        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Exclude DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
+        req_message+='"kinds": [0, 1, 3, 5, 6, 7, 8, 21, 22, 40, 41, 42, 44, 1063, 1111, 1222, 1244, 1506, 1984, 1985, 1986, 9735, 22242, 30001, 30005, 30008, 30009, 10001, 30023, 30024, 30078, 30079, 10600, 30303, 30312, 30313, 30315, 30500, 30501, 30502, 30503, 30504, 30505, 30506, 30508, 30800, 30850, 30851, 30852, 30904, 31900, 31901, 31902, 31910, 31922, 31923, 31924, 31925, 10000], '  # Exclude DMs + WoTx² (30503-30506) + Justice (1506,1984) + Zap (9735) + Crowdfunding (30904)
     fi
 
     req_message+="\"since\": $since_timestamp, "
@@ -957,6 +979,211 @@ process_deletion_events() {
     echo "${deleted_message_ids[@]}"
 }
 
+# Exclut de l'import les events kind 5 (suppression) qui CIBLENT un kind protégé
+# (PROTECTED_KINDS, cf. relay.writePolicy.plugin/protected_kinds.sh) — DISTINCT de
+# process_deletion_events() ci-dessus, qui exclut les CIBLES de la suppression
+# (pour ne pas les réimporter) mais laisse passer l'event kind 5 lui-même. Ce
+# dernier, une fois importé via `strfry import`, déclenche la suppression réelle
+# de tout event LOCAL dont l'id+pubkey correspond (events.cpp::writeEvents(),
+# appelée par l'import SANS jamais invoquer writePolicy/filter/5.sh) — sans cette
+# fonction, un event kind 30852 existant localement resterait supprimable via la
+# synchro constellation malgré filter/5.sh (qui ne protège que l'écriture directe).
+#
+# Vérifie les kinds CIBLÉS en interrogeant la base LOCALE (un seul strfry scan
+# batché sur tous les IDs cibles trouvés, jamais un scan par event kind 5).
+reject_protected_kind_deletions() {
+    local deletion_events_file="$1"
+    local excluded_ids=()
+    # Surchargeable pour les tests en sandbox isolé (même convention que
+    # n2_ledger_lib.sh/filter/5.sh) — défaut identique au reste du dépôt.
+    local strfry_dir="${N2_STRFRY_DIR:-$HOME/.zen/strfry}"
+
+    [[ -s "$deletion_events_file" ]] || { echo "${excluded_ids[@]}"; return 0; }
+    [[ -x "${strfry_dir}/strfry" ]] || { echo "${excluded_ids[@]}"; return 0; }
+
+    # Tous les IDs référencés par un tag "e" de N'IMPORTE quel event kind 5 de ce
+    # batch, dédupliqués — un seul scan pour connaître leur kind réel (local).
+    local all_target_ids
+    all_target_ids=$(jq -r '.tags[]? | select(.[0]=="e") | .[1]' "$deletion_events_file" 2>/dev/null | sort -u)
+    [[ -z "$all_target_ids" ]] && { echo "${excluded_ids[@]}"; return 0; }
+
+    local ids_json
+    ids_json=$(printf '%s\n' "$all_target_ids" | jq -R . | jq -sc .)
+
+    declare -A target_kind=()
+    while IFS=$'\t' read -r tid tkind; do
+        [[ -n "$tid" ]] && target_kind["$tid"]="$tkind"
+    done < <(cd "$strfry_dir" && ./strfry scan "{\"ids\":${ids_json}}" 2>/dev/null \
+        | jq -r '[.id, (.kind|tostring)] | @tsv' 2>/dev/null)
+
+    while IFS= read -r del_event; do
+        [[ -z "$del_event" || "$del_event" == "null" ]] && continue
+        local del_id targets protected_hit=false
+        del_id=$(echo "$del_event" | jq -r '.id')
+        targets=$(echo "$del_event" | jq -r '.tags[]? | select(.[0]=="e") | .[1]')
+        while IFS= read -r t; do
+            [[ -z "$t" ]] && continue
+            local k="${target_kind[$t]:-}"
+            [[ -z "$k" ]] && continue
+            for p in "${PROTECTED_KINDS[@]}"; do
+                [[ "$k" == "$p" ]] && protected_hit=true && break
+            done
+            [[ "$protected_hit" == "true" ]] && break
+        done <<< "$targets"
+        if [[ "$protected_hit" == "true" ]]; then
+            log "WARN" "SYNC: event kind 5 (${del_id:0:16}...) cible un kind protégé — exclu de l'import constellation"
+            excluded_ids+=("$del_id")
+        fi
+    done < "$deletion_events_file"
+
+    echo "${excluded_ids[@]}"
+}
+
+# Valide chaque event kind 30852 (Ğ1-N²) d'un lot de synchro AVANT import.
+# `strfry import` n'invoque JAMAIS filter/30852.sh — sans cette fonction, RIEN
+# n'empêcherait un event 30852 forgé de contaminer le ledger local une fois
+# répliqué depuis une station malveillante ou compromise. Rejoue EXACTEMENT la
+# même séquence de validation que filter/30852.sh (structure, autorité de
+# mint, chaîne `prev`, solde), en simulant l'état résultant PUBKEY PAR PUBKEY
+# au fil d'un tri chronologique GLOBAL du lot (pas par auteur seul : un
+# destinataire peut lui-même redevenir émetteur plus loin dans le même lot,
+# ex. A→B puis B→C — seul un ordre global garantit que B "a" déjà reçu avant
+# de dépenser). État de départ = solde/last_tx déjà connus localement (cache
+# ou scan), au premier contact avec chaque pubkey dans ce lot.
+#
+# C'est ce qui produit le "consensus" du modèle Ğ1-N² : chaque station
+# rejoue indépendamment les mêmes règles sur ce qu'elle reçoit des autres —
+# une chaîne légitime (validée à l'écriture par SA station d'origine) repasse
+# ces mêmes règles sans accroc partout où elle se propage ; une forgerie
+# (bypass du filtre sur une station compromise) échoue cette revalidation sur
+# TOUTE station honnête qui la reçoit, quel que soit le nombre de stations
+# compromises qui l'ont acceptée localement.
+reject_invalid_ledger_events() {
+    local batch_file="$1"
+    local rejected_ids=()
+
+    local n2_events
+    n2_events=$(jq -c '.[] | select(.kind == 30852)' "$batch_file" 2>/dev/null)
+    [[ -z "$n2_events" ]] && { echo "${rejected_ids[@]}"; return 0; }
+
+    local sorted_events
+    sorted_events=$(echo "$n2_events" | jq -sc 'sort_by(.created_at)[]')
+
+    declare -A running_balance=()
+    declare -A running_last_tx=()
+    declare -A seen_state=()
+    declare -A batch_dtags=()
+
+    _rile_init_state() {
+        local pk="$1"
+        [[ -n "${seen_state[$pk]:-}" ]] && return
+        local st bal last
+        st=$(n2_ledger_get_balance "$pk" 2>/dev/null)
+        IFS='|' read -r bal last <<< "$st"
+        running_balance["$pk"]="${bal:-0}"
+        running_last_tx["$pk"]="${last:-}"
+        seen_state["$pk"]=1
+    }
+
+    while IFS= read -r ev; do
+        [[ -z "$ev" || "$ev" == "null" ]] && continue
+        local eid author
+        eid=$(echo "$ev" | jq -r '.id')
+        author=$(echo "$ev" | jq -r '.pubkey')
+
+        # ── 1. Validation structurelle (identique à filter/30852.sh §1) ──────
+        local p_count prev_count d_count amount_count
+        read -r p_count prev_count d_count amount_count <<< "$(echo "$ev" | jq -r '
+            ([.tags[]? | select(.[0]=="p")]      | length) as $p |
+            ([.tags[]? | select(.[0]=="prev")]   | length) as $prev |
+            ([.tags[]? | select(.[0]=="d")]      | length) as $d |
+            ([.tags[]? | select(.[0]=="amount")] | length) as $amount |
+            "\($p) \($prev) \($d) \($amount)"')"
+        if [[ "$p_count" != "1" || "$prev_count" != "1" || "$d_count" != "1" || "$amount_count" != "1" ]]; then
+            log "WARN" "SYNC-30852: tags p/prev/d/amount dupliqués ou manquants — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        local dest amount prev_id d_tag is_mint=false
+        dest=$(echo "$ev" | jq -r '.tags[] | select(.[0]=="p") | .[1]')
+        amount=$(echo "$ev" | jq -r '.tags[] | select(.[0]=="amount") | .[1]')
+        prev_id=$(echo "$ev" | jq -r '.tags[] | select(.[0]=="prev") | .[1]')
+        d_tag=$(echo "$ev" | jq -r '.tags[] | select(.[0]=="d") | .[1]')
+        if echo "$ev" | jq -e '.tags[] | select(.[0]=="t" and .[1]=="mint")' >/dev/null 2>&1; then
+            is_mint=true
+        fi
+
+        if ! [[ "$amount" =~ ^[0-9]+(\.[0-9]{1,2})?$ ]] || ! awk "BEGIN{exit !($amount > 0)}"; then
+            log "WARN" "SYNC-30852: amount invalide '$amount' — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+        if ! [[ "$dest" =~ ^[0-9a-f]{64}$ ]] || [[ "$dest" == "$author" ]]; then
+            log "WARN" "SYNC-30852: destinataire invalide ou auto-paiement — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+        if [[ "$prev_id" != "genesis" ]] && ! [[ "$prev_id" =~ ^[0-9a-f]{64}$ ]]; then
+            log "WARN" "SYNC-30852: tag prev invalide — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+        if [[ -z "$d_tag" || ${#d_tag} -gt 128 ]]; then
+            log "WARN" "SYNC-30852: tag d invalide — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        # ── 2. Autorité de mint — usurpation rejetée explicitement ───────────
+        if [[ "$is_mint" == "true" ]]; then
+            if ! ([[ -s "$N2_MINT_AUTHORITIES_FILE" ]] && grep -qF "$author" "$N2_MINT_AUTHORITIES_FILE" 2>/dev/null); then
+                log "WARN" "SYNC-30852: usurpation de mint par ${author:0:16}... — rejet ${eid:0:16}..."
+                rejected_ids+=("$eid"); continue
+            fi
+        fi
+
+        # ── 3. Anti-rejeu : d-tag déjà connu localement AVANT ce lot, ou déjà
+        #      vu pour cet auteur PLUS TÔT dans ce même lot ───────────────────
+        local dkey="${author}:${d_tag}"
+        if [[ -n "${batch_dtags[$dkey]:-}" ]]; then
+            log "WARN" "SYNC-30852: d-tag '$d_tag' dupliqué dans le lot pour ${author:0:16}... — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+        if n2_ledger_dtag_exists "$author" "$d_tag" 2>/dev/null; then
+            log "WARN" "SYNC-30852: d-tag '$d_tag' déjà utilisé localement par ${author:0:16}... — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        # ── 4. État simulé de l'auteur (init au 1er contact dans ce lot) ─────
+        _rile_init_state "$author"
+        local cur_last="${running_last_tx[$author]:-}"
+        if [[ -z "$cur_last" ]]; then
+            if [[ "$prev_id" != "genesis" ]]; then
+                log "WARN" "SYNC-30852: 1re tx de ${author:0:16}... doit référencer 'genesis' — rejet ${eid:0:16}..."
+                rejected_ids+=("$eid"); continue
+            fi
+        elif [[ "$prev_id" != "$cur_last" ]]; then
+            log "WARN" "SYNC-30852: prev '${prev_id:0:16}...' != dernière tx connue '${cur_last:0:16}...' pour ${author:0:16}... (fork/rejeu) — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        # ── 5. Solde (sauf mint) ──────────────────────────────────────────────
+        local cur_bal="${running_balance[$author]:-0}"
+        if [[ "$is_mint" != "true" ]] && ! awk "BEGIN{exit !($cur_bal >= $amount)}"; then
+            log "WARN" "SYNC-30852: solde insuffisant pour ${author:0:16}... (solde=$cur_bal, demandé=$amount) — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        # ── 6. Accepté — mise à jour de l'état simulé (auteur + destinataire) ─
+        batch_dtags["$dkey"]=1
+        if [[ "$is_mint" != "true" ]]; then
+            running_balance["$author"]=$(awk "BEGIN{printf \"%.2f\", $cur_bal - $amount}")
+        fi
+        running_last_tx["$author"]="$eid"
+
+        _rile_init_state "$dest"
+        running_balance["$dest"]=$(awk "BEGIN{printf \"%.2f\", ${running_balance[$dest]:-0} + $amount}")
+    done <<< "$sorted_events"
+
+    echo "${rejected_ids[@]}"
+}
+
 # Function to process and import events from WebSocket response
 process_and_import_events() {
     local response_file="$1"
@@ -999,16 +1226,31 @@ process_and_import_events() {
         log "INFO" "Found $deletion_events deletion events, processing..."
         mapfile -t deleted_message_ids < <(process_deletion_events "$deletion_events_file")
     fi
-    
+
+    # Events kind 5 ciblant un kind protégé (30852...) : exclus de l'IMPORT
+    # eux-mêmes (pas seulement leurs cibles) — cf. reject_protected_kind_deletions().
+    local protected_deletion_ids=()
+    if [[ -s "$deletion_events_file" ]]; then
+        mapfile -t protected_deletion_ids < <(reject_protected_kind_deletions "$deletion_events_file")
+    fi
+
+    # Events kind 30852 qui échoueraient la validation du filtre live (mint
+    # usurpé, prev/fork invalide, solde insuffisant) : exclus de l'import —
+    # cf. reject_invalid_ledger_events() en tête de fichier.
+    log "INFO" "Validating kind 30852 (Ğ1-N²) events before import..."
+    local invalid_ledger_ids=()
+    mapfile -t invalid_ledger_ids < <(reject_invalid_ledger_events "$response_file")
+    [[ ${#invalid_ledger_ids[@]} -gt 0 ]] && log "WARN" "SYNC: ${#invalid_ledger_ids[@]} event(s) 30852 rejeté(s) à la revalidation — exclus de l'import"
+
     log "INFO" "Filtering out 'Hello NOSTR visitor.' messages and deleted messages..."
-    
+
     # Filter out events containing "Hello NOSTR visitor." in their content AND deleted messages
     # Use -c for compact output (one JSON object per line)
-    if [[ ${#deleted_message_ids[@]} -gt 0 ]]; then
+    if [[ ${#deleted_message_ids[@]} -gt 0 || ${#protected_deletion_ids[@]} -gt 0 || ${#invalid_ledger_ids[@]} -gt 0 ]]; then
         # Create a jq filter to exclude deleted message IDs
         # This prevents re-importing messages that have been marked for deletion
         local deletion_filter=""
-        for deleted_id in "${deleted_message_ids[@]}"; do
+        for deleted_id in "${deleted_message_ids[@]}" "${protected_deletion_ids[@]}" "${invalid_ledger_ids[@]}"; do
             # Validation stricte : les event IDs NOSTR valides font exactement 64 hex chars
             [[ "$deleted_id" =~ ^[0-9a-fA-F]{64}$ ]] || continue
             if [[ -n "$deletion_filter" ]]; then
@@ -1095,9 +1337,9 @@ parallel_full_sync_hex() {
     # Construire req_message une seule fois (respecte $INCLUDE_DMS)
     local req_message
     if [[ "$INCLUDE_DMS" == "true" ]]; then
-        req_message='["REQ","backfill_full",{"kinds":[0,1,3,4,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30079,10600,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
+        req_message='["REQ","backfill_full",{"kinds":[0,1,3,4,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30079,10600,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30852,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
     else
-        req_message='["REQ","backfill_full",{"kinds":[0,1,3,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30079,10600,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
+        req_message='["REQ","backfill_full",{"kinds":[0,1,3,5,6,7,8,21,22,40,41,42,44,1063,1111,1222,1244,1506,1984,1985,1986,9735,22242,30001,30005,30008,30009,10001,30023,30024,30078,30079,10600,30303,30312,30313,30315,30500,30501,30502,30503,30504,30505,30506,30508,30800,30850,30851,30852,30904,31900,31901,31902,31910,31922,31923,31924,31925,10000],"since":0,"limit":50000,"authors":["'"$hex_pubkey"'"]}]'
     fi
 
     log "INFO" "Parallel full sync for ${hex_pubkey:0:8}... across ${#relay_urls[@]} peers"

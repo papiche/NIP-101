@@ -420,9 +420,23 @@ Tout événement NOSTR partage la structure de base suivante (NIP-01) :
 | Service | Condition | Traitement |
 |---|---|---|
 | **Paiement ZEN standard** | `content` = `+` ou `+N` vers auteur UPlanet | `PAYforSURE.sh` → transfert G1 |
+| **LOVE (Ğ1-N²)** | Auteur = identité LOVE (`HEX_LOVE`, PAS le MULTIPASS) | `g1n2_pay.sh` en arrière-plan → transfert Ğ1-N² local, destinataire = `HEX_LOVE` du contact (tag `p`) |
 | **Crowdfunding** | tag `t=crowdfunding` présent | Paiement vers wallet Bien du projet |
 | **Vote d'actifs** | tag `t=vote-assets` | Enregistrement vote + paiement si seuil atteint |
 | **Relay roaming** | Auteur absent du nœud local | Transmission au nœud home via `nostr_node_intercom.py` |
+
+**LOVE — routage Ğ1-N² (distinct du paiement G1/Duniter ci-dessus) :** si l'auteur de la
+réaction est reconnu comme identité LOVE (`get_love_email()`, lookup `~/.zen/game/nostr/*/HEX_LOVE`),
+le paiement est routé vers le ledger Ğ1-N² (kind 30852) via `g1n2_pay.sh`, jamais vers
+`PAYforSURE.sh`/Ğ1-Duniter — chemin entièrement disjoint. Conversion identique
+(`ZEN_AMOUNT × 0.1`). **Exécution impérativement en arrière-plan** (`( ... ) & disown`) :
+`g1n2_pay.sh` publie sur le MÊME relay et attend une confirmation — un appel synchrone
+depuis ce filtre bloquerait le writer strfry (mono-thread) sur sa propre pipe de plugin, un
+auto-blocage constaté en test réel (~90s de gel, échec systématique, cf. commentaire dans
+`filter/7.sh`). **Bug historique corrigé au passage** : le motif `case` du contenu citait les
+crochets (`"+[0-9]"*`), les rendant littéraux au lieu d'une classe de caractères — aucun
+montant numérique "+N" (ZEN classique OU LOVE) ne déclenchait donc jamais de paiement avant ce
+correctif (`parse_zen_amount()`, juste à côté, avait toujours la bonne syntaxe non quotée).
 
 **Conversions économiques :**
 
@@ -1690,6 +1704,80 @@ réussis, `expense_id`/`pdf_cid`/`cert_cid` renseignés) ou `FAIL` (burn ou soum
 
 ---
 
+### Kind 30852 — Ğ1-Nostr (N²) Ledger Transfer
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `30852` |
+| **Nom de service** | Ğ1-N² Transaction Ledger |
+| **Type** | Addressable |
+| **Statut NIP** | UPLANET (registre monétaire local, sans consensus multi-nœuds) |
+| **Filtre NIP-101** | `relay.writePolicy.plugin/filter/30852.sh` |
+| **Sync constellation** | **OUI — réplication voulue**, revalidée à l'import (mint/`prev`/solde rejoués, `reject_invalid_ledger_events()`) ; **suppression bloquée** en toutes circonstances (kind 5 ciblant 30852, cf. `filter/5.sh` + `reject_protected_kind_deletions()`) |
+
+**Description :** Transaction du registre monétaire **Ğ1-Nostr (N²)**, alternative locale à la
+blockchain Duniter — le relay strfry de CETTE station est le seul arbitre de validité (pas de
+consensus entre stations). Anti-double-dépense par chaînage `prev` (référence à la dernière
+transaction sortante connue de l'auteur) + vérification de solde (Σreçus − Σenvoyés, calculée par
+un scan `strfry` combiné, jamais un scan par transaction historique — cf.
+`filter/n2_ledger_lib.sh`). Anti-réécriture rétroactive par vérification de doublon sur `d`.
+Anti-suppression : `filter/5.sh` (kind 30852 dans `PROTECTED_KINDS`) **et** exclusion des events
+kind 5 le ciblant de tout import constellation (`backfill_constellation.sh::reject_protected_kind_deletions()`).
+
+**Clé d'adressabilité `d` :** `n2-{created_at}-{nonce_hex8}` — unique par auteur, jamais réutilisée.
+
+**Tags :**
+
+```
+["d",      "n2-<created_at>-<nonce_hex8>"]
+["p",      "<hex64 — destinataire>"]
+["amount", "<float, 2 décimales max>"]
+["prev",   "<hex64 — id de la dernière transaction SORTANTE de l'auteur, ou littéral 'genesis'>"]
+["t",      "g1-n2"]
+["t",      "mint"]   — optionnel, uniquement sur les transactions d'émission (pont Ğ1→N²),
+                        réservé aux pubkeys listées dans ~/.zen/strfry/n2_mint_authorities.txt
+```
+
+`content` : libre, non normatif — aucune vérification du filtre ne s'y appuie.
+
+**Séquence de validation (`filter/30852.sh`) :** structurelle (tags uniques, montant positif,
+destinataire ≠ auteur, `prev` valide, anti dérive d'horloge, autorisation mint) → verrou `flock`
+(borné 2s, jamais bloquant indéfiniment) → anti-rejeu (`d` déjà utilisé ?) → vérification `prev`
+(chaîne de l'auteur) → vérification de solde (sauf mint) → mise à jour atomique du cache AVANT le
+commit LMDB (ferme la fenêtre de course entre deux transactions concurrentes du même auteur).
+
+**Revalidation à l'import (`backfill_constellation.sh::reject_invalid_ledger_events()`) :**
+`strfry import` n'invoque jamais `filter/30852.sh` — sans revalidation, un event 30852 forgé sur
+une station compromise (bypass direct de son propre filtre) se propagerait tel quel vers les
+stations honnêtes. Cette fonction rejoue exactement la même séquence (structure, autorité de mint,
+anti-rejeu `d`, chaîne `prev`, solde) en simulant l'état résultant PAR PUBKEY sur un tri
+chronologique GLOBAL du lot synchronisé (état de départ = solde/last_tx déjà connus localement) —
+tout event qui échouerait cette revalidation est exclu de l'import, jamais silencieusement accepté.
+C'est ce qui constitue le "consensus" du modèle Ğ1-N² : chaque station rejoue indépendamment les
+mêmes règles sur ce qu'elle reçoit des autres ; une chaîne légitime (validée à l'écriture par sa
+station d'origine) repasse ces règles sans accroc partout où elle se propage, tandis qu'une
+forgerie échoue cette revalidation sur TOUTE station honnête qui la reçoit — quel que soit le
+nombre de stations compromises qui l'ont acceptée localement en amont.
+
+**Modèle de confiance — limites explicites (à ne jamais minimiser), même avec cette revalidation :**
+une station elle-même compromise (accès root/disque) peut toujours fabriquer un solde arbitraire
+dans SA PROPRE vue locale (rien n'empêche une modification directe de LMDB/cache sur cette
+station précise) ; la clé mint est un point de défaillance unique sans plafond ni preuve d'émission
+Ğ1 réelle obligatoire (la revalidation vérifie l'AUTORITÉ du mint, pas un plafond de montant) ;
+aucun consensus multi-nœuds ne détecte un fork si un auteur soumettait délibérément deux
+transactions concurrentes valides sur deux stations différentes avant leur synchronisation — la
+revalidation détecte les forgeries (règles violées), pas les forks entre deux chaînes chacune
+localement cohérente.
+
+**Cache runtime (non versionné) :** `~/.zen/tmp/$IPFSNODEID/n2_ledger/<pubkey>.json`
+(`{"balance":X,"last_tx_id":"<id ou vide>","cached_at":<unix ts>}`).
+
+**Implémentation :** `NIP-101/relay.writePolicy.plugin/filter/n2_ledger_lib.sh` (calcul de solde
+mutualisé, sourcé aussi par `Astroport.ONE/tools/g1n2_check.sh`/`g1n2_pay.sh` — dual-stack
+`G1_MODE`, une seule implémentation du calcul de solde, jamais deux qui pourraient diverger).
+
+---
+
 ### Kind 30904 — Crowdfunding Campaign (Campagne de financement)
 
 | Champ | Valeur |
@@ -1832,6 +1920,7 @@ all_but_blacklist.sh
 |---|---|---|---|---|
 | `0.sh` | 0 — Profile | `nobody` (avec conditions) | `accept` | `nostr_kind0.log` |
 | `1.sh` | 1 — Text Note | `nobody` (rate-limited) | `accept` conditionnel | `nostr_kind1_messages.log` |
+| `5.sh` | 5 — Deletion | `nobody` (toujours exécuté) | `reject` si cible un kind protégé, `accept` sinon | `nostr_kind5.log` |
 | `7.sh` | 7 — Reaction | `amisOfAmis` | `accept` + paiement ZEN | `nostr_likes.log` |
 | `21.sh` | 21 — Video | `nobody` | `accept` toujours | `nostr_video_events.log` |
 | `22.sh` | 22 — Long Video | `nobody` | `accept` toujours | `nostr_long_video_events.log` |
@@ -1842,6 +1931,7 @@ all_but_blacklist.sh
 | `30078.sh` | 30078 — AppData | `amisOfAmis` | `accept` | — |
 | `30303.sh` | 30303 — Custom | `amisOfAmis` | `accept` | — |
 | `30500.sh` | 30500 — Permit | `nobody` | `accept` toujours | `nostr_kind30500.log` |
+| `30852.sh` | 30852 — Ğ1-N² Transfer | `uplanet` | `accept` si solde/chaînage/anti-rejeu valides | `nostr_kind30852.log` |
 | `30904.sh` | 30904 — Crowdfunding | `uplanet` | `accept` + enregistrement | — |
 
 ### Fonctions communes (`filter/common.sh`)
@@ -1859,6 +1949,13 @@ all_but_blacklist.sh
 | `check_memory_slot_access "$user" "$slot"` | Contrôle d'accès aux slots mémoire |
 | `add_to_amis_of_amis "$pubkey"` | Ajoute à `~/.zen/strfry/amisOfAmis.txt` |
 | `log_with_timestamp "$file" "$msg"` | Journalisation horodatée |
+
+### Kinds protégés (`protected_kinds.sh`)
+
+Source unique (`relay.writePolicy.plugin/protected_kinds.sh`, tableau `PROTECTED_KINDS=(30852)`),
+sourcée à la fois par `filter/5.sh` (protection sur le chemin d'écriture direct) et par
+`backfill_constellation.sh` (protection sur le chemin de synchronisation constellation — voir §10,
+ces deux protections sont **indépendantes et toutes les deux nécessaires**, cf. kind 30852).
 
 ---
 
@@ -1887,6 +1984,42 @@ all_but_blacklist.sh
 | **TOTAL** | | **34+** |
 
 `*` Kind 4 (DM) : optionnel, désactivable avec `--no-dms`
+
+### Kind 30852 — réplication OUI (revalidée à l'import), suppression JAMAIS
+
+**Kind 30852 (Ğ1-N² Ledger) figure dans les listes `kinds:[...]` ci-dessus** — sa réplication entre
+stations est voulue : chaque event est signé par son auteur, et une copie sur une autre station ne
+change rien à la validité de la transaction (le solde d'un pubkey se recalcule identiquement —
+`Σreçus − Σenvoyés` — quelle que soit la station qui héberge la copie, cf.
+`filter/n2_ledger_lib.sh::n2_ledger_rescan_author()`, tant que l'ensemble des transactions de cet
+auteur reste sans fork). Réplication ≠ confiance aveugle : `strfry import` (utilisé par ce script)
+n'invoque jamais `writePolicy`/`filter/30852.sh` — sans autre protection, un event forgé sur une
+station compromise (bypass direct de son propre filtre) se propagerait tel quel. **C'est pourquoi
+`process_and_import_events()` appelle `reject_invalid_ledger_events()`** avant tout import : rejoue
+la même séquence de validation (structure, autorité de mint, anti-rejeu `d`, chaîne `prev`, solde)
+que `filter/30852.sh`, pubkey par pubkey, sur un tri chronologique GLOBAL du lot synchronisé (état
+de départ = solde/last_tx déjà connus localement). Tout event 30852 qui échouerait cette
+revalidation est exclu de l'import — jamais silencieusement accepté. Un auteur qui soumettrait
+délibérément deux transactions concurrentes VALIDES (chacune passant les règles) sur deux stations
+différentes avant leur synchronisation créerait néanmoins un fork non détecté (aucun consensus
+multi-nœuds ne tranche entre deux chaînes chacune localement cohérente) — risque résiduel
+documenté, distinct des forgeries que la revalidation bloque.
+
+**Ce qui ne doit JAMAIS arriver, en revanche : la suppression d'un event 30852 déjà accepté.** Le
+kind 5 (suppression) EST synchronisé (catégorie Core ci-dessus), et `strfry import` applique la
+suppression réelle d'un event kind 5 importé **sans jamais invoquer writePolicy/`filter/5.sh`**
+(vérifié dans le code source strfry, `events.cpp::writeEvents()`, appelée aussi bien par le chemin
+d'écriture live que par l'import). Un event kind 5 forgé référençant un event 30852 existant
+localement, une fois synchronisé puis importé, supprimerait donc silencieusement ce dernier —
+malgré `filter/5.sh` — si rien d'autre n'intervenait.
+
+**Protection, indispensable** : `process_and_import_events()` appelle
+`reject_protected_kind_deletions()` (définie dans ce même script, sourçant `protected_kinds.sh`)
+qui interroge la base LOCALE (un seul `strfry scan` batché sur les IDs ciblés par tous les kind-5
+du lot synchronisé) et exclut de l'import tout event kind 5 dont **au moins une** cible a un kind
+protégé — l'event kind 5 lui-même n'est jamais importé, indépendamment de l'exclusion (différente)
+des IDs qu'il ciblait de la liste de ré-import. Un kind 5 ciblant un kind NON protégé continue de
+se synchroniser normalement (comportement inchangé pour tous les autres kinds).
 
 ### Découverte des pairs
 
