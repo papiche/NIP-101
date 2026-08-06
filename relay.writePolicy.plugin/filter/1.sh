@@ -265,8 +265,8 @@ You have $remaining_messages message(s) left before being automatically blocked.
 🌍 UMAP 0.00,0.00 - Global Meeting Point
 This message comes from the global UMAP (0.00,0.00), the meeting point for users without GPS coordinates who cannot benefit from localized UMAP journals. This is where non-geolocated messages are collected and shared.
 
-Take place on #UPlanet : $myIPFS/ipns/copylaradio.com
-Get a #MULTIPASS to access localized content
+Get your #UPlanet MULTIPASS : https://astroport.one
+Access to localized content
 
 #UMAP_0.00_0.00
 #UPlanet:$ORIGIN
