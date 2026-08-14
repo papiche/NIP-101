@@ -32,16 +32,10 @@ expiration="$expiration"
 # La signature secp256k1 est déjà vérifiée par strfry.
 # On valide les plages biométriques et on enregistre le pubkey dans amisOfAmis.
 if [[ "$status_id" == "atom4love" ]]; then
-    # 1. Vérifier le marqueur d'app contre la liste des apps autorisées (config coopérative)
+    # 1. Vérifier la présence d'un marqueur d'app (a4l_proof non vide, pas de liste blanche à maintenir)
     actual_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
-    valid_proof=false
-    while IFS= read -r app_id; do
-        [[ -z "$app_id" ]] && continue
-        expected_proof=$(printf '%s' "${pubkey}:${app_id}" | sha256sum | awk '{print $1}')
-        [[ "$actual_proof" == "$expected_proof" ]] && valid_proof=true && break
-    done < <(_load_authorized_app_ids)
-    if [[ "$valid_proof" == "false" ]]; then
-        log_status "REJECTED: Marqueur app non autorisé pour ${pubkey:0:8}... (reçu=${actual_proof:0:8}…)"
+    if [[ -z "$actual_proof" ]]; then
+        log_status "REJECTED: a4l_proof manquant pour ${pubkey:0:8}..."
         exit 1
     fi
     # 2. Vérifier les plages biométriques + champ cymatique a5l (optionnel)
@@ -64,31 +58,8 @@ if [[ "$status_id" == "atom4love" ]]; then
         add_to_amis_of_amis "$pubkey" "ATOM4LOVE certified"
         _a5l_str="${a5l:+ Ψ=$a5l}"
 
-        # ── Vérification de conformité keygen a4l ────────────────────────────
-        # g1pub_proof = sha256(nostr_pubkey:g1pub:ATOM4LOVE_ALPHA)
-        # Si présent, vérifie que le publisher connaît BOTH clés co-dérivées.
-        # Ensuite, cross-vérifie g1pub 30078 == g1pub du Kind 0 stocké en local.
-        g1pub_cert=$(echo "$event_json"   | jq -r '.event.tags[] | select(.[0] == "g1pub")      | .[1]' 2>/dev/null | head -1)
-        g1pub_proof=$(echo "$event_json"  | jq -r '.event.tags[] | select(.[0] == "g1pub_proof") | .[1]' 2>/dev/null | head -1)
-        _conform_flag="hybride"
-        if [[ -n "$g1pub_cert" && -n "$g1pub_proof" ]]; then
-            expected_g1pub_proof=$(printf '%s' "${pubkey}:${g1pub_cert}:${A4L_PROOF_SALT:-ATOM4LOVE_ALPHA}" | sha256sum | awk '{print $1}')
-            if [[ "$g1pub_proof" == "$expected_g1pub_proof" ]]; then
-                # Cross-vérification : le g1pub en 30078 doit correspondre au g1pub du Kind 0 (si on l'a)
-                local_g1pub=$(grep -r "^${pubkey}:" ~/.zen/game/nostr/*/HEX 2>/dev/null | head -1 | cut -d: -f2 || true)
-                # Note: si on ne peut pas vérifier localement, on accepte la preuve cryptographique seule
-                _conform_flag="conforme"
-                a4l_log "CONFORME: ${pubkey:0:8}... g1pub=${g1pub_cert:0:12}… preuve g1pub valide"
-            else
-                a4l_log "HYBRIDE: ${pubkey:0:8}... g1pub_proof invalide — clé non co-dérivée"
-            fi
-        else
-            a4l_log "HYBRIDE: ${pubkey:0:8}... pas de g1pub_proof — clé externe non vérifiée"
-        fi
-        A4L_PROOF_SALT="${A4L_PROOF_SALT:-ATOM4LOVE_ALPHA}"
-
-        a4l_log "ACCEPTED[${_conform_flag}]: ${pubkey:0:8}... φ=$phase ω=$omega${_a5l_str}"
-        log_status "ATOM4LOVE: Certificat accepté [${_conform_flag}] — ${pubkey:0:8}... (φ=$phase ω=$omega${_a5l_str})"
+        a4l_log "ACCEPTED: ${pubkey:0:8}... φ=$phase ω=$omega${_a5l_str}"
+        log_status "ATOM4LOVE: Certificat accepté — ${pubkey:0:8}... (φ=$phase ω=$omega${_a5l_str})"
 
         # Persistance dans atom4love_certified.txt (survit au reset 20h12 de amisOfAmis)
         _cert_file="$HOME/.zen/strfry/atom4love_certified.txt"
@@ -108,14 +79,8 @@ fi
 # Seule contrainte : a4l_proof valide. Rafraîchit l'horodatage dans certified.txt.
 if [[ "$status_id" == "atom4love-home" ]]; then
     _home_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
-    _home_valid=false
-    while IFS= read -r _app_id; do
-        [[ -z "$_app_id" ]] && continue
-        _home_expected=$(printf '%s' "${pubkey}:${_app_id}" | sha256sum | awk '{print $1}')
-        [[ "$_home_proof" == "$_home_expected" ]] && _home_valid=true && break
-    done < <(_load_authorized_app_ids)
-    if [[ "$_home_valid" == "false" ]]; then
-        log_status "REJECTED: atom4love-home sans preuve valide — ${pubkey:0:8}..."
+    if [[ -z "$_home_proof" ]]; then
+        log_status "REJECTED: atom4love-home sans a4l_proof — ${pubkey:0:8}..."
         exit 1
     fi
     # Rafraîchir l'horodatage dans certified.txt (crée l'entrée si nouvelle, renouvelle le TTL 180j)
@@ -132,14 +97,8 @@ fi
 # Seule contrainte : a4l_proof valide. Le contenu est opaque (chiffré).
 if [[ "$status_id" == "atom4love-priv" ]]; then
     _priv_proof=$(echo "$event_json" | jq -r '.event.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
-    _priv_valid=false
-    while IFS= read -r _app_id; do
-        [[ -z "$_app_id" ]] && continue
-        _priv_expected=$(printf '%s' "${pubkey}:${_app_id}" | sha256sum | awk '{print $1}')
-        [[ "$_priv_proof" == "$_priv_expected" ]] && _priv_valid=true && break
-    done < <(_load_authorized_app_ids)
-    if [[ "$_priv_valid" == "false" ]]; then
-        log_status "REJECTED: atom4love-priv sans preuve valide — ${pubkey:0:8}..."
+    if [[ -z "$_priv_proof" ]]; then
+        log_status "REJECTED: atom4love-priv sans a4l_proof — ${pubkey:0:8}..."
         exit 1
     fi
     log_status "ACCEPTED: atom4love-priv (chiffré) — ${pubkey:0:8}..."

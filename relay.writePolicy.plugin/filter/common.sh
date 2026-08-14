@@ -105,21 +105,6 @@ check_amis_of_amis() {
     grep -q -h "^$pubkey$" "$AMISOFAMIS_FILE" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null
 }
 
-# Charge la liste des proof salts autorisés depuis le cache cooperative config.
-# Retourne une liste séparée par des sauts de ligne ; fallback = "ATOM4LOVE_v1".
-_load_authorized_app_ids() {
-    local cache="${HOME}/.zen/tmp/cooperative_config.cache.json"
-    if [[ -f "$cache" ]]; then
-        local ids
-        ids=$(jq -r '.AUTHORIZED_APPS // empty' "$cache" 2>/dev/null)
-        if [[ -n "$ids" && "$ids" != "null" ]]; then
-            echo "$ids" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$'
-            return 0
-        fi
-    fi
-    echo "ATOM4LOVE_ALPHA"
-}
-
 # Vérifie si un pubkey a publié un certificat d'incarnation ATOM4LOVE valide.
 # Un Kind 30078 d=atom4love avec personal_phase ∈ [0,7) et omega_bio ∈ (0.1,50) suffit.
 # Retourne 0 si présent et valide, 1 sinon.
@@ -135,16 +120,10 @@ check_atom4love_cert() {
         2>/dev/null | jq -sc 'if length > 0 then max_by(.created_at) else null end' 2>/dev/null)
     [[ -z "$cert" || "$cert" == "null" ]] && return 1
 
-    # Vérifier le marqueur d'app contre la liste des apps autorisées (config coopérative)
-    local actual_proof valid_proof=false app_id
+    # Vérifier la présence d'un marqueur d'app (a4l_proof non vide, pas de liste blanche)
+    local actual_proof
     actual_proof=$(echo "$cert" | jq -r '.tags[] | select(.[0] == "a4l_proof") | .[1]' 2>/dev/null | head -1)
-    while IFS= read -r app_id; do
-        [[ -z "$app_id" ]] && continue
-        local expected_proof
-        expected_proof=$(printf '%s' "${pubkey}:${app_id}" | sha256sum | awk '{print $1}')
-        [[ "$actual_proof" == "$expected_proof" ]] && valid_proof=true && break
-    done < <(_load_authorized_app_ids)
-    [[ "$valid_proof" == "false" ]] && return 1
+    [[ -z "$actual_proof" ]] && return 1
 
     # Vérifier les plages biométriques
     local phase omega
