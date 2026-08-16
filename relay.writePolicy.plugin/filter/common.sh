@@ -373,14 +373,15 @@ PYEOF
 # Function to parse ẐEN amount from reaction content
 parse_zen_amount() {
     local content="$1"
-    local amount="1"  # Default amount for simple "+" or like emojis
-    
+    local amount="0"  # Default: plain like/reaction, no ZEN attached
+
     case "$content" in
         ""|"+"|"👍"|"❤️"|"♥️"|"♥")
-            amount="1"
+            # Bare like/emoji, no explicit amount → free, no payment attempted
+            amount="0"
             ;;
         +[0-9]*)
-            # Extract number after + (unquoted [0-9] = character class, not literal)
+            # Explicit amount ("+1", "+10"...) — unquoted [0-9] = character class, not literal
             amount=$(echo "$content" | sed 's/^+\([0-9]\+\).*/\1/')
             if [[ "$amount" -gt 1000 ]]; then
                 amount="1000"
@@ -389,10 +390,10 @@ parse_zen_amount() {
             fi
             ;;
         *)
-            amount="1"
+            amount="0"
             ;;
     esac
-    
+
     echo "$amount"
 }
 
