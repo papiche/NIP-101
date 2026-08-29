@@ -38,7 +38,10 @@ install_dependencies() {
         sudo pacman -S --noconfirm --needed $arch_pkgs 2>/dev/null
     else
         # Debian / Ubuntu / Mint
-        for i in git g++ make libssl-dev zlib1g-dev liblmdb-dev libflatbuffers-dev libsecp256k1-dev libzstd-dev; do
+        # flatbuffers-compiler fournit le binaire `flatc`, requis par golpe/rasgueadb-generate
+        # pour générer defaultDb.h — sans lui, `make` échoue à la compilation (libflatbuffers-dev
+        # seul ne suffit pas, il ne fournit que les en-têtes/lib, pas le compilateur).
+        for i in git g++ make libssl-dev zlib1g-dev liblmdb-dev libflatbuffers-dev flatbuffers-compiler libsecp256k1-dev libzstd-dev; do
             if [ $(dpkg-query -W -f='${Status}' $i 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
                 echo ">>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Installation $i <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
                 sudo apt install -y $i
@@ -92,8 +95,9 @@ install_strfry() {
         echo "Création du fichier de configuration $STRFRY_INSTALL_DIR/strfry.conf"
         cat "$STRFRY_SRC_DIR/strfry.conf" | sed "s~127.0.0.1~0.0.0.0~g" > "$STRFRY_INSTALL_DIR/strfry.conf"
     fi
-    # Copie du script de démarrage
-    cp start_strfry-relay.sh "$STRFRY_INSTALL_DIR/start.sh"
+    # Copie du script de démarrage (chemin absolu : compile_strfry() a changé de répertoire
+    # vers $STRFRY_SRC_DIR juste avant, un chemin relatif ici pointait dans le vide)
+    cp "$NIP101_DIR/start_strfry-relay.sh" "$STRFRY_INSTALL_DIR/start.sh"
     mkdir -p "$STRFRY_INSTALL_DIR/strfry-db/"
 }
 
