@@ -1470,6 +1470,21 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 
 ---
 
+### Kind 30510 — Story Asset (personnage / scène de vidéo IA)
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `30510` (parameterized replaceable) |
+| **Statut** | Expérimental · Astroport.ONE `tools/story_asset.py`, UPassport `/api/story/*`, UPlanet `earth/story.html` |
+| **Tags** | `d` (`character-<slug>` ou `scene-<slug>`), `title`, `t` (`character`\|`scene`, `uenc-aes256gcm`, `coop` si coopératif), `x` (sha256 du blob chiffré), `r` (`ipfs://CID`, `bundle`), `size`, `a` (`30510:<auteur>:<d>`, `fork`) si copie d'un autre paquet |
+| **Content** | JSON : `title`, `type`, `description`, `cid`, `encryption`, `scope`, `summary`, `files`, `version`, `history` (`[{cid,version,created,x_hash}]`, anciens CID épinglés), `renders` (coop : `[{version_cid,id,mp4_cid,duration,created}]`) |
+
+Le paquet (tar.gz, `manifest.json` + fichiers relatifs à `$SCENES_DIR`) est chiffré en AES-256-GCM (format UENC, `tools/uenc_codec.py`) et
+vit sur IPFS. **La clé n'est jamais dans l'événement** : `t=coop` → `sha256("uplanet-story-assets:v1:" + $UPLANETNAME)`, lisible par tous
+les Capitaines de la coopérative ; sinon clé aléatoire envoyée à chaque ami par message fichier NIP-17 (rumor kind 15 gift-wrappé).
+Une modification publie un nouveau paquet sous le même `d` (l'événement remplace le précédent, `history` garde les CID). Synchronisé par
+`backfill_constellation.sh`. Seul l'auteur modifie ; un autre Capitaine fait un `fork` (nouveau `d`, tag `a`).
+
 ### Kind 30800 — DID Document (Document d'identité décentralisée)
 
 | Champ | Valeur |
