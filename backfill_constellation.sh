@@ -63,6 +63,8 @@ DAYS_BACK=1
 VERBOSE=false
 INCLUDE_DMS=true
 NO_VERIFY=true
+# Kinds dont la signature est toujours vérifiée à l'import (chaîne de confiance DRAGON/WoT)
+ALWAYS_VERIFY_KINDS=(3 30800 30850)
 EXTRACT_PROFILES=true
 
 while [[ $# -gt 0 ]]; do
@@ -1291,18 +1293,43 @@ process_and_import_events() {
     cp "$filtered_file" "$import_file"
     
     # Import events to strfry with optional verification
+    # Kinds de confiance (ALWAYS_VERIFY_KINDS) : signature TOUJOURS vérifiée, même en mode
+    # --no-verify. Un pair malveillant du swarm pourrait sinon forger un kind 3 (vouch d'un
+    # capitaine fondateur) ou un kind 30850/30800, que DRAGON_p2p_ssh.sh lit dans le relais
+    # local pour décider quelles clés SSH ajouter à authorized_keys.
+    local critical_file="${response_file%.json}_critical.ndjson"
+    local verify_kinds_json
+    verify_kinds_json=$(printf '%s\n' "${ALWAYS_VERIFY_KINDS[@]}" | jq -R 'tonumber' | jq -sc .)
     local import_cmd="./strfry import"
     if [[ "$NO_VERIFY" == "true" ]]; then
         import_cmd="./strfry import --no-verify"
-        log "INFO" "Importing $filtered_events events to strfry (no-verify mode for speed)..."
+        jq -c --argjson k "$verify_kinds_json" 'select(.kind as $x | $k | index($x))' "$import_file" > "$critical_file" 2>/dev/null
+        jq -c --argjson k "$verify_kinds_json" 'select(.kind as $x | ($k | index($x)) | not)' "$import_file" > "${import_file}.rest" 2>/dev/null \
+            && mv "${import_file}.rest" "$import_file"
+        log "INFO" "Importing $filtered_events events to strfry (no-verify mode for speed, kinds ${ALWAYS_VERIFY_KINDS[*]} verified)..."
     else
         log "INFO" "Importing $filtered_events events to strfry (with signature verification)..."
     fi
-    
+
     cd ~/.zen/strfry
-    if $import_cmd < "$import_file" 2>/dev/null; then
+    if [[ -s "$critical_file" ]]; then
+        local critical_count
+        critical_count=$(wc -l < "$critical_file")
+        if ./strfry import < "$critical_file" 2>/dev/null; then
+            log "INFO" "SYNC_IMPORT: events=$critical_count mode=verified (kinds ${ALWAYS_VERIFY_KINDS[*]})"
+        else
+            log "ERROR" "❌ Failed to import verified events (kinds ${ALWAYS_VERIFY_KINDS[*]}) to strfry"
+            rm -f "$filtered_file" "$import_file" "$critical_file" "$deletion_events_file" "$video_events_file"
+            return 1
+        fi
+    fi
+    rm -f "$critical_file"
+
+    if [[ ! -s "$import_file" ]]; then
+        :
+    elif $import_cmd < "$import_file" 2>/dev/null; then
         if [[ "$NO_VERIFY" == "true" ]]; then
-            log "INFO" "SYNC_IMPORT: events=$filtered_events mode=no-verify"
+            log "INFO" "SYNC_IMPORT: events=$(wc -l < "$import_file") mode=no-verify"
         else
             log "INFO" "SYNC_IMPORT: events=$filtered_events mode=verified"
         fi
@@ -1311,7 +1338,7 @@ process_and_import_events() {
         rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"
         return 1
     fi
-    
+
     # Clean up temporary files
     rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"
     
