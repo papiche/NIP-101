@@ -1160,6 +1160,18 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 
 **Contenu :** JSON arbitraire défini par l'application
 
+**Identifiants `d` utilisés dans UPlanet :**
+
+| `d` | Émetteur | Contenu | Règle du filtre |
+|---|---|---|---|
+| `atom4love`, `atom4love-home`, `atom4love-priv` | clé LOVE | profil Phi² / localisation / données chiffrées | `a4l_proof` non vide |
+| `facecloud:backup` | MULTIPASS (UPassport `ucloud_backup.py`) | NIP-44 pour soi-même : `{v, cid, key, sha, at, counts}` — pointeur vers l'archive chiffrée du cloud FaceCloud (index, trousseau, sources, visages) sur IPFS. UN seul event par MULTIPASS, remplacé à chaque sauvegarde | MULTIPASS autorisé ; contenu jamais journalisé |
+
+Le carnet d'adresses n'est volontairement PAS publié fiche par fiche (données
+de tiers répliquées dans la constellation, effacement non garanti, nombre et
+dates de modification visibles malgré le chiffrement) : les fiches voyagent
+dans l'archive pointée par `facecloud:backup`.
+
 ---
 
 ### Kind 30303 — Custom Relay Data

@@ -105,6 +105,18 @@ if [[ "$status_id" == "atom4love-priv" ]]; then
     exit 0
 fi
 
+# ── d=facecloud:* — données FaceCloud chiffrées NIP-44 pour soi-même ──────────
+# (UPassport/ucloud_backup.py : pointeur vers la sauvegarde chiffrée du cloud,
+# d=facecloud:backup). Réservé aux MULTIPASS autorisés ; le contenu est opaque
+# et n'est JAMAIS journalisé (contrairement aux statuts ci-dessous).
+if [[ "$status_id" == facecloud:* ]]; then
+    if ! check_authorization "$pubkey" "log_status"; then
+        exit 1
+    fi
+    log_status "ACCEPTED: ${status_id} (chiffré) — ${pubkey:0:8}..."
+    exit 0
+fi
+
 # Check authorization using common function
 if ! check_authorization "$pubkey" "log_status"; then
     exit 1
