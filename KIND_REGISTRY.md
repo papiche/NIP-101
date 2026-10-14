@@ -1914,6 +1914,41 @@ mutualisé, sourcé aussi par `Astroport.ONE/tools/g1n2_check.sh`/`g1n2_pay.sh` 
 
 ---
 
+### Kind 31904 — API Access Vault (Identifiants d'API officielle, chiffrés)
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `31904` |
+| **Nom de service** | API Access Vault |
+| **Type** | Addressable |
+| **Statut NIP** | UPLANET (NIP-101 API Access Vault) |
+| **Filtre NIP-101** | `all_but_blacklist.sh` (chemin générique, pas de filtre dédié — comme 31900-31903) |
+| **Sync constellation** | OUI — Workflows |
+
+**Description :** Stockage chiffré d'identifiants d'API officielle (Mastodon, Telegram…) par MULTIPASS — distinct du Cookie Vault (kind 31903, cookies de session de navigateur pour les scrapers). Un MULTIPASS configure ses propres canaux Web2 via `/cookie.html` (onglet « API officielle »), les identifiants ne sont jamais partagés avec les autres MULTIPASS ni avec les autres capitaines de la constellation (contrairement à `cooperative_config.sh`/kind 30800, chiffré avec `$UPLANETNAME` et donc lisible par tout capitaine du même essaim).
+
+**Structure JSON — `content` :**
+
+```json
+{
+  "mastodon": {"cid": "Qm...", "updated_at": "2026-10-14T..."},
+  "telegram": {"cid": "Qm...", "updated_at": "2026-10-14T..."}
+}
+```
+
+Le `content` déchiffré référencé par chaque CID est un petit JSON `{champ: valeur}` propre au provider (ex: `{"instance_url":..., "access_token":...}`), jamais publié en clair.
+
+**Tags :**
+
+```
+["d", "api_access"]       — Clé NIP-33
+["t", "api_access"]
+```
+
+**Chiffrement :** Identique au Cookie Vault — NaCl seal avec la clé publique G1 de l'utilisateur (`natools.py`), CID IPFS pointant vers le blob chiffré. Service : `UPassport/services/api_access_store.py`.
+
+---
+
 ## 9. Index des filtres writePolicy NIP-101
 
 > Répertoire : `relay.writePolicy.plugin/filter/`
@@ -2006,9 +2041,9 @@ ces deux protections sont **indépendantes et toutes les deux nécessaires**, cf
 | **Oracle WoTx2** | 30500, 30501, 30502, 30503, 30504 | 5 |
 | **ORE Environnement** | 30312, 30313 | 2 |
 | **Santé économique** | 30850, 30851 | 2 |
-| **Workflows** | 31900, 31901, 31902, 31903 | 4 |
+| **Workflows** | 31900, 31901, 31902, 31903, 31904 | 5 |
 | **Crowdfunding** | 30904 | 1 |
-| **TOTAL** | | **34+** |
+| **TOTAL** | | **35+** |
 
 `*` Kind 4 (DM) : optionnel, désactivable avec `--no-dms`
 

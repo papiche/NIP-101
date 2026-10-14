@@ -22,32 +22,23 @@ longitude="$longitude"
 
 ############################################################
 # Variables pour la gestion du message "Hello NOSTR visitor"
+# (rate-limit anti-spam inchangé — simplification 2026-10 : plus de
+# déclenchement IA sur kind-1, cf. MAIN TREATMENT en bas de fichier)
 BLACKLIST_FILE="$HOME/.zen/strfry/blacklist.txt"
 COUNT_DIR="$HOME/.zen/strfry/pubkey_counts"
 WARNING_MESSAGES_DIR="$HOME/.zen/strfry/warning_messages"
 MESSAGE_LIMIT=3
 VISITOR_MESSAGE_EXPIRY=86400  # 24 hours in seconds for visitor messages
-
-# Variables pour la gestion de la file d'attente des traitements #BRO or #BOT
-QUEUE_DIR="$HOME/.zen/tmp/uplanet_queue"
-mkdir -p "$QUEUE_DIR" "$WARNING_MESSAGES_DIR"
-MAX_QUEUE_SIZE=5
-PROCESS_TIMEOUT=300  # 5 minutes timeout for processing
-QUEUE_CLEANUP_AGE=3600  # 1 hour for queue file cleanup
 WARNING_MESSAGE_TTL=172800  # 48 heures en secondes
+mkdir -p "$WARNING_MESSAGES_DIR"
 
-# Logging functions using common utilities (must be defined before use)
+# Logging function using common utilities (must be defined before use)
 log_uplanet() {
     log_with_timestamp "$HOME/.zen/tmp/nostr_kind1_messages.log" "$1"
 }
 
-log_ia() {
-    log_with_timestamp "$HOME/.zen/tmp/IA.log" "$1"
-}
-
-# Ensure log directories exist
+# Ensure log directory exists
 ensure_log_dir "$HOME/.zen/tmp/nostr_kind1_messages.log"
-ensure_log_dir "$HOME/.zen/tmp/IA.log"
 
 # Extract precise coordinates from "g" tag (preserve full precision for PlantNet)
 # Format: ["g", "lat,lon"] (standard Nostr geolocation tag)
@@ -120,13 +111,6 @@ is_secret_message=false
 if [[ "$content" == *"#secret"* ]]; then
     is_secret_message=true
     log_uplanet "SECRET message detected, will return 1 to reject event from relay"
-fi
-
-# PlantNet detection (handled by UPlanet_IA_Responder.sh)
-is_plantnet_message=false
-if [[ "$content" == *"#plantnet"* ]]; then
-    is_plantnet_message=true
-    log_uplanet "PLANTNET message detected - will be processed by UPlanet_IA_Responder.sh"
 fi
 
 # Optimized cleanup function with better logging
@@ -319,101 +303,20 @@ Access to localized content
     return 0
 }
 
-# Optimized queue management functions
-cleanup_old_queue_files() {
-    find "$QUEUE_DIR" -type f -mmin +60 -delete 2>/dev/null
-}
-
-check_stuck_processes() {
-    local current_time=$(date +%s)
-    for pid in $(pgrep -f "UPlanet_IA_Responder.sh"); do
-        local process_start=$(ps -p $pid -o lstart= 2>/dev/null)
-        if [ -n "$process_start" ]; then
-            local start_time=$(date -d "$process_start" +%s 2>/dev/null)
-            if [ $? -eq 0 ] && [ $((current_time - start_time)) -gt $PROCESS_TIMEOUT ]; then
-                kill -9 $pid 2>/dev/null
-                log_uplanet "Killed stuck UPlanet_IA_Responder.sh process $pid"
-            fi
-        fi
-    done
-}
-
-# Optimized queue file creation
-create_queue_file() {
-    QUEUE_FILE="$QUEUE_DIR/${pubkey}.sh"
-    cat > "$QUEUE_FILE" << EOF
-pubkey="$pubkey"
-event_id="$event_id"
-latitude="$latitude"
-longitude="$longitude"
-full_content="$full_content"
-url="$url"
-KNAME="$KNAME"
-ORIGINAL_GEO_LAT="$ORIGINAL_GEO_LAT"
-ORIGINAL_GEO_LON="$ORIGINAL_GEO_LON"
-EOF
-}
-
-# Streamlined queue processing
-process_queue() {
-    cleanup_old_queue_files
-    check_stuck_processes
-
-    [[ -z "$(ls -A $QUEUE_DIR/ 2>/dev/null)" ]] && return 0
-
-    # Check if process is already running
-    if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
-        # Only queue if content contains #BRO or #BOT
-        if [[ "$full_content" == *"#BRO"* || "$full_content" == *"#BOT"* ]]; then
-            local queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
-            if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
-                create_queue_file
-            else
-                log_uplanet "Queue is full, message dropped: $event_id"
-            fi
-        fi
-        
-        exit 0
-    else
-        # Launch process directly (réponse toujours en DM privé NIP-44, signée NODE)
-        timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" &
-    fi
-}
-
 ################# MAIN TREATMENT
-process_queue
-
+# Simplification 2026-10 : plus de réaction IA sur kind-1 (#BRO/#BOT). Le
+# dialogue BRO se fait désormais exclusivement en DM chiffré ("BRO Self",
+# cf. bro_watch_core.py / bro_dm_daemon.sh). UPlanet_IA_Responder.sh reste
+# utilisé ailleurs (canal DM bro_ia, roaming inter-station) mais n'est plus
+# jamais invoqué depuis ce filtre.
 if [[ "$check" != "nobody" ]]; then
-    # UPlanet APP NOSTR messages.
-    if [[ -n "$latitude" && -n "$longitude" && "$check" != "uplanet" && ("$content" == *"#BRO"* || "$content" == *"#BOT"*) ]]; then
-        # Optimized anti-duplicate check
-        [[ -f "$COUNT_DIR/lastevent" && "$(cat "$COUNT_DIR/lastevent")" == "$event_id" ]] && exit 0
-
-        log_uplanet "OK Authorized key : $KNAME"
-        log_uplanet "UPlanet Message - Lat: $latitude, Lon: $longitude, Content: $full_content"
-
-        # Check if process is running
-        if pgrep -f "UPlanet_IA_Responder.sh" > /dev/null; then
-            queue_size=$(ls -1 $QUEUE_DIR/ 2>/dev/null | wc -l)
-            if [ "$queue_size" -lt "$MAX_QUEUE_SIZE" ]; then
-                create_queue_file
-                log_uplanet "QUEUE_FILE: $QUEUE_FILE"
-            else
-                log_uplanet "Queue is full, message dropped: $event_id"
-            fi
-        else
-            log_ia "PROCESSING UPlanet_IA_Responder.sh $pubkey $event_id $latitude $longitude $full_content $url $KNAME"
-            # Réponse toujours en DM privé NIP-44, signée NODE (cf. process_queue ci-dessus)
-            timeout $PROCESS_TIMEOUT $HOME/.zen/Astroport.ONE/IA/UPlanet_IA_Responder.sh "$pubkey" "$event_id" "$latitude" "$longitude" "$full_content" "$url" "$KNAME" "$ORIGINAL_GEO_LAT" "$ORIGINAL_GEO_LON" 2>&1 >> "$HOME/.zen/tmp/IA.log" &
-        fi
-
-        echo "$event_id" > "$COUNT_DIR/lastevent"
-        [[ "$is_secret_message" == true ]] && exit 1 || exit 0
-    else
-        exit 0
-    fi
+    # Compte connu/fiable (player, captain, UPlanet geo-key, ou amisOfAmis) :
+    # on accepte, sans traitement spécial. #secret reste rejeté du relay.
+    [[ "$is_secret_message" == true ]] && exit 1
+    exit 0
 else
-    # Visitor NOSTR message reply
+    # Visiteur non reconnu par la constellation — rate-limit anti-spam
+    # inchangé (MESSAGE_LIMIT=3, cf. handle_visitor_message ci-dessus).
     # Only respond if message contains more than 50 characters
     content_length=${#content}
     if [[ $content_length -le 50 ]]; then
@@ -421,9 +324,7 @@ else
         log_uplanet "Short message content: '$content'"
         exit 1  # Reject message without responding
     fi
-    
+
     handle_visitor_message "$pubkey" "$event_id" "$content"
     exit 0
 fi
-
-exit 0
