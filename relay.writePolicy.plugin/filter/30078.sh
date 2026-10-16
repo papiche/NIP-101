@@ -117,6 +117,25 @@ if [[ "$status_id" == facecloud:* ]]; then
     exit 0
 fi
 
+# ── d=skillmap:<skill>:<hex membre> — annuaire du coin (UPassport/services/skill_map.py) ──
+# Signé par la clé de la CASE (UMAP / SECTOR / REGION, dérivée de la clé de la coopérative) : cette clé n'est pas un MULTIPASS, donc
+# l'autorisation porte sur le MEMBRE annoncé (tag p), qui doit être un MULTIPASS connu (local ou swarm). Les clients ne lisent que les
+# auteurs dont ils ont dérivé la clé de case, et revérifient le certificat du membre : cet événement n'est qu'un index.
+if [[ "$status_id" == skillmap:* ]]; then
+    _sm_member=$(echo "$event_json" | jq -r '.event.tags[]? | select(.[0] == "p") | .[1]' 2>/dev/null | head -1)
+    _sm_skill=$(echo "$event_json" | jq -r '.event.tags[]? | select(.[0] == "t") | .[1]' 2>/dev/null | head -1)
+    if [[ ! "$_sm_member" =~ ^[0-9a-f]{64}$ || -z "$_sm_skill" ]]; then
+        log_status "REJECTED: ${status_id} sans membre (p) ou savoir-faire (t) valides — ${pubkey:0:8}..."
+        exit 1
+    fi
+    if ! check_authorization "$_sm_member" "log_status"; then
+        log_status "REJECTED: ${status_id} — membre ${_sm_member:0:8}... inconnu de la constellation"
+        exit 1
+    fi
+    log_status "ACCEPTED: ${status_id} (annuaire du coin, case ${pubkey:0:8}...)"
+    exit 0
+fi
+
 # Check authorization using common function
 if ! check_authorization "$pubkey" "log_status"; then
     exit 1

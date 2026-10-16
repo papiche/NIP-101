@@ -1166,6 +1166,7 @@ QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 |---|---|---|---|
 | `atom4love`, `atom4love-home`, `atom4love-priv` | clé LOVE | profil Phi² / localisation / données chiffrées | `a4l_proof` non vide |
 | `facecloud:backup` | MULTIPASS (UPassport `ucloud_backup.py`) | NIP-44 pour soi-même : `{v, cid, key, sha, at, counts}` — pointeur vers l'archive chiffrée du cloud FaceCloud (index, trousseau, sources, visages) sur IPFS. UN seul event par MULTIPASS, remplacé à chaque sauvegarde | MULTIPASS autorisé ; contenu jamais journalisé |
+| `skillmap:<skill>:<hex membre>` | clé de CASE (UMAP, SECTOR ou REGION : `keygen` sur `swarm.key` + coordonnées, cf. `NOSTR.UMAP.refresh.sh`) via UPassport `services/skill_map.py` | vide ; tags `l=skillmap`, `t=<skill>`, `p=<membre>`, `level`, `a=30503:<membre>:<d du certificat>`, `expiration` | le membre `p` doit être un MULTIPASS connu (l'auteur est une clé de case, pas un MULTIPASS). Simple INDEX : les clients revérifient le certificat kind 30503 du membre |
 
 Le carnet d'adresses n'est volontairement PAS publié fiche par fiche (données
 de tiers répliquées dans la constellation, effacement non garanti, nombre et
