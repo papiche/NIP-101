@@ -74,7 +74,7 @@ extract_sync_stats() {
     # Station (kind 30800) — coop-config DID publié par la clé STATION
     local station=$(_val "$sync_stats" did || echo 0)
 
-    # Content (kind 30023,30024,31922-31925,10000) — blog, calendrier, analytics
+    # Content (kind 30023,30024,31922-31925,10600) — blog, calendrier, analytics
     local content=$(( $(_val "$sync_stats" blog          || echo 0)
                     + $(_val "$sync_stats" nip52_calendar || echo 0)
                     + $(_val "$sync_stats" analytics     || echo 0)
