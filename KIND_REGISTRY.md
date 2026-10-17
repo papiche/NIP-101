@@ -9,7 +9,7 @@
 **Organisation :** UPlanet / Astroport.ONE Cooperative  
 **Licence :** AGPL-3.0  
 **Date de publication :** 2026-05-25  
-**Dernière révision :** 2026-05-25  
+**Dernière révision :** 2026-10-17  
 **Dépôt :** `github.com/papiche/NIP-101`
 
 ---
@@ -130,9 +130,9 @@ Tout événement NOSTR partage la structure de base suivante (NIP-01) :
 | CORE | 0–999 | Regular / Replaceable | 10 |
 | APPLICATION | 1000–9999 | Regular | 8 |
 | REPLACEABLE | 10000–19999 | Replaceable | 2 |
-| ÉPHÉMÈRE | 20000–29999 | Ephemeral | 2 |
+| ÉPHÉMÈRE | 20000–29999 | Ephemeral | 4 |
 | ADRESSABLE | 30000–39999 | Addressable | 18 |
-| **TOTAL** | | | **41** |
+| **TOTAL** | | | **43** |
 
 ---
 
@@ -1037,6 +1037,103 @@ Seed DISCO = "/?${EMAIL}=${SALT}&nostr=${PEPPER}"
 Reconstruction : HEAD + TAIL suffisent (2-sur-3)
 QR MULTIPASS : "M-{SSSS_HEAD_B58}:{NOSTRNSEC}"
 ```
+
+---
+
+### Kind 24315 — Présence (visio vdo.ninja)
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `24315` |
+| **Nom de service** | Presence — « je suis en ligne » pour mes amis mutuels |
+| **Type** | Ephemeral |
+| **Statut NIP** | DRAFT (extension UPlanet ; proche de NIP-38 mais éphémère et ciblée) |
+| **Filtre NIP-101** | `relay.writePolicy.plugin/filter/24315.sh` (test : `filter/test_visio_filters.sh`) |
+| **Sync constellation** | Non (éphémère) |
+
+**Description :** battement de présence, **opt-in**, adressé à des amis mutuels (je les suis ET ils me suivent). Le relay le transmet aux abonnés connectés (`{"kinds":[24315],"#p":["<moi>"]}`) et ne le stocke jamais (strfry : `ephemeralEventsLifetimeSeconds = 600`). Aucun polling : on s'abonne une fois.
+
+```json
+{
+  "kind": 24315,
+  "pubkey": "<hex64-émetteur>",
+  "tags": [
+    ["p", "<hex64-ami-mutuel>"],
+    ["p", "<hex64-ami-mutuel>"],
+    ["status", "online"]
+  ],
+  "content": ""
+}
+```
+
+| Règle | Valeur |
+|---|---|
+| `p` | 1 à 50 destinataires, hex64 |
+| `status` | exactement un parmi `online`, `visio` (en appel), `away` (onglet masqué), `offline` (fermeture) |
+| `content` | vide |
+| Cadence | à la connexion, toutes les **4 min**, à chaque changement d'état, `offline` à la fermeture |
+| Fraîcheur | un battement de plus de **6 min** vaut `offline` ; un événement plus ancien que le dernier connu est ignoré |
+| Horloge | `created_at` à ±120 s de l'heure du relay |
+| Récepteur | ne retient que les auteurs qui sont ses amis mutuels |
+
+**Confidentialité :** le relay voit QUI signale sa présence à QUI (mêmes métadonnées qu'un message privé). D'où l'opt-in (Mon compte → « Visio : être joignable », réglage par navigateur) et la limite aux amis mutuels.
+
+**Politique de filtrage NIP-101 (24315.sh) :** refus si kind ≠ 24315, contenu non vide, horloge hors fenêtre, nombre ou format de `p` invalide, `status` inconnu ou multiple, ou émetteur inconnu (ni MULTIPASS local, ni essaim, ni `amisOfAmis` : `visio_sender_known` dans `common.sh`, trois `grep`, jamais de scan strfry). Une seule passe `jq`, pas de journal par événement.
+
+---
+
+### Kind 24316 — Sonnerie de visio
+
+| Champ | Valeur |
+|---|---|
+| **Kind** | `24316` |
+| **Nom de service** | Visio ring — invitation chiffrée pour UN ami en ligne |
+| **Type** | Ephemeral |
+| **Statut NIP** | DRAFT (extension UPlanet) |
+| **Filtre NIP-101** | `relay.writePolicy.plugin/filter/24316.sh` |
+| **Sync constellation** | Non (éphémère) |
+
+**Description :** complément temps réel du message privé. Si la présence de l'ami est fraîche (kind 24315), l'invitation part en sonnerie éphémère ; sinon elle part en message privé durable (kind 14 NIP-17 enveloppé en kind 1059, ou kind 4 chiffré NIP-44 selon le client — `atomic_chat.html` utilise le kind 4) avec **la même charge utile**.
+
+```json
+{
+  "kind": 24316,
+  "pubkey": "<hex64-appelant>",
+  "tags": [["p", "<hex64-appelé>"]],
+  "content": "<invitation chiffrée NIP-44 pour l'appelé, base64>"
+}
+```
+
+**Charge utile (en clair avant chiffrement, identique pour la sonnerie et le message privé) :**
+
+```json
+{ "t": "uplanet.visio", "v": 1, "room": "<20 hex>", "pw": "<16 hex>",
+  "base": "https://vdo.copylaradio.com", "exp": 1792259999, "from": "<hex64-appelant>" }
+```
+
+| Règle | Valeur |
+|---|---|
+| `p` | exactement un destinataire, hex64 |
+| `content` | base64 de 16 à 4096 caractères — jamais de clair |
+| Validation client | `t`/`v` exacts ; `room` = 20 hex, `pw` = 16 hex ; `base` en `https://` sans chemin ; `exp` futur et à moins de 25 h |
+| Anti-spam | le destinataire ne **déchiffre** que les sonneries de ses amis mutuels (le filtre par auteur précède toute demande de déchiffrement) ; un message privé d'un autre expéditeur reste un message ordinaire |
+| Hors ligne | l'invitation du message privé périmée (`exp` passé) s'affiche « expirée — rappeler », jamais comme un appel |
+
+---
+
+### Visio vdo.ninja — salles privées (conventions)
+
+Instance : variable `VDONINJA` de `tools/my.sh` (défaut `https://vdo.copylaradio.com`, https obligatoire).
+
+- **Salle et mot de passe aléatoires.** `POST /api/visio/room` (NIP-98, UPassport) renvoie `{room, password, base, join_url, expires_at}` (`join_url` = `<base>/?room=<room>#p=<pw>`) : 20 + 16 caractères hexadécimaux tirés au sort, **rien conservé** côté station (`expires_at` est indicatif). Plafond : 30 salles/h par clé, 600/h par station. `GET /api/visio/config` → `{base}`. L'ancien nom `uplanet_<npub[:10]>` est **abandonné** : l'npub est public, la salle était devinable et sans mot de passe.
+- **Liens** (paramètres vérifiés dans docs.vdo.ninja et sur l'instance réelle). Le mot de passe est dans le **fragment** (`#p=`, jamais envoyé au serveur ni aux journaux du proxy ; lettres et chiffres, 49 caractères au plus) :
+  - appel : `<base>/?room=<room>[&label=…]#p=<pw>` — pas d'`&autostart` : le visiteur choisit lui-même caméra et micro ;
+  - studio (live) : `<base>/?room=<room>&record&label=…&autostart#p=<pw>` — réservé à qui a cliqué « Démarrer » ;
+  - spectateur : `<base>/?room=<room>&scene&cleanoutput#p=<pw>`. **Un `&view` nu n'est PAS un lien spectateur** : il signifie « ne reçois aucun flux » (publication seule).
+  - Le mot de passe d'une salle est un accès partagé, pas un droit de réalisateur : tout porteur du couple salle + mot de passe peut entrer (voir « protecting a room from unwanted listeners »).
+- **Kind 30311 (NIP-53, live public).** Le tag `streaming` porte le lien **spectateur** uniquement (l'événement est public) ; le lien studio, qui contient le mot de passe, reste local. Les clients affichent la carte du live avec ce lien (jamais un service tiers comme zap.stream : UPlanet est en ẐEN, pas en Bitcoin).
+- **Salles ORE / UMAP** (`UMAP_ORE_{lat}_{lon}`, voir kind 30312 ci-dessous) : salles publiques par construction, hors de ces conventions.
+- **Transports d'invitation** : kind 24316 (ami en ligne) et/ou message privé durable (kind 4 ou 14/1059) ; un écran de chat envoie TOUJOURS aussi le message privé, pour garder la trace dans le fil, et la sonnerie en plus si l'ami est en ligne (le destinataire dédoublonne par `room`) ; champ `URL` d'un événement d'agenda (kind 31922, `.ics` CalDAV) pour une visio planifiée.
 
 ---
 
@@ -1990,6 +2087,8 @@ all_but_blacklist.sh
 | `1984.sh` | 1984 — Report | `uplanet` | `accept` catégorisé | `nostr_reports.1984.log` |
 | `9735.sh` | 9735 — Zap | `uplanet` | `accept` validé | `nostr_zaps.9735.log` |
 | `22242.sh` | 22242 — Auth | `amisOfAmis` | `accept` | — |
+| `24315.sh` | 24315 — Présence | MULTIPASS / essaim / `amisOfAmis` | `accept` si format valide | — |
+| `24316.sh` | 24316 — Sonnerie visio | MULTIPASS / essaim / `amisOfAmis` | `accept` si format valide | — |
 | `30023.sh` | 30023 — Article | `amisOfAmis` | `accept` | `strfry.log` |
 | `30078.sh` | 30078 — AppData | `amisOfAmis` | `accept` | — |
 | `30303.sh` | 30303 — Custom | `amisOfAmis` | `accept` | — |

@@ -105,6 +105,17 @@ check_amis_of_amis() {
     grep -q -h "^$pubkey$" "$AMISOFAMIS_FILE" "$HOME/.zen/tmp/swarm/"*/amisOfAmis.txt 2>/dev/null
 }
 
+# Expéditeur connu pour les événements éphémères de visio (kinds 24315 présence, 24316 sonnerie) :
+# MULTIPASS local, essaim ou amisOfAmis — trois grep, jamais de scan strfry (ces kinds passent par
+# ce plugin à chaque battement). Retourne 0 si connu.
+visio_sender_known() {
+    local pubkey="$1"
+    [[ -z "$pubkey" ]] && return 1
+    [[ -n "$(get_key_email "$pubkey")" ]] && return 0
+    [[ -n "$(search_swarm_for_pubkey "$pubkey")" ]] && return 0
+    check_amis_of_amis "$pubkey"
+}
+
 # Vérifie si un pubkey a publié un certificat d'incarnation ATOM4LOVE valide.
 # Un Kind 30078 d=atom4love avec personal_phase ∈ [0,7) et omega_bio ∈ (0.1,50) suffit.
 # Retourne 0 si présent et valide, 1 sinon.

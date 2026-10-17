@@ -480,6 +480,18 @@ Tous les événements UPlanet DEVRAIENT inclure ces tags :
 
 ---
 
+### 6. Salles de visio privées et présence (vdo.ninja)
+
+UPlanet héberge sa propre instance [vdo.ninja](https://github.com/steveseguin/vdo.ninja) (`VDONINJA`, https obligatoire). Les salles sont **privées par construction** :
+
+- `POST /api/visio/room` (NIP-98) renvoie une salle (20 hex) **et** un mot de passe (16 hex) tirés au sort ; la station ne conserve rien. Le nom dérivé d'une clé publique (`uplanet_<npub[:10]>`) est abandonné : devinable et sans mot de passe.
+- **Kind 24315 — présence** (éphémère, opt-in) : `["p", ami-mutuel]×1..50`, `["status", online|visio|away|offline]`, contenu vide. Émis à la connexion, toutes les 4 min, à chaque changement d'état, `offline` à la fermeture ; frais pendant 6 min. Le relay le transmet aux abonnés connectés sans jamais le stocker. Le récepteur ne retient que les amis mutuels. Le relay voit *qui* signale sa présence à *qui* (mêmes métadonnées qu'un message privé) : d'où l'opt-in.
+- **Kind 24316 — sonnerie** (éphémère) : `["p", appelé]`, contenu = invitation chiffrée NIP-44 `{"t":"uplanet.visio","v":1,"room","pw","base","exp","from"}`. Utilisée quand la présence de l'appelé est fraîche ; sinon la **même charge utile** part en message privé durable (NIP-17 kind 14 dans un kind 1059, ou kind 4 chiffré NIP-44 selon le client ; un écran de chat poste toujours le message pour garder la trace dans le fil, plus la sonnerie si l'ami est en ligne, et le destinataire dédoublonne par `room`). Un client ne déchiffre que les sonneries de ses amis mutuels et rejette toute charge périmée (`exp`), mal formée ou dont `base` n'est pas en `https://`.
+- **Kind 30311 (live NIP-53)** : le tag `streaming` porte le lien *spectateur* seulement (l'événement est public) ; le lien studio, qui contient le mot de passe, reste local. Les clients pointent vers le `streaming` de l'auteur, jamais vers un service tiers (UPlanet est en ẐEN, pas en Bitcoin).
+- Une visio planifiée est un événement d'agenda (kind 31922 / `.ics` via CalDAV) dont le champ `URL` est le lien de la salle.
+
+Voir [KIND_REGISTRY.md](KIND_REGISTRY.md) (kinds 24315, 24316) et `relay.writePolicy.plugin/filter/{24315,24316}.sh`.
+
 ## Implémentation
 
 ### Synchronisation de Constellation

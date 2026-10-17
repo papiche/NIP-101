@@ -79,6 +79,8 @@ Each `{kind}.sh` receives the full event JSON as `$1`. Must `exit 0` to accept, 
 | `1984.sh` | 1984 | Reports — `report-type=friction` → queue Kind 30506 via `ASTROBOT/N1Mediation.sh` |
 | `9735.sh` | 9735 | Zap receipts |
 | `22242.sh` | 22242 | Auth (NIP-42 twin-key) |
+| `24315.sh` | 24315 | Présence visio (éphémère, ≤ 50 `p` amis mutuels, `status` online/visio/away/offline, contenu vide) — `visio_sender_known` (common.sh) : 3 grep, jamais de scan strfry |
+| `24316.sh` | 24316 | Sonnerie visio (éphémère, 1 `p`, contenu NIP-44 base64) — test : `filter/test_visio_filters.sh` |
 | `30023.sh` | 30023 | Long-form articles |
 | `30078.sh` | 30078 | App-specific data |
 | `30303.sh` | 30303 | Custom kind |

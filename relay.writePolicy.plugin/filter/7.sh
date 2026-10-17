@@ -50,25 +50,43 @@ log_like() {
 # Variables implicites (scope global) : $EMAIL, $pubkey, $event_id,
 # $reacted_event_id, $reacted_author_pubkey, $LOG_FILE
 ################################################################################
+# File d'attente persistante (hors ~/.zen/tmp, purgé chaque nuit par 20h12) : un paiement qui n'a pas pu
+# être relayé n'est JAMAIS perdu en silence — il est conservé ici et rejoué par tools/zen_like_retry.sh
+# (cron 20h12) ; passé 7 jours, le Capitaine est alerté.
+ZEN_LIKE_PENDING_DIR="$HOME/.zen/game/zen_like_pending"
+
+_zen_like_defer() {
+    local _reason="$1" _payload="$2"
+    mkdir -p "$ZEN_LIKE_PENDING_DIR"
+    if [[ -z "$_payload" ]]; then
+        log_like "ROAMING: ❌ ERREUR — paiement ${_ZL_AMOUNT:-?}Ẑ de ${EMAIL:-?} NON relayé (${_reason}) ET non conservable (message vide) — à régler à la main"
+        return
+    fi
+    log_like "ROAMING: ❌ ERREUR — paiement ${_ZL_AMOUNT:-?}Ẑ de ${EMAIL:-?} NON relayé (${_reason}) → conservé dans ${ZEN_LIKE_PENDING_DIR}/${event_id:-unknown}.json, rejoué par zen_like_retry.sh"
+    python3 -c "
+import json, sys, time
+print(json.dumps({'reason': sys.argv[1], 'at': int(time.time()), 'payload': json.loads(sys.argv[2])}))
+" "$_reason" "$_payload" > "${ZEN_LIKE_PENDING_DIR}/${event_id:-unknown}.json" 2>/dev/null
+    chmod 600 "${ZEN_LIKE_PENDING_DIR}/${event_id:-unknown}.json" 2>/dev/null
+}
+
 _relay_zen_payment_to_home() {
     local _g1pub_dest="$1" _zen_amount="$2" _comment="$3"
     local _is_cf="${4:-false}" _project_id="${5:-}" _bien_g1pub="${6:-}"
+    _ZL_AMOUNT="$_zen_amount"
 
     [[ -z "$EMAIL" || -z "$_g1pub_dest" ]] && return
     [[ ! -f "${KEY_DIR}/${EMAIL}/.roaming" ]] && return
 
-    local _home_node_hex=""
-    local _home_station="${KEY_DIR}/${EMAIL}/home.station"
-    [[ -f "$_home_station" ]] && \
-        _home_node_hex=$(cut -d: -f2 < "$_home_station" | tr -d '[:space:]')
-    if [[ ${#_home_node_hex} -ne 64 ]]; then
-        log_like "ROAMING: ⚠️ home.station HEX introuvable pour $EMAIL — ZEN ${_zen_amount}Ẑ perdu"
-        return
-    fi
+    ## Le message joint l'ÉVÉNEMENT SIGNÉ : la home station revérifie signature, montant et destination
+    ## elle-même (tools/zen_like_verify.py) au lieu de croire les champs d'un autre nœud.
+    local _event_obj
+    _event_obj=$(jq -c '.event // empty' <<< "$event_json" 2>/dev/null)
 
     local _payload
     _payload=$(python3 -c "
 import json, sys
+ev = json.loads(sys.argv[12]) if sys.argv[12] else None
 print(json.dumps({
     'email':                sys.argv[1],
     'sender_pubkey':        sys.argv[2],
@@ -81,16 +99,25 @@ print(json.dumps({
     'is_crowdfunding':      sys.argv[9] == 'true',
     'project_id':           sys.argv[10],
     'bien_g1pub':           sys.argv[11],
+    'event':                ev,
 }))
 " "$EMAIL" "$pubkey" "$event_id" "${reacted_event_id:-}" \
   "$reacted_author_pubkey" "$_zen_amount" "$_comment" "$_g1pub_dest" \
-  "$_is_cf" "$_project_id" "$_bien_g1pub" 2>/dev/null)
+  "$_is_cf" "$_project_id" "$_bien_g1pub" "$_event_obj" 2>/dev/null)
 
-    [[ -z "$_payload" ]] && \
-        log_like "ROAMING: ⚠️ payload zen_like vide pour $EMAIL" && return
+    [[ -z "$_payload" ]] && { _zen_like_defer "payload zen_like vide" ""; return; }
+
+    local _home_node_hex=""
+    local _home_station="${KEY_DIR}/${EMAIL}/home.station"
+    [[ -f "$_home_station" ]] && \
+        _home_node_hex=$(cut -d: -f2 < "$_home_station" | tr -d '[:space:]')
+    if [[ ${#_home_node_hex} -ne 64 ]]; then
+        _zen_like_defer "home.station introuvable" "$_payload"
+        return
+    fi
 
     [[ ! -s "$HOME/.zen/game/secret.nostr" ]] && \
-        log_like "ROAMING: ⚠️ secret.nostr absent — impossible de relayer" && return
+        { _zen_like_defer "secret.nostr du nœud absent" "$_payload"; return; }
 
     source "$HOME/.zen/game/secret.nostr"
     local _NODE_NSEC="${NSEC:-}"
@@ -105,7 +132,7 @@ print(json.dumps({
             --relays  "wss://relay.copylaradio.com" \
             >> "$LOG_FILE" 2>&1 \
         && log_like "ROAMING: ✈️ zen_like relayé → ${_home_node_hex:0:12}... pour $EMAIL (${_zen_amount}Ẑ)" \
-        || log_like "ROAMING: ⚠️ zen_like relay FAILED pour $EMAIL"
+        || _zen_like_defer "envoi intercom échoué" "$_payload"
     ) &
 }
 
