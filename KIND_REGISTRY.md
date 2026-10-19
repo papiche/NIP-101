@@ -2010,6 +2010,17 @@ mutualisé, sourcé aussi par `Astroport.ONE/tools/g1n2_check.sh`/`g1n2_pay.sh` 
 
 **Chiffrement :** NaCl box avec clé publique G1 de l'utilisateur. Le CID pointe vers le blob chiffré sur IPFS.
 
+**Convention : un seul kind pour les paramètres applicatifs d'un MULTIPASS.** Le kind 31903 stocke tous les paramètres applicatifs d'un compte — on ne crée pas un kind par fonctionnalité. Chaque usage a son **d-tag** (un événement adressable est identifié par kind + pubkey + d, donc les usages ne s'écrasent pas) :
+
+| d-tag | Contenu | Écrit par |
+|---|---|---|
+| `cookies` | manifest `{domaine → CID}` du Cookie Vault (ci-dessus) | `UPassport/services/cookie_store.py`, `IA/bro/watch_store.py` |
+| `memory_sources` | sources d'apprentissage de BRO cochées par la personne (depuis 2026-10-19) | `Astroport.ONE/IA/memory_writer.py` |
+
+`d=memory_sources` : `content` = JSON `{"v":1,"sources":{"chat":true,"love_dm":false,"nostr_public":false,"mastodon":false,"photo":false,"agenda":false,"contact":false},"updated_at":…}` **chiffré NIP-44 pour soi** (savoir qu'une personne a coché « messages privés à LOVE » est déjà une donnée intime) ; tags `["d","memory_sources"]`, `["t","memory_sources"]`. Écrit par un process court : le NSEC ne vit jamais dans UPassport.
+
+**Règle de lecture : tout lecteur du kind 31903 DOIT filtrer sur `#d`** (`["cookies"]` pour le manifest) — `nostr_admin.html`, `routers/mailjet.py` et `dashboard.COOKIE.manager.sh` le font. Un nouveau paramètre applicatif = un nouveau d-tag ici, pas un nouveau kind.
+
 ---
 
 ### Kind 31904 — API Access Vault (Identifiants d'API officielle, chiffrés)
