@@ -20,8 +20,10 @@
 # LIMITES DE CE MODÈLE DE CONFIANCE (documentées en détail dans le plan
 # d'implémentation) — la station elle-même est un tiers de confiance non
 # vérifiable de l'extérieur, ce filtre ne protège que le chemin d'écriture
-# client direct (jamais `strfry import`/backfill_constellation.sh — kind 30852
-# ne doit JAMAIS être ajouté aux kinds synchronisés entre stations).
+# client direct. `strfry import` (backfill_constellation.sh) ne l'invoque pas :
+# le kind 30852 EST répliqué entre amis (comptabilité relative, sans chaîne
+# centrale) et le backfill rejoue la même validation via
+# reject_invalid_ledger_events() avant tout import.
 ################################################################################
 
 MY_PATH="`dirname \"$0\"`"
@@ -101,13 +103,22 @@ if [[ "$created_at" -gt $((now + 300)) ]]; then
     log_n2 "REJECTED: created_at dans le futur (>5min) — event ${event_id:0:8}..."
     exit 1
 fi
+# anti-antidatage : created_at est choisi par l'auteur et sert à ordonner un lot synchronisé.
+# Fenêtre large (3 jours par défaut) pour tolérer un client hors-ligne / LAN isolé qui publie
+# avec retard. Ne s'applique PAS à la revalidation d'import (une station longtemps hors ligne
+# doit pouvoir rattraper des évènements anciens) — là, c'est le gel de compte qui protège.
+N2_MAX_AGE_SEC="${N2_MAX_AGE_SEC:-259200}"
+if [[ "$created_at" -lt $((now - N2_MAX_AGE_SEC)) ]]; then
+    log_n2 "REJECTED: created_at trop ancien (>${N2_MAX_AGE_SEC}s) — event ${event_id:0:8}..."
+    exit 1
+fi
 
 # tag t=mint : réservé aux pubkeys de la whitelist mint — rejet EXPLICITE d'une
 # usurpation, jamais de dégradation silencieuse (ex. traiter comme transaction
 # normale sans le privilège mint).
 is_mint=false
 if has_tag_value "$event_json" "t" "mint"; then
-    if [[ -s "$N2_MINT_AUTHORITIES_FILE" ]] && grep -qF "$pubkey" "$N2_MINT_AUTHORITIES_FILE" 2>/dev/null; then
+    if [[ -s "$N2_MINT_AUTHORITIES_FILE" ]] && grep -qxF "$pubkey" "$N2_MINT_AUTHORITIES_FILE" 2>/dev/null; then
         is_mint=true
     else
         log_n2 "REJECTED: usurpation de mint — ${pubkey:0:8}... n'est pas dans n2_mint_authorities.txt — event ${event_id:0:8}..."
@@ -123,6 +134,12 @@ if ! check_authorization "$pubkey" "log_n2"; then
     exit 1
 fi
 
+# compte gelé (fork prouvé) : aucune transaction sortante avant résolution humaine
+if n2_is_frozen "$pubkey"; then
+    log_n2 "REJECTED: compte ${pubkey:0:8}... GELÉ (double dépense prouvée) — résolution par rencontre, cf. n2_fork_resolve.sh — event ${event_id:0:8}..."
+    exit 1
+fi
+
 ################################################################################
 # 2. SECTION CRITIQUE — verrou global, borné dans le temps. NE JAMAIS bloquer
 #    indéfiniment : RelayServer::runWriter() est mono-thread et bloque sur la
@@ -134,6 +151,20 @@ exec 200>"$N2_LOCK_FILE"
 if ! flock -w 2 200; then
     log_n2 "REJECTED: verrou ledger indisponible (timeout 2s) — event ${event_id:0:8}..."
     exit 1
+fi
+
+# Limite de débit par membre (anti-spam : chaque tx crée évènement + fichiers de cache).
+# Les autorités de mint en sont exemptes. Fenêtre glissante d'1 h, fichier par pubkey.
+if [[ "$is_mint" != "true" ]]; then
+    N2_MAX_TX_PER_HOUR="${N2_MAX_TX_PER_HOUR:-60}"
+    _rate_file="${N2_LEDGER_DIR}/rate/${pubkey}"
+    mkdir -p "${N2_LEDGER_DIR}/rate" 2>/dev/null
+    _cut=$((now - 3600))
+    _recent=$(awk -v c="$_cut" '$1 >= c' "$_rate_file" 2>/dev/null)
+    if [[ -n "$_recent" && $(printf '%s\n' "$_recent" | wc -l) -ge $N2_MAX_TX_PER_HOUR ]]; then
+        log_n2 "REJECTED: limite de débit (${N2_MAX_TX_PER_HOUR} tx/h) dépassée par ${pubkey:0:8}... — event ${event_id:0:8}..."
+        exit 1
+    fi
 fi
 
 ################################################################################
@@ -189,14 +220,15 @@ if [[ "$is_mint" == "true" ]]; then
 else
     new_sender_balance=$(awk "BEGIN{printf \"%.2f\", $sender_balance - $amount}")
 fi
-n2_ledger_cache_write "$pubkey" "$new_sender_balance" "$event_id"
+n2_ledger_cache_write "$pubkey" "$new_sender_balance" "$event_id" "$event_id"   # pending : voir n2_ledger_heal_pending
 
 recipient_state=$(n2_ledger_get_balance "$dest_pubkey")
 IFS='|' read -r recipient_balance recipient_last_tx <<< "$recipient_state"
 new_recipient_balance=$(awk "BEGIN{printf \"%.2f\", $recipient_balance + $amount}")
 # last_tx_id du destinataire N'EST PAS touché ici — ne concerne que SA propre
 # chaîne sortante, pas les crédits qu'il reçoit.
-n2_ledger_cache_write "$dest_pubkey" "$new_recipient_balance" "$recipient_last_tx"
+n2_ledger_cache_write "$dest_pubkey" "$new_recipient_balance" "$recipient_last_tx" "$event_id"
+[[ "$is_mint" != "true" ]] && printf '%s\n%s\n' "${_recent:-}" "$now" | grep . | tail -n "${N2_MAX_TX_PER_HOUR:-60}" > "${N2_LEDGER_DIR}/rate/${pubkey}"
 
 ################################################################################
 # 8. Accepté.

@@ -2147,6 +2147,25 @@ ces deux protections sont **indépendantes et toutes les deux nécessaires**, cf
 
 `*` Kind 4 (DM) : optionnel, désactivable avec `--no-dms`
 
+### Kind 30852 — mints par station, gel de compte, résolution humaine
+
+- **Un mint par station** : chaque station signe ses mints (dons de bienvenue, courtoisie, pont) avec SA clé
+  `~/.zen/game/n2_mint.nostr` (aléatoire, locale, jamais dérivée de `UPLANETNAME`). Sa clé publique est publiée
+  avec la balise (`n2_mint.hex`) ; `tools/n2_mint_authorities.sh` (appelé par `_12345.sh`) alimente, en
+  **ajout seul**, `n2_mint_authorities.txt` avec la clé de la station et celles de son essaim. Une chaîne de
+  mint partagée forkerait à chaque mint concurrent (cf. `tests/n2_fork_cross_test.sh`, T8b).
+- **Gel de compte** : deux transactions signées du même auteur avec le même `prev` = double dépense prouvée.
+  La station journalise l'incident (`n2_incidents.jsonl`), **gèle le compte** (`n2_frozen.txt` : aucune tx
+  sortante acceptée, ni en écriture ni à l'import) et prévient l'auteur, les bénéficiaires locaux et le capitaine.
+  Un `prev` simplement inconnu (lot partiel) ne gèle rien.
+- **Résolution** : seule une rencontre humaine lève le gel. Le capitaine enregistre la décision avec
+  `tools/n2_fork_resolve.sh resolve <hex> <event_id valide>` : l'autre branche est annulée sur cette station
+  (`n2_void_events.txt`, ignorée dans tous les calculs de solde), le compte est dégelé. Décision locale
+  (monnaie relative) : les capitaines des cercles concernés doivent prendre la même.
+- **Durcissements du filtre d'écriture** : autorité de mint comparée en ligne entière, `created_at` refusé
+  au-delà de 3 jours (`N2_MAX_AGE_SEC`, tolère le hors-ligne), 60 tx/h par membre (`N2_MAX_TX_PER_HOUR`),
+  cache « fantôme » auto-cicatrisé (`pending_event`). Le pont Ğ1→N² est suspendu (`N2_BRIDGE_ENABLED=1` pour le réactiver).
+
 ### Kind 30852 — réplication OUI (revalidée à l'import), suppression JAMAIS
 
 **Kind 30852 (Ğ1-N² Ledger) figure dans les listes `kinds:[...]` ci-dessus** — sa réplication entre

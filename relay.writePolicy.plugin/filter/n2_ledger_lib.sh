@@ -22,6 +22,34 @@
 N2_STRFRY_DIR="${N2_STRFRY_DIR:-$HOME/.zen/strfry}"
 N2_LEDGER_DIR="${N2_LEDGER_DIR:-$HOME/.zen/tmp/${IPFSNODEID:-_local}/n2_ledger}"
 
+# Gel de compte (fork prouvé) et évènements annulés après rencontre humaine — locaux à la station.
+N2_FROZEN_FILE="${N2_FROZEN_FILE:-$HOME/.zen/strfry/n2_frozen.txt}"        # HEX:PREV:TS:EVENT1:EVENT2
+N2_VOID_FILE="${N2_VOID_FILE:-$HOME/.zen/strfry/n2_void_events.txt}"       # un event id (hex64) par ligne
+
+## 0 (vrai) si le compte est gelé : plus AUCUNE transaction sortante tant qu'un humain n'a pas
+## tranché (cf. Astroport.ONE/tools/n2_fork_resolve.sh).
+n2_is_frozen() { [[ -s "$N2_FROZEN_FILE" ]] && grep -q "^${1}:" "$N2_FROZEN_FILE" 2>/dev/null; }
+
+## n2_freeze HEX PREV EVENT1 EVENT2 — idempotent
+n2_freeze() {
+    n2_is_frozen "$1" && return 0
+    mkdir -p "$(dirname "$N2_FROZEN_FILE")" 2>/dev/null
+    echo "${1}:${2}:$(date +%s):${3}:${4}" >> "$N2_FROZEN_FILE"
+}
+n2_unfreeze() {
+    [[ -s "$N2_FROZEN_FILE" ]] || return 0
+    local tmp; tmp=$(mktemp "${N2_FROZEN_FILE}.XXXXXX") || return 1
+    grep -v "^${1}:" "$N2_FROZEN_FILE" > "$tmp"; mv -f "$tmp" "$N2_FROZEN_FILE"
+}
+## IDs annulés, en tableau JSON (ignorés dans tous les calculs de solde / last_tx)
+n2_void_json() {
+    if [[ -s "$N2_VOID_FILE" ]]; then
+        grep -E '^[0-9a-f]{64}$' "$N2_VOID_FILE" 2>/dev/null | jq -R . | jq -sc .
+    else
+        echo '[]'
+    fi
+}
+
 n2_ledger_cache_file() {
     echo "${N2_LEDGER_DIR}/${1}.json"
 }
@@ -42,12 +70,13 @@ n2_ledger_cache_read() {
 ## Écrit le cache de façon ATOMIQUE (tmpfile + mv) — jamais de lecture partielle
 ## possible par un autre process pendant l'écriture.
 n2_ledger_cache_write() {
-    local pubkey="$1" balance="$2" last_tx_id="$3" cache_file tmp
+    local pubkey="$1" balance="$2" last_tx_id="$3" pending_event="${4:-}" cache_file tmp
     mkdir -p "$N2_LEDGER_DIR" 2>/dev/null
     cache_file=$(n2_ledger_cache_file "$pubkey")
     tmp=$(mktemp "${cache_file}.XXXXXX" 2>/dev/null) || return 1
     jq -cn --argjson balance "${balance:-0}" --arg last_tx_id "${last_tx_id:-}" --argjson cached_at "$(date +%s)" \
-        '{balance: $balance, last_tx_id: $last_tx_id, cached_at: $cached_at}' > "$tmp" 2>/dev/null \
+        --arg pending "$pending_event" \
+        '{balance: $balance, last_tx_id: $last_tx_id, cached_at: $cached_at} + (if $pending != "" then {pending_event: $pending} else {} end)' > "$tmp" 2>/dev/null \
         && mv -f "$tmp" "$cache_file" \
         || { rm -f "$tmp"; return 1; }
 }
@@ -82,7 +111,9 @@ n2_ledger_rescan_author() {
         2>/dev/null)
 
     local result
-    result=$(echo "$raw" | jq -rs --arg me "$pubkey" '
+    local void_json; void_json=$(n2_void_json)
+    result=$(echo "$raw" | jq -rs --arg me "$pubkey" --argjson void "$void_json" '
+        map(select(.id as $i | ($void | index($i)) | not)) |
         {
             received: ([.[] | select(.pubkey != $me)
                               | select(any(.tags[]; .[0]=="p" and .[1]==$me))
@@ -102,6 +133,35 @@ n2_ledger_rescan_author() {
     echo "$result"
 }
 
+## 0 (vrai) si l'event est dans le store strfry (ou si strfry est introuvable : on ne devine pas)
+n2_ledger_event_exists() {
+    [[ -x "${N2_STRFRY_DIR}/strfry" ]] || return 0
+    local count
+    count=$(cd "$N2_STRFRY_DIR" && ./strfry scan "{\"ids\":[\"${1}\"]}" 2>/dev/null | grep -c '"id"') || count=0
+    [[ "${count:-0}" -gt 0 ]]
+}
+
+## Le filtre avance le cache AVANT le commit LMDB de strfry (ferme la course entre deux tx
+## concurrentes). Si strfry rejette ensuite l'évènement, le cache contient un « fantôme » :
+## last_tx_id pointant vers un event inexistant. Les entrées écrites ainsi portent
+## `pending_event` ; au prochain accès (> 10 s), on vérifie que l'event existe, sinon rescan.
+n2_ledger_heal_pending() {
+    local pubkey="$1" cache_file pending age
+    cache_file=$(n2_ledger_cache_file "$pubkey")
+    [[ -s "$cache_file" ]] || return 0
+    pending=$(jq -r '.pending_event // empty' "$cache_file" 2>/dev/null)
+    [[ -z "$pending" ]] && return 0
+    age=$(( $(date +%s) - $(jq -r '.cached_at // 0' "$cache_file" 2>/dev/null) ))
+    [[ $age -lt 10 ]] && return 0
+    if n2_ledger_event_exists "$pending"; then
+        local bal last
+        IFS='|' read -r bal last <<< "$(n2_ledger_cache_read "$pubkey")"
+        n2_ledger_cache_write "$pubkey" "$bal" "$last"        # confirmé : on retire le marqueur
+    else
+        n2_ledger_rescan_author "$pubkey" >/dev/null           # fantôme : recalcul depuis le store
+    fi
+}
+
 ## Point d'entrée unique pour un lecteur (g1n2_check.sh) : cache si présent,
 ## sinon rescan complet. Ne JAMAIS dupliquer cette logique ailleurs.
 n2_ledger_get_balance() {
@@ -113,6 +173,7 @@ n2_ledger_get_balance() {
     local cache_file
     cache_file=$(n2_ledger_cache_file "$pubkey")
     if [[ -s "$cache_file" ]]; then
+        n2_ledger_heal_pending "$pubkey"
         n2_ledger_cache_read "$pubkey"
     else
         n2_ledger_rescan_author "$pubkey"

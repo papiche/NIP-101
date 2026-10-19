@@ -53,8 +53,8 @@ if [[ "$(uname -m)" == "aarch64" ]] && [[ $(grep MemTotal /proc/meminfo 2>/dev/n
     MAX_LOG_SIZE_MB=5   # 5 MB on low-RAM aarch64
     MAX_LOG_FILES=2     # Keep only 2 rotated files (~15 MB max)
 else
-    MAX_LOG_SIZE_MB=10  # 10 MB on standard hardware
-    MAX_LOG_FILES=3     # Keep 3 rotated files (~40 MB max)
+    MAX_LOG_SIZE_MB=2   # 2 MB on standard hardware
+    MAX_LOG_FILES=3     # Keep 3 rotated files (~8 MB max)
 fi
 
 # Parse command line arguments
@@ -229,6 +229,16 @@ rotate_logs() {
         done
     fi
 }
+
+# Compteurs cumulés (évite un WARN par occurrence pour des cas attendus)
+BACKFILL_COUNTERS="$HOME/.zen/strfry/backfill.counters"
+backfill_count() {   # backfill_count NAME N
+    local name="$1" n="${2:-1}" cur
+    cur=$(backfill_count_get "$name")
+    { grep -v "^${name}=" "$BACKFILL_COUNTERS" 2>/dev/null; echo "${name}=$(( cur + n ))"; } > "${BACKFILL_COUNTERS}.tmp" \
+        && mv "${BACKFILL_COUNTERS}.tmp" "$BACKFILL_COUNTERS"
+}
+backfill_count_get() { grep "^${1}=" "$BACKFILL_COUNTERS" 2>/dev/null | tail -1 | cut -d= -f2 | grep . || echo 0; }
 
 # Function to log messages
 log() {
@@ -906,9 +916,12 @@ execute_backfill_websocket_batch() {
         else
             ((websocket_retry_count++))
             if [[ $websocket_retry_count -le $MAX_WEBSOCKET_RETRIES ]]; then
-                log "WARN" "❌ WebSocket connection failed (attempt $websocket_retry_count/$MAX_WEBSOCKET_RETRIES), retrying..."
+                log "INFO" "WebSocket connection failed (attempt $websocket_retry_count/$MAX_WEBSOCKET_RETRIES), retrying..."
             else
                 log "ERROR" "❌ WebSocket backfill failed after $MAX_WEBSOCKET_RETRIES attempts"
+                # Alerte uniquement sur échec définitif répété : évènement structuré,
+                # agrégé par node_activity_watch.sh (seuil de taux d'échec)
+                ( source "$BACKFILL_SCRIPT_DIR/relay.writePolicy.plugin/filter/common.sh" 2>/dev/null && nip101_log_event "backfill" "websocket_failed" 0 ) </dev/null || true
             fi
         fi
     done
@@ -1041,6 +1054,89 @@ reject_protected_kind_deletions() {
     echo "${excluded_ids[@]}"
 }
 
+# ── Incident comptable : DOUBLE DÉPENSE PROUVÉE (fork) ───────────────────────────
+# Deux transactions signées par le même auteur avec le même `prev` = preuve
+# cryptographique d'une double dépense (les deux events portent sa signature).
+# On n'alerte QUE sur cette preuve : un `prev` simplement inconnu (lot partiel,
+# fenêtre --days, ordre d'arrivée) est ambigu et ne doit pas déclencher d'alarme.
+# Destinataires : MULTIPASS locaux concernés (auteur, bénéficiaires des deux
+# branches) + capitaine de la station. Les stations de l'autre branche détectent
+# le même fork de leur côté (elles reçoivent notre branche) et préviennent les leurs.
+N2_INCIDENTS_FILE="${N2_INCIDENTS_FILE:-$HOME/.zen/strfry/n2_incidents.jsonl}"
+N2_MAILJET="${N2_MAILJET:-$HOME/.zen/Astroport.ONE/tools/mailjet.sh}"
+N2_KEY_DIR="${N2_KEY_DIR:-$HOME/.zen/game/nostr}"
+
+n2_pubkey_email() {   # HEX → email du MULTIPASS local, vide sinon
+    local f
+    f=$(grep -l "^$1$" "$N2_KEY_DIR"/*/HEX 2>/dev/null | head -1)
+    [[ -n "$f" ]] && basename "$(dirname "$f")"
+}
+
+# n2_report_fork AUTEUR PREV EVENT_ID DEST [TWIN_ID TWIN_DEST]
+# Sans TWIN_ID, cherche dans le store local un autre event du même auteur avec le même prev.
+n2_report_fork() {
+    local author="$1" prev="$2" eid="$3" dest="$4" twin_id="${5:-}" twin_dest="${6:-}"
+    if [[ -z "$twin_id" ]]; then
+        local twin
+        twin=$(cd "$N2_STRFRY_DIR" 2>/dev/null && ./strfry scan "{\"kinds\":[30852],\"authors\":[\"$author\"]}" 2>/dev/null \
+            | jq -c --arg prev "$prev" --arg id "$eid" 'select(.id != $id) | select(any(.tags[]; .[0]=="prev" and .[1]==$prev))' 2>/dev/null | head -1)
+        [[ -z "$twin" ]] && return 0     # pas de preuve → ambigu, aucune alerte
+        twin_id=$(jq -r .id <<< "$twin")
+        twin_dest=$(jq -r '.tags[] | select(.[0]=="p") | .[1]' <<< "$twin")
+    fi
+    # Déjà signalé (le backfill rejoue le même lot à chaque cycle) ?
+    touch "$N2_INCIDENTS_FILE" 2>/dev/null
+    if grep -q "$eid" "$N2_INCIDENTS_FILE" 2>/dev/null && grep -q "$twin_id" "$N2_INCIDENTS_FILE" 2>/dev/null; then
+        return 0
+    fi
+    n2_freeze "$author" "$prev" "$twin_id" "$eid"    # gel : plus de tx sortante jusqu'à rencontre humaine
+    jq -cn --arg ts "$(date -Iseconds)" --arg a "$author" --arg p "$prev" --arg e1 "$twin_id" --arg e2 "$eid" \
+        --arg d1 "$twin_dest" --arg d2 "$dest" --arg st "${IPFSNODEID:-_local}" \
+        '{ts:$ts,type:"fork",author:$a,prev:$p,events:[$e1,$e2],dests:[$d1,$d2],station:$st}' >> "$N2_INCIDENTS_FILE"
+    log "ERROR" "N2 DOUBLE DÉPENSE PROUVÉE : ${author:0:12}… a signé ${twin_id:0:12}… et ${eid:0:12}… avec le même prev (${prev:0:12}…)"
+    ( source "$BACKFILL_SCRIPT_DIR/relay.writePolicy.plugin/filter/common.sh" 2>/dev/null \
+        && nip101_log_event "30852" "fork_detected" 0 ) </dev/null || true
+
+    # Qui prévenir : MULTIPASS locaux concernés + capitaine
+    local -a to=(); local pk em
+    for pk in "$author" "$twin_dest" "$dest"; do
+        em=$(n2_pubkey_email "$pk"); [[ -n "$em" ]] && to+=("$em")
+    done
+    [[ -n "${CAPTAINEMAIL:-}" ]] && to+=("$CAPTAINEMAIL")
+    [[ -x "$N2_MAILJET" || -f "$N2_MAILJET" ]] || return 0
+    local html; html=$(mktemp /tmp/n2_fork_XXXXXX.html)
+    cat > "$html" <<HTML
+<h2>⚠️ Ğ1-N² — double dépense détectée</h2>
+<p>Le membre <code>${author}</code> a signé <strong>deux transactions différentes avec le même point de départ</strong> (<code>prev=${prev}</code>) :</p>
+<ul><li><code>${twin_id}</code> → <code>${twin_dest}</code></li><li><code>${eid}</code> → <code>${dest}</code></li></ul>
+<p>Les deux événements portent sa signature : c'est une preuve. Cette station a conservé la première reçue et <strong>rejeté la seconde</strong>.
+Si vous avez reçu l'une de ces transactions, ne considérez pas ces fonds comme sûrs avant d'avoir contacté votre capitaine.</p>
+<p><strong>Le compte de ce membre est GELÉ sur cette station</strong> : aucune transaction sortante n'y sera acceptée tant que les personnes concernées ne se sont pas rencontrées pour trancher. Le capitaine résout avec <code>n2_fork_resolve.sh</code>.</p>
+<p style="color:#888">Station : ${IPFSNODEID:-_local} — journal : ${N2_INCIDENTS_FILE}</p>
+HTML
+    local t
+    for t in $(printf '%s\n' "${to[@]}" | sort -u); do
+        bash "$N2_MAILJET" --template "bro_alert" --expire 72h "$t" "$html" "⚠️ Ğ1-N² : double dépense détectée" >/dev/null 2>&1 || true
+    done
+    rm -f "$html"
+    return 0
+}
+
+# Rafraîchit le cache de solde/dernier-tx (n2_ledger_lib.sh) des auteurs ET destinataires
+# des events 30852 qu'on vient d'importer. `strfry import` n'invoque pas filter/30852.sh,
+# seul écrivain du cache : sans ce rafraîchissement, le cache reste figé sur l'état d'AVANT
+# import et la revalidation du lot suivant compare le `prev` à un « dernier tx » périmé —
+# une double dépense (fork) serait alors acceptée (cf. tests/n2_fork_cross_test.sh, T4).
+# Usage : refresh_n2_ledger_cache <fichier NDJSON des events importés>
+refresh_n2_ledger_cache() {
+    local ndjson="$1" pk
+    [[ -s "$ndjson" ]] || return 0
+    while IFS= read -r pk; do
+        [[ "$pk" =~ ^[0-9a-f]{64}$ ]] && n2_ledger_rescan_author "$pk" >/dev/null 2>&1
+    done < <(jq -r 'select(.kind == 30852) | .pubkey, (.tags[]? | select(.[0]=="p") | .[1])' "$ndjson" 2>/dev/null | sort -u)
+    return 0
+}
+
 # Valide chaque event kind 30852 (Ğ1-N²) d'un lot de synchro AVANT import.
 # `strfry import` n'invoque JAMAIS filter/30852.sh — sans cette fonction, RIEN
 # n'empêcherait un event 30852 forgé de contaminer le ledger local une fois
@@ -1066,7 +1162,7 @@ reject_invalid_ledger_events() {
 
     local n2_events
     n2_events=$(jq -c '.[] | select(.kind == 30852)' "$batch_file" 2>/dev/null)
-    [[ -z "$n2_events" ]] && { echo "${rejected_ids[@]}"; return 0; }
+    [[ -z "$n2_events" ]] && return 0
 
     local sorted_events
     sorted_events=$(echo "$n2_events" | jq -sc 'sort_by(.created_at)[]')
@@ -1075,6 +1171,7 @@ reject_invalid_ledger_events() {
     declare -A running_last_tx=()
     declare -A seen_state=()
     declare -A batch_dtags=()
+    declare -A batch_prev_seen=() batch_prev_dest=()   # (auteur:prev) → id/dest du 1er event accepté du lot
 
     _rile_init_state() {
         local pk="$1"
@@ -1132,9 +1229,22 @@ reject_invalid_ledger_events() {
             rejected_ids+=("$eid"); continue
         fi
 
+        # ── 1b. created_at dans le futur (>5 min), comme le filtre live. Pas de limite d'ANCIENNETÉ
+        #       ici : une station longtemps hors ligne doit pouvoir rattraper l'historique. ──────
+        if [[ "$(echo "$ev" | jq -r '.created_at')" -gt $(( $(date +%s) + 300 )) ]]; then
+            log "WARN" "SYNC-30852: created_at dans le futur — rejet ${eid:0:16}..."
+            rejected_ids+=("$eid"); continue
+        fi
+
+        # ── 1c. Compte GELÉ (fork prouvé) : plus aucune tx sortante avant résolution humaine ──
+        if n2_is_frozen "$author"; then
+            log "INFO" "SYNC-30852: compte ${author:0:16}... gelé — ${eid:0:16}... exclu (cf. n2_fork_resolve.sh)"
+            rejected_ids+=("$eid"); continue
+        fi
+
         # ── 2. Autorité de mint — usurpation rejetée explicitement ───────────
         if [[ "$is_mint" == "true" ]]; then
-            if ! ([[ -s "$N2_MINT_AUTHORITIES_FILE" ]] && grep -qF "$author" "$N2_MINT_AUTHORITIES_FILE" 2>/dev/null); then
+            if ! ([[ -s "$N2_MINT_AUTHORITIES_FILE" ]] && grep -qxF "$author" "$N2_MINT_AUTHORITIES_FILE" 2>/dev/null); then
                 log "WARN" "SYNC-30852: usurpation de mint par ${author:0:16}... — rejet ${eid:0:16}..."
                 rejected_ids+=("$eid"); continue
             fi
@@ -1158,10 +1268,12 @@ reject_invalid_ledger_events() {
         if [[ -z "$cur_last" ]]; then
             if [[ "$prev_id" != "genesis" ]]; then
                 log "WARN" "SYNC-30852: 1re tx de ${author:0:16}... doit référencer 'genesis' — rejet ${eid:0:16}..."
+                n2_report_fork "$author" "$prev_id" "$eid" "$dest" "${batch_prev_seen[$author:$prev_id]:-}" "${batch_prev_dest[$author:$prev_id]:-}"
                 rejected_ids+=("$eid"); continue
             fi
         elif [[ "$prev_id" != "$cur_last" ]]; then
             log "WARN" "SYNC-30852: prev '${prev_id:0:16}...' != dernière tx connue '${cur_last:0:16}...' pour ${author:0:16}... (fork/rejeu) — rejet ${eid:0:16}..."
+            n2_report_fork "$author" "$prev_id" "$eid" "$dest" "${batch_prev_seen[$author:$prev_id]:-}" "${batch_prev_dest[$author:$prev_id]:-}"
             rejected_ids+=("$eid"); continue
         fi
 
@@ -1174,6 +1286,7 @@ reject_invalid_ledger_events() {
 
         # ── 6. Accepté — mise à jour de l'état simulé (auteur + destinataire) ─
         batch_dtags["$dkey"]=1
+        batch_prev_seen["$author:$prev_id"]="$eid"; batch_prev_dest["$author:$prev_id"]="$dest"
         if [[ "$is_mint" != "true" ]]; then
             running_balance["$author"]=$(awk "BEGIN{printf \"%.2f\", $cur_bal - $amount}")
         fi
@@ -1183,7 +1296,11 @@ reject_invalid_ledger_events() {
         running_balance["$dest"]=$(awk "BEGIN{printf \"%.2f\", ${running_balance[$dest]:-0} + $amount}")
     done <<< "$sorted_events"
 
-    echo "${rejected_ids[@]}"
+    # Un ID par ligne, RIEN si aucun rejet. (Avant : `echo "${rejected_ids[@]}"` sortait une
+    # ligne vide quand le tableau était vide → mapfile créait 1 élément "" → faux « 1 event
+    # rejeté » à chaque cycle, soit ~35 faux WARN par heure.)
+    (( ${#rejected_ids[@]} )) && printf '%s\n' "${rejected_ids[@]}"
+    return 0
 }
 
 # Function to process and import events from WebSocket response
@@ -1241,35 +1358,37 @@ process_and_import_events() {
     # cf. reject_invalid_ledger_events() en tête de fichier.
     log "INFO" "Validating kind 30852 (Ğ1-N²) events before import..."
     local invalid_ledger_ids=()
-    mapfile -t invalid_ledger_ids < <(reject_invalid_ledger_events "$response_file")
-    [[ ${#invalid_ledger_ids[@]} -gt 0 ]] && log "WARN" "SYNC: ${#invalid_ledger_ids[@]} event(s) 30852 rejeté(s) à la revalidation — exclus de l'import"
+    # grep : log() écrit aussi ses WARN sur stdout, capturé ici — ne garder que les event IDs
+    mapfile -t invalid_ledger_ids < <(reject_invalid_ledger_events "$response_file" | grep -E '^[0-9a-fA-F]{64}$')
+    # Compteur (pas un WARN par run) : rejet attendu et répété à chaque cycle. Cumul dans
+    # backfill.counters, ligne INFO dans le log principal seulement.
+    if [[ ${#invalid_ledger_ids[@]} -gt 0 ]]; then
+        backfill_count "ledger_30852_rejected" "${#invalid_ledger_ids[@]}"
+        log "INFO" "SYNC: ${#invalid_ledger_ids[@]} event(s) 30852 rejeté(s) à la revalidation — exclus de l'import (cumul: $(backfill_count_get ledger_30852_rejected))"
+    fi
 
     log "INFO" "Filtering out 'Hello NOSTR visitor.' messages and deleted messages..."
 
+    # Filtre d'exclusion : uniquement les event IDs valides (64 hex). Construit AVANT le test
+    # pour ne jamais produire un select(... and ()) invalide quand les tableaux ne contiennent
+    # que des entrées vides (jq échouait → filtered_file vide → import ignoré à CHAQUE cycle).
+    local deletion_filter="" deleted_id
+    for deleted_id in "${deleted_message_ids[@]}" "${protected_deletion_ids[@]}" "${invalid_ledger_ids[@]}"; do
+        [[ "$deleted_id" =~ ^[0-9a-fA-F]{64}$ ]] || continue
+        deletion_filter+="${deletion_filter:+ and }.id != \"$deleted_id\""
+    done
+
     # Filter out events containing "Hello NOSTR visitor." in their content AND deleted messages
     # Use -c for compact output (one JSON object per line)
-    if [[ ${#deleted_message_ids[@]} -gt 0 || ${#protected_deletion_ids[@]} -gt 0 || ${#invalid_ledger_ids[@]} -gt 0 ]]; then
-        # Create a jq filter to exclude deleted message IDs
-        # This prevents re-importing messages that have been marked for deletion
-        local deletion_filter=""
-        for deleted_id in "${deleted_message_ids[@]}" "${protected_deletion_ids[@]}" "${invalid_ledger_ids[@]}"; do
-            # Validation stricte : les event IDs NOSTR valides font exactement 64 hex chars
-            [[ "$deleted_id" =~ ^[0-9a-fA-F]{64}$ ]] || continue
-            if [[ -n "$deletion_filter" ]]; then
-                deletion_filter+=" and .id != \"$deleted_id\""
-            else
-                deletion_filter=".id != \"$deleted_id\""
-            fi
-        done
-        
-        # Apply both filters: exclude "Hello NOSTR visitor." and deleted messages
-        # This ensures we don't re-import messages that users have explicitly deleted
+    if [[ -n "$deletion_filter" ]]; then
+        # Exclut aussi les IDs supprimés/protégés/invalides : évite de ré-importer des messages
+        # que les utilisateurs ont explicitement supprimés
         jq -c ".[] | select((.content | test(\"Hello NOSTR visitor.\") | not) and ($deletion_filter))" "$response_file" > "$filtered_file" 2>/dev/null
     else
         # Only filter out "Hello NOSTR visitor." messages
         jq -c '.[] | select(.content | test("Hello NOSTR visitor.") | not)' "$response_file" > "$filtered_file" 2>/dev/null
     fi
-    
+
     # Count events after filtering using jq (more reliable than wc -l)
     local filtered_events=$(jq -s 'length' "$filtered_file" 2>/dev/null || echo "0")
     local removed_events=$((total_events - filtered_events))
@@ -1280,7 +1399,7 @@ process_and_import_events() {
     
     # Check if we have events to import
     if [[ ! -s "$filtered_file" ]]; then
-        log "WARN" "No events remaining after filtering"
+        log "INFO" "No events remaining after filtering"
         rm -f "$filtered_file" "$deletion_events_file" "$video_events_file"
         return 0
     fi
@@ -1338,6 +1457,9 @@ process_and_import_events() {
         rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"
         return 1
     fi
+
+    # Soldes N² : le cache doit refléter les events qu'on vient d'importer
+    refresh_n2_ledger_cache "$filtered_file"
 
     # Clean up temporary files
     rm -f "$filtered_file" "$import_file" "$deletion_events_file" "$video_events_file"

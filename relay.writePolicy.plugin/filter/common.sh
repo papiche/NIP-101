@@ -350,7 +350,8 @@ nip101_log_event() {
 import sys, json, time
 
 path, kind, action, ok, extra = sys.argv[1:6]
-RING_LIMIT = 200
+RING_LIMIT = 1000  # fichier publié sur IPNS : borné en taille ET en âge (48h)
+MAX_AGE_H = 48
 
 event = {
     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -367,14 +368,32 @@ if extra:
     except Exception:
         pass
 
+import fcntl
+MAX_AGE_H = 48
 try:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
-    with open(path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    if len(lines) > RING_LIMIT:
-        with open(path, "w", encoding="utf-8") as f:
-            f.writelines(lines[-RING_LIMIT:])
+    with open(path, "a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+            f.flush()
+            f.seek(0)
+            lines = f.readlines()
+            cutoff = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(time.time() - MAX_AGE_H * 3600))
+            kept = []
+            for l in lines:
+                try:
+                    if json.loads(l).get("timestamp", "") >= cutoff:
+                        kept.append(l)
+                except Exception:
+                    continue
+            kept = kept[-RING_LIMIT:]
+            if len(kept) != len(lines):
+                f.seek(0)
+                f.truncate()
+                f.writelines(kept)
+                f.flush()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 except Exception:
     pass
 PYEOF
